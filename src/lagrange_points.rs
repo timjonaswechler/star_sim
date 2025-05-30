@@ -1,8 +1,8 @@
 // lagrange_points.rs - Lagrange-Punkte und Trojaner basierend auf dem Artikel
 
 use crate::constants::MIN_LAGRANGE_MASS_RATIO;
-use crate::stellar_properties::StellarProperties;
-use crate::units::{Distance, Mass, UnitConversion, UnitSystem};
+use crate::stellar_properties::*;
+use crate::units::*;
 use serde::{Deserialize, Serialize};
 
 /// Lagrange-Punkt System für ein 2-Körper System
@@ -136,7 +136,7 @@ impl LagrangeSystem {
     }
 
     /// Prüft, ob ein kleiner Körper gravitativ von einem Lagrange-Punkt gefangen werden kann
-    pub fn can_capture_at_lagrange_point(&self, point: u8, test_mass: &Mass) -> bool {
+    pub fn can_capture_at_lagrange_point(&self, point: u8, _test_mass: &Mass) -> bool {
         match point {
             1 | 2 | 3 => {
                 // L1, L2, L3 sind nur quasi-stabil

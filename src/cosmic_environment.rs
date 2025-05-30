@@ -1,11 +1,11 @@
 // cosmic_environment.rs - Kosmische Umgebung und galaktische Einflüsse
 
-use rand::{Rng, SeedableRng};
+use rand::Rng;
 use rand_chacha::ChaCha8Rng;
 use serde::{Deserialize, Serialize};
 
 use crate::constants::*;
-use crate::units::{Distance, Time, UnitConversion, UnitSystem};
+use crate::units::*;
 
 /// Kosmische Epoche und Zeitrahmen
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -347,9 +347,9 @@ impl CosmicRadiationEnvironment {
             GalacticRegion::Halo { .. } => (0.1, 0.1, 0.5),
         };
 
-        let agn_risk = base_agn * age_factor * rng.gen_range(0.5_f64..1.5_f64);
-        let supernova_frequency = base_sn * age_factor * rng.gen_range(0.5_f64..1.5_f64);
-        let grb_risk = base_grb * rng.gen_range(0.3_f64..1.0_f64);
+        let agn_risk: f64 = base_agn * age_factor * rng.gen_range(0.5..1.5);
+        let supernova_frequency: f64 = base_sn * age_factor * rng.gen_range(0.5..1.5);
+        let grb_risk: f64 = base_grb * rng.gen_range(0.3..1.0);
 
         // Stellar encounter rate (abhängig von Sternendichte)
         let stellar_encounter_rate = match region {
@@ -364,7 +364,7 @@ impl CosmicRadiationEnvironment {
         let cosmic_ray_flux = (10.0 / distance_kpc).min(100.0); // GeV/cm²/s
 
         // UV-Hintergrund
-        let uv_background = match epoch.age_universe {
+        let uv_background: f64 = match epoch.age_universe {
             age if age < 2.0 => rng.gen_range(5.0..10.0),
             age if age < 6.0 => rng.gen_range(2.0..5.0),
             _ => rng.gen_range(1.0..2.0),
@@ -374,9 +374,9 @@ impl CosmicRadiationEnvironment {
         let gravitational_wave_activity = rng.gen_range(0.1..0.5);
 
         Self {
-            agn_risk: agn_risk.min(1.0_f64),
-            supernova_frequency: supernova_frequency.min(1.0_f64),
-            grb_risk: grb_risk.min(1.0_f64),
+            agn_risk: agn_risk.min(1.0),
+            supernova_frequency: supernova_frequency.min(1.0),
+            grb_risk: grb_risk.min(1.0),
             stellar_encounter_rate,
             cosmic_ray_flux,
             uv_background,
@@ -537,7 +537,7 @@ impl GalacticDynamics {
 
     fn determine_spiral_arm_context(
         distance_kpc: f64,
-        age_gyr: f64,
+        _age_gyr: f64,
         rng: &mut ChaCha8Rng,
     ) -> SpiralArmContext {
         // Vereinfachte Spiralarm-Logik
@@ -604,6 +604,7 @@ impl GalacticDynamics {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rand::SeedableRng;
 
     #[test]
     fn test_cosmic_epoch() {

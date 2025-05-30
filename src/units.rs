@@ -1,7 +1,6 @@
 // units.rs - Einheitensystem für astronomische und SI-Einheiten
 
 use crate::constants::conversion::*;
-use crate::constants::*;
 use serde::{Deserialize, Serialize};
 
 /// Einheitensystem für Berechnungen
@@ -338,6 +337,8 @@ impl UnitConversion for Velocity {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::constants::PI;
+    use crate::constants::{AU_TO_METERS, SECONDS_PER_YEAR, SOLAR_MASS};
 
     #[test]
     fn test_distance_conversion() {

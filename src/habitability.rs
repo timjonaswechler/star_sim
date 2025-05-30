@@ -1,9 +1,9 @@
 // habitability.rs - Detaillierte Bewohnbarkeitsanalyse
 
-use crate::orbital_mechanics::{OrbitType, OrbitalElements};
-use crate::stellar_properties::{HabitableZone, StellarProperties, TidalLockingAnalysis};
-use crate::system_hierarchy::{CosmicRadiationEnvironment, SystemType};
-use crate::units::{Distance, Mass, Time, UnitConversion, UnitSystem};
+use crate::cosmic_environment::*;
+use crate::stellar_properties::*;
+use crate::system_hierarchy::*;
+use crate::units::*;
 use serde::{Deserialize, Serialize};
 
 /// Umfassendes Bewohnbarkeits-Assessment
@@ -197,7 +197,7 @@ impl HabitabilityAssessment {
         target_distances: &[Distance],
     ) -> Self {
         // Vereinfachte Binäranalyse - kombiniert beide Sterne
-        let combined_luminosity = primary.luminosity + secondary.luminosity;
+        let _combined_luminosity = primary.luminosity + secondary.luminosity;
         let dominant_star = if primary.luminosity > secondary.luminosity {
             primary
         } else {
@@ -712,16 +712,18 @@ impl HabitabilityAssessment {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::system_hierarchy::CosmicRadiationEnvironment;
 
     #[test]
     fn test_habitability_assessment() {
         let sun = StellarProperties::sun_like();
-        let radiation_env = CosmicRadiationEnvironment {
+        let radiation_env = crate::cosmic_environment::CosmicRadiationEnvironment {
             agn_risk: 0.1,
             supernova_frequency: 0.2,
             grb_risk: 0.3,
             stellar_encounter_rate: 0.1,
+            cosmic_ray_flux: 10.0,            // Hinzugefügt
+            uv_background: 1.0,               // Hinzugefügt
+            gravitational_wave_activity: 0.1, // Hinzugefügt
         };
 
         let target_distances = vec![Distance::au(0.5), Distance::au(1.0), Distance::au(1.5)];
@@ -756,11 +758,15 @@ mod tests {
     fn test_risk_factors() {
         let m_dwarf = StellarProperties::new(Mass::solar_masses(0.3), Time::years(5.0), 0.0);
 
-        let high_risk_env = CosmicRadiationEnvironment {
+        let high_risk_env = crate::cosmic_environment::CosmicRadiationEnvironment {
+            // Verwende den direkten Pfad für Klarheit
             agn_risk: 0.8,
             supernova_frequency: 0.7,
             grb_risk: 0.6,
             stellar_encounter_rate: 0.5,
+            cosmic_ray_flux: 50.0,            // Hinzugefügt
+            uv_background: 5.0,               // Hinzugefügt
+            gravitational_wave_activity: 0.5, // Hinzugefügt
         };
 
         let risk_factors = HabitabilityAssessment::identify_risk_factors(&m_dwarf, &high_risk_env);

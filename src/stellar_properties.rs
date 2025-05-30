@@ -1,8 +1,8 @@
 // stellar_properties.rs - Erweiterte stellare Eigenschaften
 
 use crate::constants::*;
-use crate::orbital_mechanics::{EscapeVelocity, OrbitalElements};
-use crate::units::{Distance, Mass, Time, UnitConversion, UnitSystem, Velocity};
+use crate::orbital_mechanics::*;
+use crate::units::*;
 use serde::{Deserialize, Serialize};
 
 pub type CosmicTime = f64;
@@ -410,7 +410,7 @@ mod tests {
     fn test_stellar_properties_si() {
         let star = StellarProperties::new(
             Mass::kilograms(SOLAR_MASS),
-            Time::seconds(4.6 * SECONDS_PER_YEAR * 1e9),
+            Time::seconds(4.6 * SECONDS_PER_YEAR * 1e9).clone(),
             0.0,
         );
 

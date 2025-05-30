@@ -128,4 +128,9 @@ mod tests {
         // Aus dem Artikel: Mindestens 24.96:1 für stabile L4/L5
         assert_eq!(MIN_LAGRANGE_MASS_RATIO, 24.96);
     }
+
+    #[test]
+    fn test_j2000_epoch() {
+        assert_eq!(J2000_EPOCH, 2451545.0);
+    }
 }
