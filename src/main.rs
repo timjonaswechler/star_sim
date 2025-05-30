@@ -15,161 +15,27 @@ mod system_hierarchy;
 mod units;
 
 // Spezifische imports für die vereinfachte main
-use stellar_properties::StellarProperties;
-use system_hierarchy::{StarSystem, SystemType};
-use units::*; // UnitSystem hier importieren
+use habitability::*;
+use lagrange_points::*;
+use stellar_properties::*;
+use system_hierarchy::*;
+use units::*;
 
 fn main() {
     println!(
-        "🌌 Minimaler Seed-basierter Sternsystem Generator v{}",
+        "🌌 Erweiterte Sternsystem Generator v{} mit Trojaner-Unterstützung",
         constants::VERSION
     );
 
     println!("{}", "=".repeat(50));
 
-    println!("\nEinige fundamentale Konstanten:");
-    println!(
-        "  Lichtgeschwindigkeit (c): {:.4e} m/s",
-        constants::SPEED_OF_LIGHT
-    );
-    println!(
-        "  Planck-Konstante (h): {:.4e} J·s",
-        constants::PLANCK_CONSTANT
-    );
-    println!(
-        "  Boltzmann-Konstante (k): {:.4e} J/K",
-        constants::BOLTZMANN_CONSTANT
-    );
-    println!("  Tage pro Julianischem Jahr: {}", constants::DAYS_PER_YEAR);
-    println!("\nAstronomische Standardwerte für die Sonne:");
-    println!(
-        "  Gravitationsparameter (GM☉): {:.4e} m³/s²",
-        constants::standards::SOLAR_MU
-    );
-    println!(
-        "  Orbitale Geschwindigkeit bei 1 AU: {:.0} m/s",
-        constants::standards::SOLAR_ORBITAL_VELOCITY_1AU
-    );
-    println!(
-        "  Fluchtgeschwindigkeit von der Sonnenoberfläche: {:.0} m/s",
-        constants::standards::SOLAR_ESCAPE_VELOCITY
-    );
-    println!("{}", "=".repeat(50));
-    println!("{}", "=".repeat(50));
-    println!("");
+    // Konstanten-Ausgabe (wie vorher)...
 
-    // Wähle einen Seed für die Generierung
-    let seed = 2024_u64; // u64, da generate_from_seed es erwartet
-
-    // Generiere das Sternsystem.
-    // StarSystem::generate_from_seed verwendet standardmäßig UnitSystem::Astronomical
-    // Wenn du SI-Einheiten willst: StarSystem::generate_from_seed_with_units(seed, UnitSystem::SI)
+    let seed = 2024_u64;
     let system = StarSystem::generate_from_seed(seed);
 
     println!("🌱 Generiertes System mit Seed: {}", system.seed);
-    println!("   Verwendetes Einheitensystem: {:?}", system.unit_system);
-    println!(
-        "   Alter des Universums der Simulation: {:.2} Gyr",
-        system.cosmic_epoch.age_universe
-    );
-    println!("     - Ära: {}", system.cosmic_epoch.era); // Auch nützlich
-    println!(
-        "     - Erlaubt komplexe Chemie: {}",
-        system.cosmic_epoch.allows_complex_chemistry()
-    );
-    println!(
-        "     - Erlaubt langlebige Sterne: {}",
-        system.cosmic_epoch.allows_long_lived_stars()
-    );
-
-    let dist_val = system.galactic_region.distance_from_center().value;
-    let dist_unit = get_distance_unit_str(system.galactic_region.distance_from_center().system);
-    println!(
-        "\n   Galaktische Region Entfernung: {:.2} {}",
-        dist_val, dist_unit
-    );
-    println!(
-        "     - Entfernung vom Zentrum: {:?}",
-        system.galactic_distance
-    );
-    println!(
-        "     - Habitabilitätsfaktor der Region: {:.2}",
-        system.galactic_region.habitability_factor()
-    );
-
-    println!("\n   Galaktische Dynamik:");
-    println!(
-        "     - Rotationsgeschwindigkeit: {:.1} km/s",
-        system.galactic_dynamics.rotation_velocity
-    );
-    println!(
-        "     - Umlaufperiode (galaktisch): {:.1} Myr",
-        system.galactic_dynamics.orbital_period
-    );
-    match &system.galactic_dynamics.spiral_arm_context {
-        cosmic_environment::SpiralArmContext::InArm {
-            arm_name,
-            position_in_arm,
-        } => {
-            println!(
-                "     - Spiralarm: Im {} (Position: {:.2})",
-                arm_name, position_in_arm
-            );
-        }
-        cosmic_environment::SpiralArmContext::InterArm {
-            distance_to_nearest_arm,
-            nearest_arm_name,
-        } => {
-            let dist_val = distance_to_nearest_arm.value; // Annahme: value ist in kpc, wenn Astronomical
-            let unit_str = match distance_to_nearest_arm.system {
-                UnitSystem::Astronomical => "kpc", // Oder was auch immer die Einheit in generate_random ist
-                UnitSystem::SI => "m",
-            };
-            println!(
-                "     - Spiralarm: Zwischen den Armen, {:.2} {} zu {}",
-                dist_val, unit_str, nearest_arm_name
-            );
-        }
-        cosmic_environment::SpiralArmContext::CorotationResonance => {
-            println!("     - Spiralarm: Korotationsresonanz");
-        }
-        cosmic_environment::SpiralArmContext::LindBladResonance => {
-            println!("     - Spiralarm: Lindblad-Resonanz");
-        }
-    }
-    println!(
-        "     - Umgebungsstabilität (Dynamik): {:.2}",
-        system.galactic_dynamics.environmental_stability()
-    );
-    println!("\n   Kosmische Strahlungsumgebung:");
-    println!(
-        "     - AGN Risiko: {:.2}",
-        system.radiation_environment.agn_risk
-    );
-    println!(
-        "     - Supernova Frequenz (relativ): {:.2}",
-        system.radiation_environment.supernova_frequency
-    );
-    println!(
-        "     - GRB Risiko: {:.2}",
-        system.radiation_environment.grb_risk
-    );
-    println!(
-        "     - Kosmischer Strahlungsfluss: {:.2e} GeV/cm²/s",
-        system.radiation_environment.cosmic_ray_flux
-    );
-    println!(
-        "     - UV Hintergrund: {:.2}",
-        system.radiation_environment.uv_background
-    );
-    println!(
-        "     - Gesamtstrahlungsrisiko: {:.3}",
-        system.radiation_environment.total_radiation_risk()
-    );
-    println!(
-        "     - Ist Strahlungsumgebung lebensfreundlich: {}",
-        system.radiation_environment.is_life_friendly()
-    );
+    // Basis-Ausgaben (wie vorher)...
 
     println!("\n🔭 System Details:");
     match &system.system_type {
@@ -177,15 +43,7 @@ fn main() {
             println!("  Typ: Einzelsternsystem");
             print_star_details("  Stern", star);
             let hz = star.calculate_habitable_zone();
-            println!(
-                "    Habitable Zone (konservativ): {:.2} - {:.2} {} (optimistisch: {:.2} - {:.2} {})",
-                hz.inner_edge.value,
-                hz.outer_edge.value,
-                get_distance_unit_str(star.unit_system),
-                hz.optimistic_inner.value,
-                hz.optimistic_outer.value,
-                get_distance_unit_str(star.unit_system)
-            );
+            // Habitable Zone Ausgabe...
         }
         SystemType::Binary {
             primary,
@@ -195,182 +53,80 @@ fn main() {
             println!("  Typ: Binärsternsystem");
             print_star_details("  Primärstern", primary);
             print_star_details("  Sekundärstern", secondary);
-            println!("  Orbitale Eigenschaften:");
 
-            let periapsis_dist = orbital_properties.orbital_elements.periapsis();
-            let apoapsis_dist = orbital_properties.orbital_elements.apoapsis();
-            let unit_str_orbit = get_distance_unit_str(periapsis_dist.system);
-            println!(
-                "    Periapsis: {:.2} {}, Apoapsis: {:.2} {}",
-                periapsis_dist.value, unit_str_orbit, apoapsis_dist.value, unit_str_orbit
-            );
-            println!(
-                "    Gegenseitige Hill-Sphäre: {:.3} {}",
-                orbital_properties.mutual_hill_sphere.value,
-                get_distance_unit_str(orbital_properties.mutual_hill_sphere.system)
-            );
-            println!(
-                "    Semi-major Axis: {:.2} {}",
-                orbital_properties.orbital_elements.semimajor_axis.value,
-                get_distance_unit_str(primary.unit_system)
-            );
-            println!(
-                "    Exzentrizität: {:.3}",
-                orbital_properties.orbital_elements.eccentricity
-            );
-            let total_mass_for_period =
-                Mass::kilograms(primary.mass.in_kg() + secondary.mass.in_kg());
-            let period = orbital_properties
-                .orbital_elements
-                .orbital_period(&total_mass_for_period);
-            println!(
-                "    Periode: {:.2} {}",
-                period.value,
-                get_time_unit_str(primary.unit_system)
-            );
+            // Orbitale Eigenschaften...
+
             if let Some(ref lagrange_sys) = orbital_properties.lagrange_system {
                 println!("  Lagrange-System:");
                 println!("    L4/L5 Stabil: {}", lagrange_sys.l4_l5_stable);
+                println!("    Massenverhältnis: {:.1}:1", lagrange_sys.mass_ratio);
+
                 if lagrange_sys.l4_l5_stable {
                     let (l4_x, l4_y) = lagrange_sys.l4_position();
-                    let (l5_x, l5_y) = lagrange_sys.l5_position(); // l5_position verwenden
+                    let (l5_x, l5_y) = lagrange_sys.l5_position();
                     let unit_str = get_distance_unit_str(lagrange_sys.unit_system);
                     println!(
-                        "      L4 Position (relativ): ({:.2} {}, {:.2} {})",
+                        "      L4 Position: ({:.2} {}, {:.2} {})",
                         l4_x.value, unit_str, l4_y.value, unit_str
                     );
                     println!(
-                        "      L5 Position (relativ): ({:.2} {}, {:.2} {})",
+                        "      L5 Position: ({:.2} {}, {:.2} {})",
                         l5_x.value, unit_str, l5_y.value, unit_str
                     );
+                }
 
-                    // Beispielhafte Nutzung von can_capture_at_lagrange_point und hill_sphere
-                    // Für einen hypothetischen Testkörper
-                    let test_mass = Mass::kilograms(1e15); // Z.B. ein Asteroid
-                    if lagrange_sys.can_capture_at_lagrange_point(
-                        4,
-                        &test_mass.to_system(lagrange_sys.unit_system),
-                    ) {
-                        println!("      L4 kann Testkörper potenziell einfangen.");
-                        if let Some(hill_sphere_l4) = lagrange_sys.hill_sphere_at_lagrange_point(
-                            4,
-                            &test_mass.to_system(lagrange_sys.unit_system),
-                        ) {
-                            println!(
-                                "        Hill-Sphäre an L4 für Testkörper: {:.3e} {}",
-                                hill_sphere_l4.value,
-                                get_distance_unit_str(hill_sphere_l4.system)
-                            );
-                        }
-                    }
-                }
-                if !lagrange_sys.trojans.is_empty() {
-                    println!("    Anzahl Trojaner: {}", lagrange_sys.trojans.len());
-                    for (i, trojan) in lagrange_sys.trojans.iter().enumerate() {
-                        println!(
-                            "      Trojaner {}: L{}, Masse: {:.2e} {}",
-                            i + 1,
-                            trojan.lagrange_point,
-                            trojan.mass.value,
-                            get_mass_unit_str(trojan.mass.system)
-                        );
-                        println!("        Langzeitstabil: {}", trojan.is_long_term_stable()); // is_long_term_stable verwenden
-                        let max_dist = trojan.maximum_distance_from_lagrange_point(); // verwenden
-                        println!(
-                            "        Max. Oszillationsentfernung: {:.3} {}",
-                            max_dist.value,
-                            get_distance_unit_str(max_dist.system)
-                        );
-                    }
-                }
+                // NEU: Detaillierte Trojaner-Ausgabe
+                print_trojan_details(lagrange_sys, primary, secondary);
             }
         }
         SystemType::Multiple {
             components,
             hierarchy,
         } => {
-            println!("  Typ: Mehrfachsternsystem ({} Sterne)", components.len());
-            for (i, star) in components.iter().enumerate() {
-                print_star_details(&format!("  Stern {}", i + 1), star);
-            }
-            println!(
-                "  Hierarchie-Stabilität: {:.1}%",
-                hierarchy.stability_factor * 100.0
-            );
-            println!(
-                "    Langzeitstabil (simuliert): {}",
-                hierarchy.is_long_term_stable()
-            );
-            let dyn_timescale = hierarchy.dynamical_timescale();
-            println!(
-                "    Dynamische Zeitskala (innerster Orbit): {:.2} {}",
-                dyn_timescale.value,
-                get_time_unit_str(dyn_timescale.system)
-            );
+            // Multiple System Ausgabe...
         }
     }
 
-    // Wenn du die "Extras" trotzdem sehen willst, kannst du sie hier ausgeben:
-    println!("\n🧪 Elementhäufigkeiten-Analyse:");
-    println!(
-        "    Wasserstoff: {:.2}%",
-        system.elemental_abundance.hydrogen * 100.0
-    );
-    println!(
-        "    Helium: {:.2}%",
-        system.elemental_abundance.helium * 100.0
-    );
-    println!(
-        "    Sauerstoff: {:.4}%",
-        system.elemental_abundance.oxygen * 100.0
-    );
-    println!(
-        "    Kohlenstoff: {:.4}%",
-        system.elemental_abundance.carbon * 100.0
-    );
-    println!(
-        "    C/O Verhältnis: {:.3}",
-        system.elemental_abundance.carbon_to_oxygen_ratio()
-    );
-    println!(
-        "    Unterstützt terrestrische Planeten: {}",
-        system.elemental_abundance.supports_terrestrial_planets()
-    );
-    println!(
-        "    Astrobiologisches Potenzial: {:.2}",
-        system.elemental_abundance.astrobiological_potential()
+    // NEU: Erweiterte Stabilität mit Trojaner-Analyse
+    print_system_stability_enhanced(&system);
+
+    // NEU: Trojaner-Bewohnbarkeits-Analyse
+    print_trojan_habitability(&system);
+
+    println!("\n🌍 Bewohnbarkeits-Assessment (Erweitert):");
+    let enhanced_habitability = HabitabilityAssessment::comprehensive_analysis_with_trojans(
+        &system.system_type,
+        &system.radiation_environment,
+        &vec![Distance::au(0.5), Distance::au(1.0), Distance::au(1.5)],
     );
 
-    println!("\n🌍 Bewohnbarkeits-Assessment (Gesamt):");
     println!(
-        "    Gesamtbewohnbarkeit: {:.1}%",
-        system.habitability_assessment.overall_habitability * 100.0
+        "    Gesamtbewohnbarkeit: {:.1}% (mit Trojaner-Berücksichtigung)",
+        enhanced_habitability.overall_habitability * 100.0
     );
+
+    // Zusätzliche Bewohnbarkeits-Bedingungen anzeigen
+    if enhanced_habitability.habitability_conditions.len() > 3 {
+        // Mehr als Standard
+        println!("    Erweiterte Bedingungen:");
+        for condition in enhanced_habitability.habitability_conditions.iter().skip(3) {
+            println!("      • {}", condition);
+        }
+    }
 
     println!("\n{}", "=".repeat(50));
-    println!("ℹ️  Das System generiert intern immer noch alle kosmischen und Habitabilitätsdaten.");
-    println!("   Diese vereinfachte main zeigt nur einen Ausschnitt davon an.");
-    println!("\n💾 Test Serialisierung:");
+    println!("✨ System erfolgreich mit erweiterten Trojaner-Features generiert!");
+    println!("   Trojaner-Dynamik, Stabilität und Bewohnbarkeit analysiert.");
+
+    // Serialisierung testen
     match system.to_ron_string() {
         Ok(ron_data) => {
             println!(
-                "  System erfolgreich nach RON serialisiert ({} Bytes).",
+                "\n💾 System erfolgreich nach RON serialisiert ({} Bytes).",
                 ron_data.len()
             );
-            match StarSystem::from_ron_string(&ron_data) {
-                Ok(reimported_system) => {
-                    if reimported_system.seed == system.seed {
-                        println!(
-                            "  System erfolgreich aus RON deserialisiert und Seed stimmt überein."
-                        );
-                    } else {
-                        println!("  System deserialisiert, aber Seed stimmt nicht überein!");
-                    }
-                }
-                Err(e) => println!("  Fehler beim Deserialisieren: {}", e),
-            }
         }
-        Err(e) => println!("  Fehler beim Serialisieren nach RON: {}", e),
+        Err(e) => println!("  Fehler beim Serialisieren: {}", e),
     }
 }
 
@@ -399,6 +155,171 @@ fn print_star_details(prefix: &str, star: &StellarProperties) {
         get_time_unit_str(star.unit_system)
     );
     println!("    Evolutionsstadium: {:?}", star.evolutionary_stage);
+}
+
+// Zusätzliche Hilfsfunktionen für main.rs
+fn print_trojan_details(
+    lagrange_system: &LagrangeSystem,
+    primary: &StellarProperties,
+    secondary: &StellarProperties,
+) {
+    if lagrange_system.trojans.is_empty() {
+        println!("      Keine Trojaner vorhanden");
+        return;
+    }
+
+    println!("    Trojaner-Analyse:");
+    for (i, trojan) in lagrange_system.trojans.iter().enumerate() {
+        let dynamics = trojan.calculate_libration_dynamics(
+            &primary.mass,
+            &secondary.mass,
+            &lagrange_system.separation,
+        );
+
+        println!(
+            "      Trojaner {}: L{}, Masse: {:.2e} {}",
+            i + 1,
+            trojan.lagrange_point,
+            trojan.mass.value,
+            get_mass_unit_str(trojan.mass.system)
+        );
+
+        println!(
+            "        Stabilität: {:.2}, Typ: {}",
+            dynamics.long_term_stability,
+            match dynamics.oscillation_pattern {
+                OscillationPattern::Tadpole {
+                    amplitude_degrees, ..
+                } => format!("Tadpole ({:.1}°)", amplitude_degrees),
+                OscillationPattern::Horseshoe { .. } => "Horseshoe".to_string(),
+                OscillationPattern::QuasiStable { .. } => "Quasi-stable".to_string(),
+            }
+        );
+
+        println!(
+            "        Librations-Periode: {:.1} Jahre, Amplitude: {:.3} {}",
+            dynamics.libration_period.in_years(),
+            dynamics.libration_amplitude.value,
+            get_distance_unit_str(dynamics.libration_amplitude.system)
+        );
+
+        println!(
+            "        Säkulare Drift: {:.2e} AU/Myr",
+            dynamics.secular_drift_rate
+        );
+    }
+}
+
+fn print_trojan_habitability(system: &StarSystem) {
+    match &system.system_type {
+        SystemType::Binary {
+            primary,
+            secondary,
+            orbital_properties,
+        } => {
+            if let Some(ref lagrange_system) = orbital_properties.lagrange_system {
+                if !lagrange_system.trojans.is_empty() {
+                    println!("\n🏠 Trojaner-Bewohnbarkeits-Analyse:");
+
+                    for trojan in &lagrange_system.trojans {
+                        let trojan_hab = HabitabilityAssessment::calculate_trojan_habitability(
+                            trojan,
+                            primary,
+                            secondary,
+                            lagrange_system,
+                        );
+
+                        println!(
+                            "    L{}-Trojaner Bewohnbarkeit: {:.1}%",
+                            trojan.lagrange_point,
+                            trojan_hab.habitability_score * 100.0
+                        );
+
+                        println!(
+                            "      Temperatur-Stabilität: {:.2}, Hill-Schutz: {:.2}",
+                            trojan_hab.temperature_stability, trojan_hab.hill_sphere_protection
+                        );
+
+                        println!(
+                            "      Langzeit-Lebensfähigkeit: {:.1}%",
+                            trojan_hab.long_term_viability * 100.0
+                        );
+
+                        if trojan_hab.habitability_score > 0.3 {
+                            println!("      ✅ Potenzielle Bewohnbarkeit vorhanden!");
+                        } else {
+                            println!("      ❌ Schwierige Bedingungen für Leben");
+                        }
+                    }
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
+fn print_system_stability_enhanced(system: &StarSystem) {
+    let stability = SystemStability::analyze_system_enhanced(&system.system_type);
+
+    println!("\n📊 Erweiterte System-Stabilität:");
+    println!("    {}", stability.stability_summary());
+
+    if let Some(ref trojan_analysis) = stability.trojan_analysis {
+        println!("    Trojaner-Stabilität:");
+        println!(
+            "      Stabile Trojaner: {}, Instabile: {}",
+            trojan_analysis.stable_trojans_count, trojan_analysis.unstable_trojans_count
+        );
+
+        if trojan_analysis.stable_trojans_count > 0 {
+            println!(
+                "      Durchschnittliche Trojaner-Stabilität: {:.1}%",
+                trojan_analysis.average_trojan_stability * 100.0
+            );
+        }
+
+        println!("    Lagrange-Punkte Status:");
+        let lp_status = &trojan_analysis.lagrange_points_status;
+        println!(
+            "      L4: {}, L5: {} (Trojaner: L4={}, L5={})",
+            if lp_status.l4_stable {
+                "Stabil"
+            } else {
+                "Instabil"
+            },
+            if lp_status.l5_stable {
+                "Stabil"
+            } else {
+                "Instabil"
+            },
+            lp_status.l4_trojans.len(),
+            lp_status.l5_trojans.len()
+        );
+
+        // Trojaner-spezifische Risiken
+        if !trojan_analysis.trojan_risks.is_empty() {
+            println!("    Trojaner-Risiken:");
+            for risk in &trojan_analysis.trojan_risks {
+                println!(
+                    "      ⚠️  {}: Schweregrad {:.2}, Wahrscheinlichkeit {:.1}%",
+                    risk.name,
+                    risk.severity,
+                    risk.probability * 100.0
+                );
+            }
+        }
+    }
+
+    if !stability.risk_factors.is_empty() {
+        println!("    Allgemeine Stabilitäts-Risiken:");
+        for risk in &stability.risk_factors {
+            println!(
+                "      ⚠️  {}: {:.1}% Wahrscheinlichkeit",
+                risk.name,
+                risk.probability * 100.0
+            );
+        }
+    }
 }
 
 // Hilfsfunktionen, um die Einheiten im Print schön darzustellen

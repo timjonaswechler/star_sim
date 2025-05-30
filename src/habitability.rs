@@ -1,10 +1,210 @@
 // habitability.rs - Detaillierte Bewohnbarkeitsanalyse
 
 use crate::cosmic_environment::*;
+use crate::lagrange_points::*;
 use crate::stellar_properties::*;
 use crate::system_hierarchy::*;
 use crate::units::*;
 use serde::{Deserialize, Serialize};
+/// Trojaner-spezifische Bewohnbarkeitsanalyse
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TrojanHabitability {
+    /// Bewohnbarkeitsscore für Trojaner (0.0-1.0)
+    pub habitability_score: f64,
+    /// Stabile Temperaturbereiche
+    pub temperature_stability: f64,
+    /// Schutz durch Hill-Sphäre
+    pub hill_sphere_protection: f64,
+    /// Tidally locked Analyse für Trojaner
+    pub tidal_considerations: TrojanTidalAnalysis,
+    /// Langzeit-Bewohnbarkeit über Millionen Jahre
+    pub long_term_viability: f64,
+    /// Spezielle Habitabilitätszonen
+    pub special_zones: Vec<TrojanHabitableZone>,
+}
+
+/// Gezeiten-Analyse für Trojaner
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TrojanTidalAnalysis {
+    /// Tidal Heating durch Librations
+    pub libration_heating: f64,
+    /// Gravitationsgradienten von beiden Sternen
+    pub dual_tidal_stress: f64,
+    /// Rotationsstabilität
+    pub rotation_stability: f64,
+}
+
+/// Spezielle bewohnbare Zonen für Trojaner
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum TrojanHabitableZone {
+    /// Stabile Region um Lagrange-Punkt
+    LagrangeCore {
+        radius: Distance,
+        temperature_range: (f64, f64),
+    },
+    /// Oszillations-tolerante Zone
+    LibrationZone {
+        amplitude: Distance,
+        seasonal_variation: f64,
+    },
+    /// Geschützte Zone innerhalb Hill-Sphäre
+    HillSphereProtected { protection_factor: f64 },
+}
+
+// Erweitere HabitabilityAssessment um Trojaner
+impl HabitabilityAssessment {
+    /// Erweiterte Analyse mit Trojaner-Berücksichtigung
+    pub fn comprehensive_analysis_with_trojans(
+        system_type: &SystemType,
+        radiation_env: &CosmicRadiationEnvironment,
+        target_distances: &[Distance],
+    ) -> Self {
+        // Basis-Analyse
+        let mut base_assessment =
+            Self::comprehensive_analysis(system_type, radiation_env, target_distances);
+
+        // Trojaner-spezifische Erweiterungen
+        match system_type {
+            SystemType::Binary {
+                primary,
+                secondary,
+                orbital_properties,
+            } => {
+                if let Some(ref lagrange_system) = orbital_properties.lagrange_system {
+                    base_assessment.analyze_trojan_habitability(
+                        primary,
+                        secondary,
+                        lagrange_system,
+                    );
+                }
+            }
+            _ => {} // Trojaner nur in Binärsystemen relevant
+        }
+
+        base_assessment
+    }
+
+    /// Analysiert Bewohnbarkeit von Trojaner-Objekten
+    fn analyze_trojan_habitability(
+        &mut self,
+        primary: &StellarProperties,
+        secondary: &StellarProperties,
+        lagrange_system: &LagrangeSystem,
+    ) {
+        for trojan in &lagrange_system.trojans {
+            let trojan_hab =
+                Self::calculate_trojan_habitability(trojan, primary, secondary, lagrange_system);
+
+            // Neue Bewohnbarkeits-Bedingung hinzufügen
+            if trojan_hab.habitability_score > 0.3 {
+                self.habitability_conditions.push(format!(
+                    "Trojan at L{} shows moderate habitability potential ({:.2})",
+                    trojan.lagrange_point, trojan_hab.habitability_score
+                ));
+            }
+
+            // Risikofaktoren für Trojaner hinzufügen
+            if trojan_hab.long_term_viability < 0.5 {
+                self.risk_factors.push(RiskFactor {
+                    name: format!("Trojan L{} instability", trojan.lagrange_point),
+                    severity: 1.0 - trojan_hab.long_term_viability,
+                    probability: 0.7,
+                    timescale: Time::years(1e6),
+                    impact_description: "Trojan orbital instability may disrupt local habitability"
+                        .to_string(),
+                });
+            }
+
+            // Gesamtbewohnbarkeit leicht anpassen
+            if trojan_hab.habitability_score > 0.6 {
+                self.overall_habitability *= 1.02; // Kleiner Bonus für bewohnbare Trojaner
+            }
+        }
+    }
+
+    /// Berechnet spezifische Bewohnbarkeit für einen Trojaner
+    pub fn calculate_trojan_habitability(
+        trojan: &TrojanObject,
+        primary: &StellarProperties,
+        secondary: &StellarProperties,
+        lagrange_system: &LagrangeSystem,
+    ) -> TrojanHabitability {
+        let dynamics = trojan.calculate_libration_dynamics(
+            &primary.mass,
+            &secondary.mass,
+            &lagrange_system.separation,
+        );
+
+        // Basis-Bewohnbarkeitsscore
+        let mut habitability_score = 0.3; // Trojaner sind grundsätzlich herausfordernd
+
+        // Stabilität verbessert Bewohnbarkeit
+        habitability_score *= dynamics.long_term_stability;
+
+        // Oszillationsmuster-Analyse
+        match dynamics.oscillation_pattern {
+            OscillationPattern::Tadpole {
+                amplitude_degrees, ..
+            } => {
+                // Kleine Oszillationen sind besser für Bewohnbarkeit
+                let amplitude_factor = (30.0 - amplitude_degrees.min(30.0)) / 30.0;
+                habitability_score *= 0.8 + 0.2 * amplitude_factor;
+            }
+            OscillationPattern::Horseshoe { .. } => {
+                habitability_score *= 0.5; // Große Oszillationen schwierig für Leben
+            }
+            OscillationPattern::QuasiStable { .. } => {
+                habitability_score *= 0.2; // Sehr instabil
+            }
+        }
+
+        // Temperaturbereiche (vereinfacht)
+        let combined_luminosity = primary.luminosity + secondary.luminosity;
+        let distance_to_binary = lagrange_system.separation.in_au();
+        let equilibrium_temp =
+            278.0 * (combined_luminosity / (distance_to_binary * distance_to_binary)).powf(0.25);
+
+        let temperature_stability = if equilibrium_temp > 200.0 && equilibrium_temp < 350.0 {
+            1.0
+        } else {
+            0.3
+        };
+
+        // Tidal Analysis
+        let tidal_analysis = TrojanTidalAnalysis {
+            libration_heating: dynamics.libration_amplitude.in_au() * 0.1, // Vereinfacht
+            dual_tidal_stress: 0.5, // Stress von beiden Sternen
+            rotation_stability: dynamics.long_term_stability,
+        };
+
+        // Hill-Sphäre Schutz
+        let hill_protection = lagrange_system
+            .hill_sphere_at_lagrange_point(trojan.lagrange_point, &trojan.mass)
+            .map(|h| (h.in_au() / distance_to_binary).min(0.1) * 10.0)
+            .unwrap_or(0.0);
+
+        // Spezielle Habitabilitätszonen
+        let special_zones = vec![
+            TrojanHabitableZone::LagrangeCore {
+                radius: Distance::au(dynamics.libration_amplitude.in_au() * 0.5),
+                temperature_range: (equilibrium_temp - 50.0, equilibrium_temp + 50.0),
+            },
+            TrojanHabitableZone::LibrationZone {
+                amplitude: dynamics.libration_amplitude.clone(),
+                seasonal_variation: dynamics.libration_period.in_years() / 100.0,
+            },
+        ];
+
+        TrojanHabitability {
+            habitability_score: habitability_score.min(1.0),
+            temperature_stability,
+            hill_sphere_protection: hill_protection,
+            tidal_considerations: tidal_analysis,
+            long_term_viability: dynamics.long_term_stability,
+            special_zones,
+        }
+    }
+}
 
 /// Umfassendes Bewohnbarkeits-Assessment
 #[derive(Debug, Clone, Serialize, Deserialize)]
