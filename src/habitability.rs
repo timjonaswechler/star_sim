@@ -413,8 +413,9 @@ impl HabitabilityAssessment {
         let mut habitability_score = 1.0;
 
         // Temperatur-Faktor
-        let temp_factor = if temperature_analysis.equilibrium_temperature >= 273.0
-            && temperature_analysis.equilibrium_temperature <= 373.0
+        let temp_factor = if temperature_analysis.equilibrium_temperature >= 273.0 // 0°C
+            && temperature_analysis.equilibrium_temperature <= 323.0
+        // 50°C (engerer Optimalbereich)
         {
             1.0 // Flüssiges Wasser möglich
         } else if temperature_analysis.thick_atmosphere_range.0 <= 373.0

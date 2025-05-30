@@ -5,11 +5,11 @@ use rand_chacha::ChaCha8Rng;
 use serde::{Deserialize, Serialize};
 
 use crate::constants::*;
+use crate::cosmic_environment::GalacticDynamics;
 use crate::lagrange_points::*;
 use crate::orbital_mechanics::*;
 use crate::stellar_properties::*;
 use crate::units::*;
-
 // Import kosmische Strukturen aus cosmic_environment
 // Diese Zeilen sind korrekt und bleiben
 pub use crate::cosmic_environment::{
@@ -94,6 +94,7 @@ pub struct StarSystem {
     pub habitability_assessment: HabitabilityAssessment,
     /// Einheitensystem für Berechnungen
     pub unit_system: UnitSystem,
+    pub galactic_dynamics: GalacticDynamics,
 }
 
 impl BinaryOrbit {
@@ -137,7 +138,7 @@ impl BinaryOrbit {
         let p_type_limit = separation.value * (1.60 + 4.12 * mu_min + 4.27 * eccentricity);
         let p_type_stability = Distance::new(p_type_limit, separation.system);
 
-        let lagrange_system = if primary.mass.in_kg() / secondary.mass.in_kg()
+        let mut lagrange_system_opt = if primary.mass.in_kg() / secondary.mass.in_kg()
             >= MIN_LAGRANGE_MASS_RATIO
             || secondary.mass.in_kg() / primary.mass.in_kg() >= MIN_LAGRANGE_MASS_RATIO
         {
@@ -146,6 +147,22 @@ impl BinaryOrbit {
             None
         };
 
+        if let Some(ref mut lag_sys) = lagrange_system_opt {
+            if lag_sys.l4_l5_stable {
+                // Versuche, einen kleinen Test-Trojaner zu generieren
+                let trojan_mass_val = primary.mass.value * 0.000001; // Sehr kleine Masse
+                let trojan_mass = Mass::new(trojan_mass_val, primary.mass.system);
+                match lag_sys.generate_trojan(4, trojan_mass, &primary.mass, &secondary.mass) {
+                    Ok(trojan) => {
+                        if lag_sys.add_trojan(trojan).is_ok() {
+                            // Erfolgreich hinzugefügt (für Debugging)
+                            // println!("Test trojan added to L4");
+                        }
+                    }
+                    Err(_) => {} // Fehler ignorieren für diese Demo
+                }
+            }
+        }
         let smaller_mass = if primary.mass.in_kg() < secondary.mass.in_kg() {
             &primary.mass
         } else {
@@ -158,7 +175,7 @@ impl BinaryOrbit {
             barycenter_position,
             s_type_stability,
             p_type_stability,
-            lagrange_system,
+            lagrange_system: lagrange_system_opt,
             mutual_hill_sphere,
         }
     }
@@ -305,17 +322,15 @@ impl StarSystem {
     pub fn generate_from_seed_with_units(seed: u64, unit_system: UnitSystem) -> Self {
         let mut rng = ChaCha8Rng::seed_from_u64(seed);
 
-        // Kosmische Parameter
-        let age_universe_gyr = rng.gen_range(3.0..13.8); // Renamed for clarity
-        // Verwende CosmicEpoch::from_age für eine konsistentere Erzeugung
+        let age_universe_gyr = rng.gen_range(3.0..13.8);
         let cosmic_epoch = CosmicEpoch::from_age(age_universe_gyr);
 
-        // Sternsystem generieren (vor Umgebung, da manche Umgebungsparameter vom System abhängen könnten, obwohl hier nicht der Fall)
+        // System Type wird vor galaktischer Umgebung generiert,
+        // da manche Sterneigenschaften (z.B. Alter) von der kosmischen Epoche abhängen können.
         let system_type = Self::generate_system_type(&mut rng, &cosmic_epoch, unit_system);
 
-        // Galaktische Position und Umgebung (verwende Funktionen aus cosmic_environment.rs)
         let galactic_region = GalacticRegion::generate_random(&mut rng, unit_system);
-        let galactic_distance = galactic_region.distance_from_center().clone(); // Extrahiere Distanz aus der Region
+        let galactic_distance = galactic_region.distance_from_center().clone();
 
         let radiation_environment = CosmicRadiationEnvironment::from_region_and_epoch(
             &galactic_region,
@@ -323,20 +338,26 @@ impl StarSystem {
             &mut rng,
         );
 
-        // Elementhäufigkeiten (verwende Funktion aus cosmic_environment.rs)
         let elemental_abundance = ElementalAbundance::from_metallicity_and_epoch(
             cosmic_epoch.epoch_metallicity,
             &cosmic_epoch,
         );
 
-        // Bewohnbarkeit bewerten (verwende comprehensive_analysis aus habitability.rs)
-        // Für target_distances wird vorerst ein leerer Vektor verwendet.
-        // Dies bedeutet, dass der Teil planetary_analysis in HabitabilityAssessment leer sein wird.
+        // HIER WIRD GalacticDynamics BERECHNET UND GESPEICHERT
+        let galactic_dynamics = GalacticDynamics::calculate_for_position(
+            &galactic_region,
+            cosmic_epoch.age_universe, // Alter des Universums in Gyr, wie von der Funktion erwartet
+            &mut rng,
+        );
+        // Das Ergebnis von calculate_for_position muss dem Feld in StarSystem zugewiesen werden.
+
         let target_distances: Vec<Distance> = Vec::new();
         let habitability_assessment = HabitabilityAssessment::comprehensive_analysis(
             &system_type,
             &radiation_environment,
             &target_distances,
+            // GalacticDynamics wird hier nicht direkt übergeben,
+            // aber es ist Teil des StarSystem-Kontexts, der indirekt relevant sein könnte.
         );
 
         StarSystem {
@@ -349,13 +370,9 @@ impl StarSystem {
             elemental_abundance,
             habitability_assessment,
             unit_system,
+            galactic_dynamics, // <<-- HIER ZUWEISEN
         }
     }
-
-    // ENTFERNT: generate_galactic_distance - wird durch GalacticRegion::generate_random abgedeckt
-    // ENTFERNT: classify_galactic_region - wird durch GalacticRegion::generate_random abgedeckt
-    // ENTFERNT: assess_radiation_environment - wird durch CosmicRadiationEnvironment::from_region_and_epoch ersetzt
-    // ENTFERNT: calculate_elemental_abundance - wird durch ElementalAbundance::from_metallicity_and_epoch ersetzt
 
     fn generate_system_type(
         rng: &mut ChaCha8Rng,
@@ -469,10 +486,6 @@ impl StarSystem {
         let mass_factor = (primary_mass + secondary_mass) / 2.0;
         separation_au * mass_factor.sqrt()
     }
-
-    // ENTFERNT: assess_habitability - wird durch HabitabilityAssessment::comprehensive_analysis ersetzt
-    // ENTFERNT: calculate_overall_habitability_single - Logik ist jetzt in HabitabilityAssessment
-    // ENTFERNT: assess_habitability_conditions_single - Logik ist jetzt in HabitabilityAssessment
 
     pub fn to_ron_string(&self) -> Result<String, ron::Error> {
         ron::ser::to_string_pretty(self, ron::ser::PrettyConfig::default())

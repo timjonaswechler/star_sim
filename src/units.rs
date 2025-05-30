@@ -197,6 +197,9 @@ pub struct Mass {
 }
 
 impl Mass {
+    pub fn new(value: f64, system: UnitSystem) -> Self {
+        Self { value, system }
+    }
     pub fn solar_masses(value: f64) -> Self {
         Self {
             value,
@@ -344,22 +347,28 @@ mod tests {
     fn test_distance_conversion() {
         let dist_au = Distance::au(1.0);
         let dist_m = dist_au.to_si();
-
-        assert!((dist_m.value - AU_TO_METERS).abs() < 1e6); // Within 1000 km
+        assert!((dist_m.value - AU_TO_METERS).abs() < 1e-6 * AU_TO_METERS); // Relative Toleranz
 
         let back_to_au = dist_m.to_astronomical();
         assert!((back_to_au.value - 1.0).abs() < 1e-10);
+
+        let dist_km = Distance::kilometers(1000.0); // kilometers verwenden
+        assert!((dist_km.value - 1_000_000.0).abs() < 1e-6); // 1000 km = 1e6 m
+        assert_eq!(dist_km.system, UnitSystem::SI);
     }
 
     #[test]
     fn test_time_conversion() {
         let time_years = Time::years(1.0);
         let time_seconds = time_years.to_si();
-
         assert!((time_seconds.value - SECONDS_PER_YEAR).abs() < 1.0);
 
         let back_to_years = time_seconds.to_astronomical();
         assert!((back_to_years.value - 1.0).abs() < 1e-10);
+
+        let time_days = Time::days(365.25); // days verwenden
+        assert!((time_days.in_seconds() - SECONDS_PER_YEAR).abs() < 1.0); // in_seconds verwenden
+        assert_eq!(time_days.system, UnitSystem::SI);
     }
 
     #[test]
@@ -375,11 +384,19 @@ mod tests {
 
     #[test]
     fn test_velocity_conversion() {
-        // Earth's orbital velocity is ~30 km/s ≈ 1 AU/year * 2π
-        let earth_orbital = Velocity::km_per_second(29.78);
-        let au_per_year = earth_orbital.to_astronomical();
+        // Earth's orbital velocity is ~30 km/s
+        let earth_orbital_kms = Velocity::km_per_second(29.78); // km_per_second verwenden
+        assert_eq!(earth_orbital_kms.system, UnitSystem::SI);
+        assert!((earth_orbital_kms.in_kms() - 29.78).abs() < 1e-6); // in_kms verwenden
+        assert!((earth_orbital_kms.in_ms() - 29780.0).abs() < 1.0);
 
-        // Should be approximately 2π AU/year
-        assert!((au_per_year.value - 2.0 * PI).abs() < 0.1);
+        let au_per_year = earth_orbital_kms.to_astronomical();
+        // Sollte ungefähr 2π AU/Jahr sein (eigentlich 1 AU / (1/2π) Jahr, also ca. 6.28)
+        // 1 Jahr = P, a = 1 AU. v = 2πa/P = 2π * 1AU / 1 Jahr = 2π AU/Jahr
+        assert!(
+            (au_per_year.value - 2.0 * PI).abs() < 0.1,
+            "AU/yr: {}",
+            au_per_year.value
+        );
     }
 }

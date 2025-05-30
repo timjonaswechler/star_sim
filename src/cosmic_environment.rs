@@ -623,8 +623,6 @@ mod tests {
 
     #[test]
     fn test_galactic_region_habitability() {
-        let mut rng = ChaCha8Rng::seed_from_u64(42);
-
         let core = GalacticRegion::Core {
             distance_from_center: Distance::new(0.5, UnitSystem::Astronomical),
             supermassive_black_hole_influence: 0.8,
