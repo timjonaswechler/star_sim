@@ -1,9 +1,10 @@
 use crate::physics::units::{Distance, Mass};
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
+use serde::{Deserialize, Serialize};
 
 /// Einfache Mondstruktur
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Moon {
     pub mass: Mass,
     pub semi_major_axis: Distance,
@@ -56,4 +57,3 @@ impl MoonBuilder {
         }
     }
 }
-
