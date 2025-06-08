@@ -1,6 +1,6 @@
-use serde::{Deserialize, Serialize};
 use rand::Rng;
 use rand_chacha::ChaCha8Rng;
+use serde::{Deserialize, Serialize};
 
 use crate::physics::constants::{G, PI};
 use crate::physics::units::{Distance, Mass, Time, UnitSystem, Velocity};

@@ -1,10 +1,8 @@
-use crate::physics::units::*;
 use crate::physics::constants::MIN_LAGRANGE_MASS_RATIO;
+use crate::physics::units::*;
 use crate::stellar_objects::stars::properties::StellarProperties;
 use crate::stellar_objects::trojans_asteroid::dynamics::MutualDynamics;
-use crate::stellar_objects::trojans_asteroid::objects::{
-    MutualTrojanSystem, TrojanObject,
-};
+use crate::stellar_objects::trojans_asteroid::objects::{MutualTrojanSystem, TrojanObject};
 use rand_chacha::ChaCha8Rng;
 use serde::{Deserialize, Serialize};
 
