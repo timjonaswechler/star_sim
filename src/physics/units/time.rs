@@ -19,10 +19,10 @@ use crate::physics::constants::{
 };
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, PartialOrd, Copy)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, PartialOrd)]
 pub struct Time {
     pub value: f64,
-    pub unit: &'static str,
+    pub unit: String,
     pub system: UnitSystem,
 }
 
@@ -37,7 +37,7 @@ impl Time {
     pub fn from_seconds(value_in_s: f64) -> Self {
         Time {
             value: value_in_s,
-            unit: Self::SI_BASE_UNIT_LABEL,
+            unit: Self::SI_BASE_UNIT_LABEL.to_string(),
             system: UnitSystem::SI,
         }
     }
@@ -46,7 +46,7 @@ impl Time {
     pub fn from_minutes(value_in_min: f64) -> Self {
         Time {
             value: value_in_min * SECONDS_PER_MINUTE,
-            unit: "min",
+            unit: "min".to_string(),
             system: UnitSystem::SI,
         }
     }
@@ -55,7 +55,7 @@ impl Time {
     pub fn from_hours(value_in_hr: f64) -> Self {
         Time {
             value: value_in_hr * SECONDS_PER_MINUTE * MINUTES_PER_HOUR,
-            unit: "hr",
+            unit: "hr".to_string(),
             system: UnitSystem::SI,
         }
     }
@@ -64,7 +64,7 @@ impl Time {
     pub fn from_days(value_in_days: f64) -> Self {
         Time {
             value: value_in_days * SECONDS_PER_MINUTE * MINUTES_PER_HOUR * HOURS_PER_DAY,
-            unit: "d",
+            unit: "d".to_string(),
             system: UnitSystem::SI,
         }
     }
@@ -76,7 +76,7 @@ impl Time {
     pub fn from_years(value_in_yr: f64) -> Self {
         Time {
             value: value_in_yr,
-            unit: Self::ASTRO_BASE_UNIT_LABEL,
+            unit: Self::ASTRO_BASE_UNIT_LABEL.to_string(),
             system: UnitSystem::Astronomical,
         }
     }
@@ -85,7 +85,7 @@ impl Time {
     pub fn from_kiloyears(value_in_kyr: f64) -> Self {
         Time {
             value: value_in_kyr * YEARS_PER_KILOYEAR,
-            unit: "kyr",
+            unit: "kyr".to_string(),
             system: UnitSystem::Astronomical,
         }
     }
@@ -94,7 +94,7 @@ impl Time {
     pub fn from_megayears(value_in_myr: f64) -> Self {
         Time {
             value: value_in_myr * YEARS_PER_KILOYEAR * KILOYEARS_PER_MEGAYEAR,
-            unit: "Myr",
+            unit: "Myr".to_string(),
             system: UnitSystem::Astronomical,
         }
     }
@@ -106,7 +106,7 @@ impl Time {
                 * YEARS_PER_KILOYEAR
                 * KILOYEARS_PER_MEGAYEAR
                 * MEGAYEARS_PER_GIGAYEAR,
-            unit: "Gyr",
+            unit: "Gyr".to_string(),
             system: UnitSystem::Astronomical,
         }
     }
@@ -245,8 +245,8 @@ impl Time {
     }
 
     /// Gibt das ursprüngliche Einheitenlabel zurück.
-    pub fn unit_label(&self) -> &'static str {
-        self.unit
+    pub fn unit_label(&self) -> &str {
+        &self.unit
     }
 
     /// Gibt das Einheitensystem zurück.
@@ -269,7 +269,7 @@ impl UnitConversion for Time {
         let seconds_value = self.as_seconds();
         Time {
             value: seconds_value,
-            unit: Self::SI_BASE_UNIT_LABEL,
+            unit: Self::SI_BASE_UNIT_LABEL.to_string(),
             system: UnitSystem::SI,
         }
     }
@@ -280,7 +280,7 @@ impl UnitConversion for Time {
         let years_value = self.as_years();
         Time {
             value: years_value,
-            unit: Self::ASTRO_BASE_UNIT_LABEL,
+            unit: Self::ASTRO_BASE_UNIT_LABEL.to_string(),
             system: UnitSystem::Astronomical,
         }
     }

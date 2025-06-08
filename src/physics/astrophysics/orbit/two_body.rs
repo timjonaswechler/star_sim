@@ -1,4 +1,9 @@
 use serde::{Deserialize, Serialize};
+use crate::physics::astrophysics::lagrange_points::LagrangeSystem;
+use crate::physics::astrophysics::orbit::elements::{OrbitalElements, EscapeVelocity};
+use crate::physics::units::*;
+use crate::stellar_objects::stars::properties::StellarProperties;
+use crate::physics::constants::MIN_LAGRANGE_MASS_RATIO;
 
 /// Erweiterte Binärbahnparameter mit vollständigen orbitalen Elementen
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -122,11 +127,11 @@ impl BinaryOrbit {
         &self,
         primary: &StellarProperties,
         secondary: &StellarProperties,
-    ) -> crate::stellar_properties::HabitableZone {
+    ) -> crate::stellar_objects::bodies::habitability::HabitableZone {
         let combined_luminosity = primary.luminosity + secondary.luminosity;
         let sqrt_l_combined = combined_luminosity.sqrt();
 
-        crate::stellar_properties::HabitableZone {
+        crate::stellar_objects::bodies::habitability::HabitableZone {
             inner_edge: Distance::new(0.95 * sqrt_l_combined, self.orbital_elements.unit_system),
             outer_edge: Distance::new(1.37 * sqrt_l_combined, self.orbital_elements.unit_system),
             optimistic_inner: Distance::new(

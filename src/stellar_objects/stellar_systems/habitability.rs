@@ -438,7 +438,7 @@ impl HabitabilityAssessment {
         radiation_env: &CosmicRadiationEnvironment,
     ) -> RadiationRisks {
         let pre_main_sequence_hazard = match &star.evolutionary_stage {
-            crate::stellar_properties::EvolutionaryStage::PreMainSequence { .. } => 0.9,
+            crate::stellar_objects::stars::types::EvolutionaryStage::PreMainSequence { .. } => 0.9,
             _ => 0.1,
         };
 
@@ -759,8 +759,8 @@ impl HabitabilityAssessment {
 
         // Evolutionary stage
         habitability *= match &star.evolutionary_stage {
-            crate::stellar_properties::EvolutionaryStage::MainSequence { .. } => 1.0,
-            crate::stellar_properties::EvolutionaryStage::PreMainSequence { .. } => 0.3,
+            crate::stellar_objects::stars::types::EvolutionaryStage::MainSequence { .. } => 1.0,
+            crate::stellar_objects::stars::types::EvolutionaryStage::PreMainSequence { .. } => 0.3,
             _ => 0.1,
         };
 

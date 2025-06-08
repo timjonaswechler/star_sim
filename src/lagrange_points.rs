@@ -1,7 +1,7 @@
 // lagrange_points.rs - Lagrange-Punkte und Trojaner basierend auf dem Artikel
-use crate::constants::MIN_LAGRANGE_MASS_RATIO;
-use crate::stellar_properties::*;
-use crate::system_hierarchy::*;
+use crate::physics::constants::MIN_LAGRANGE_MASS_RATIO;
+use crate::stellar_objects::stars::properties::*;
+use crate::stellar_objects::stellar_systems::hierarchy::*;
 use crate::physics::units::*;
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
