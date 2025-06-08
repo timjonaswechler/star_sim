@@ -497,9 +497,10 @@ impl TrojanObject {
         stability *= self.stability;
 
         // Bonus für Tadpole-Orbits
+        let mass_parameter =
+            secondary_mass.in_kg() / (primary_mass.in_kg() + secondary_mass.in_kg());
         if matches!(
-            self.calculate_libration_dynamics(primary_mass, secondary_mass, &Distance::au(1.0))
-                .oscillation_pattern,
+            self.determine_oscillation_pattern(mass_parameter),
             OscillationPattern::Tadpole { .. }
         ) {
             stability *= 1.1;
