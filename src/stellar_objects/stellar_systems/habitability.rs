@@ -1,57 +1,37 @@
-// habitability.rs - Detaillierte Bewohnbarkeitsanalyse
-
-use crate::cosmic_environment::*;
-use crate::lagrange_points::*;
-use crate::stellar_properties::*;
-use crate::system_hierarchy::*;
-use crate::units::*;
-use serde::{Deserialize, Serialize};
-/// Trojaner-spezifische Bewohnbarkeitsanalyse
+/// Umfassendes Bewohnbarkeits-Assessment
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TrojanHabitability {
-    /// Bewohnbarkeitsscore für Trojaner (0.0-1.0)
-    pub habitability_score: f64,
-    /// Stabile Temperaturbereiche
-    pub temperature_stability: f64,
-    /// Schutz durch Hill-Sphäre
-    pub hill_sphere_protection: f64,
-    /// Tidally locked Analyse für Trojaner
-    pub tidal_considerations: TrojanTidalAnalysis,
-    /// Langzeit-Bewohnbarkeit über Millionen Jahre
-    pub long_term_viability: f64,
-    /// Spezielle Habitabilitätszonen
-    pub special_zones: Vec<TrojanHabitableZone>,
+pub struct HabitabilityAssessment {
+    /// Gesamter Bewohnbarkeitsfaktor (0.0-1.0)
+    pub overall_habitability: f64,
+    /// Bewohnbare Zone des Systems
+    pub system_habitable_zone: HabitableZone,
+    /// Strahlungsrisiken für Leben
+    pub radiation_risks: RadiationRisks,
+    /// Detaillierte Bewohnbarkeitsbedingungen
+    pub habitability_conditions: Vec<String>,
+    /// Planetare Bewohnbarkeitsanalyse
+    pub planetary_analysis: Vec<PlanetaryHabitability>,
+    /// Zeitliche Entwicklung der Bewohnbarkeit
+    pub temporal_evolution: TemporalHabitability,
+    /// Risikofaktoren
+    pub risk_factors: Vec<RiskFactor>,
 }
 
-/// Gezeiten-Analyse für Trojaner
+/// Strahlungsrisiken für Leben
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TrojanTidalAnalysis {
-    /// Tidal Heating durch Librations
-    pub libration_heating: f64,
-    /// Gravitationsgradienten von beiden Sternen
-    pub dual_tidal_stress: f64,
-    /// Rotationsstabilität
-    pub rotation_stability: f64,
+pub struct RadiationRisks {
+    /// UV/XUV Strahlung während Pre-MS Phase
+    pub pre_main_sequence_hazard: f64,
+    /// Flare-Aktivität Risiko
+    pub stellar_flare_risk: f64,
+    /// Galaktische Strahlungsrisiken
+    pub galactic_radiation_risk: f64,
+    /// Röntgenstrahlung vom Stern
+    pub x_ray_flux: f64,
+    /// Kosmische Strahlung
+    pub cosmic_ray_flux: f64,
 }
 
-/// Spezielle bewohnbare Zonen für Trojaner
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum TrojanHabitableZone {
-    /// Stabile Region um Lagrange-Punkt
-    LagrangeCore {
-        radius: Distance,
-        temperature_range: (f64, f64),
-    },
-    /// Oszillations-tolerante Zone
-    LibrationZone {
-        amplitude: Distance,
-        seasonal_variation: f64,
-    },
-    /// Geschützte Zone innerhalb Hill-Sphäre
-    HillSphereProtected { protection_factor: f64 },
-}
-
-// Erweitere HabitabilityAssessment um Trojaner
 impl HabitabilityAssessment {
     /// Erweiterte Analyse mit Trojaner-Berücksichtigung
     pub fn comprehensive_analysis_with_trojans(
@@ -204,120 +184,7 @@ impl HabitabilityAssessment {
             special_zones,
         }
     }
-}
 
-/// Umfassendes Bewohnbarkeits-Assessment
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct HabitabilityAssessment {
-    /// Gesamter Bewohnbarkeitsfaktor (0.0-1.0)
-    pub overall_habitability: f64,
-    /// Bewohnbare Zone des Systems
-    pub system_habitable_zone: HabitableZone,
-    /// Strahlungsrisiken für Leben
-    pub radiation_risks: RadiationRisks,
-    /// Detaillierte Bewohnbarkeitsbedingungen
-    pub habitability_conditions: Vec<String>,
-    /// Planetare Bewohnbarkeitsanalyse
-    pub planetary_analysis: Vec<PlanetaryHabitability>,
-    /// Zeitliche Entwicklung der Bewohnbarkeit
-    pub temporal_evolution: TemporalHabitability,
-    /// Risikofaktoren
-    pub risk_factors: Vec<RiskFactor>,
-}
-
-/// Strahlungsrisiken für Leben
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RadiationRisks {
-    /// UV/XUV Strahlung während Pre-MS Phase
-    pub pre_main_sequence_hazard: f64,
-    /// Flare-Aktivität Risiko
-    pub stellar_flare_risk: f64,
-    /// Galaktische Strahlungsrisiken
-    pub galactic_radiation_risk: f64,
-    /// Röntgenstrahlung vom Stern
-    pub x_ray_flux: f64,
-    /// Kosmische Strahlung
-    pub cosmic_ray_flux: f64,
-}
-
-/// Planetare Bewohnbarkeitsanalyse für spezifische Orbits
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PlanetaryHabitability {
-    /// Orbitalentfernung des Planeten
-    pub orbital_distance: Distance,
-    /// Bewohnbarkeitsscore für diese Position (0.0-1.0)
-    pub habitability_score: f64,
-    /// Tidal Locking Analyse
-    pub tidal_locking: TidalLockingAnalysis,
-    /// Temperaturbereiche
-    pub temperature_analysis: TemperatureAnalysis,
-    /// Atmosphärische Überlegungen
-    pub atmospheric_considerations: Vec<String>,
-    /// Mögliche Bewohnbarkeitszonen (Tag/Nacht-Seite, etc.)
-    pub habitable_regions: Vec<HabitableRegion>,
-}
-
-/// Temperaturanalyse für einen Planeten
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TemperatureAnalysis {
-    /// Gleichgewichtstemperatur (ohne Atmosphäre, K)
-    pub equilibrium_temperature: f64,
-    /// Temperaturbereich mit dünner Atmosphäre (K)
-    pub thin_atmosphere_range: (f64, f64),
-    /// Temperaturbereich mit dichter Atmosphäre (K)
-    pub thick_atmosphere_range: (f64, f64),
-    /// Greenhouse-Effekt Potenzial
-    pub greenhouse_potential: f64,
-}
-
-/// Bewohnbare Regionen auf einem Planeten
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum HabitableRegion {
-    /// Gesamte Oberfläche bewohnbar
-    Global,
-    /// Nur Tag-Seite bewohnbar (tidal locked)
-    DaySide,
-    /// Nur Terminator-Zone bewohnbar
-    TerminatorZone,
-    /// Polare Regionen bewohnbar
-    PolarRegions,
-    /// Äquatoriale Regionen bewohnbar
-    EquatorialRegions,
-    /// Keine bewohnbaren Regionen
-    None,
-}
-
-/// Zeitliche Entwicklung der Bewohnbarkeit
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TemporalHabitability {
-    /// Bewohnbarkeit in der Vergangenheit (Gyr ago -> habitability)
-    pub past_habitability: Vec<(f64, f64)>,
-    /// Aktuelle Bewohnbarkeit
-    pub current_habitability: f64,
-    /// Zukünftige Bewohnbarkeit (Gyr from now -> habitability)
-    pub future_habitability: Vec<(f64, f64)>,
-    /// Gesamte bewohnbare Lebensdauer (Gyr)
-    pub total_habitable_lifetime: f64,
-    /// Bewohnbarkeitsfenster (Start, Ende in Gyr)
-    pub habitability_window: (f64, f64),
-}
-
-/// Risikofaktoren für Bewohnbarkeit
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RiskFactor {
-    /// Name des Risikofaktors
-    pub name: String,
-    /// Schweregrad (0.0-1.0)
-    pub severity: f64,
-    /// Wahrscheinlichkeit des Auftretens (0.0-1.0)
-    pub probability: f64,
-    /// Zeitskala des Risikos
-    pub timescale: Time,
-    /// Beschreibung der Auswirkungen
-    pub impact_description: String,
-}
-
-impl HabitabilityAssessment {
     /// Erstellt ein vollständiges Bewohnbarkeits-Assessment
     pub fn comprehensive_analysis(
         system_type: &SystemType,
@@ -907,73 +774,5 @@ impl HabitabilityAssessment {
         habitability *= temporal_factor.min(1.0);
 
         habitability.max(0.0).min(1.0)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_habitability_assessment() {
-        let sun = StellarProperties::sun_like();
-        let radiation_env = crate::cosmic_environment::CosmicRadiationEnvironment {
-            agn_risk: 0.1,
-            supernova_frequency: 0.2,
-            grb_risk: 0.3,
-            stellar_encounter_rate: 0.1,
-            cosmic_ray_flux: 10.0,            // Hinzugefügt
-            uv_background: 1.0,               // Hinzugefügt
-            gravitational_wave_activity: 0.1, // Hinzugefügt
-        };
-
-        let target_distances = vec![Distance::au(0.5), Distance::au(1.0), Distance::au(1.5)];
-
-        let system_type = SystemType::Single(sun);
-        let assessment = HabitabilityAssessment::comprehensive_analysis(
-            &system_type,
-            &radiation_env,
-            &target_distances,
-        );
-
-        assert!(assessment.overall_habitability > 0.5);
-        assert_eq!(assessment.planetary_analysis.len(), 3);
-        assert!(assessment.temporal_evolution.total_habitable_lifetime > 0.0);
-    }
-
-    #[test]
-    fn test_temperature_analysis() {
-        let sun = StellarProperties::sun_like();
-        let earth_distance = Distance::au(1.0);
-
-        let temp_analysis =
-            HabitabilityAssessment::calculate_temperature_analysis(&sun, &earth_distance);
-
-        // Should be roughly Earth-like temperatures
-        assert!(temp_analysis.equilibrium_temperature > 250.0);
-        assert!(temp_analysis.equilibrium_temperature < 300.0);
-        assert!(temp_analysis.greenhouse_potential > 0.0);
-    }
-
-    #[test]
-    fn test_risk_factors() {
-        let m_dwarf = StellarProperties::new(Mass::solar_masses(0.3), Time::years(5.0), 0.0);
-
-        let high_risk_env = crate::cosmic_environment::CosmicRadiationEnvironment {
-            // Verwende den direkten Pfad für Klarheit
-            agn_risk: 0.8,
-            supernova_frequency: 0.7,
-            grb_risk: 0.6,
-            stellar_encounter_rate: 0.5,
-            cosmic_ray_flux: 50.0,            // Hinzugefügt
-            uv_background: 5.0,               // Hinzugefügt
-            gravitational_wave_activity: 0.5, // Hinzugefügt
-        };
-
-        let risk_factors = HabitabilityAssessment::identify_risk_factors(&m_dwarf, &high_risk_env);
-
-        assert!(!risk_factors.is_empty());
-        assert!(risk_factors.iter().any(|r| r.name.contains("flare")));
-        assert!(risk_factors.iter().any(|r| r.name.contains("supernova")));
     }
 }

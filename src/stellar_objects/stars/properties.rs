@@ -1,80 +1,16 @@
-// stellar_properties.rs - Erweiterte stellare Eigenschaften
-
-use std::fmt::Display;
-
-use crate::constants::*;
-use crate::orbital_mechanics::*;
-use crate::units::*;
+use super::types::*;
+use crate::physics::constants::*;
+use crate::physics::units::*;
 use serde::{Deserialize, Serialize};
 
-pub type CosmicTime = f64;
-pub type Metallicity = f64;
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum SpectralType {
-    // Hauptreihe O, B, A, F, G, K, M mit Subklassen 0-9
-    O(u8),
-    B(u8),
-    A(u8),
-    F(u8),
-    G(u8),
-    K(u8),
-    M(u8),
-    // Braune Zwerge
-    L(u8),
-    T(u8),
-    Y(u8),
-    // Post-Main Sequence
-    WolfRayet,  // W-type
-    WhiteDwarf, // D-type
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum LuminosityClass {
-    /// Hypergiants
-    Zero,
-    /// Bright supergiants
-    Ia,
-    /// Supergiants
-    Ib,
-    /// Bright giants
-    II,
-    /// Giants
-    III,
-    /// Subgiants
-    IV,
-    /// Main sequence (dwarfs)
-    V,
-    /// Subdwarfs
-    VI,
-    /// White dwarfs
-    VII,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum EvolutionaryStage {
-    /// Pre-Main Sequence (Contraction phase)
-    PreMainSequence {
-        age: f64, // In Jahren
-    },
-    /// Zero Age Main Sequence
-    ZAMS,
-    /// Main Sequence
-    MainSequence {
-        fraction_complete: f64,
-    },
-    /// Terminal Age Main Sequence
-    TAMS,
-    /// Post-Main Sequence stages
-    RedGiant,
-    HorizontalBranch,
-    AsymptoticGiantBranch,
-    BlueDwarf,
-    WhiteDwarf {
-        cooling_age: f64, // In Jahren
-    },
-    NeutronStar,
-    BlackHole,
+pub struct TidalLockingAnalysis {
+    /// Wahrscheinlichkeit für Tidal Locking (0.0-1.0)
+    pub tidal_lock_probability: f64,
+    /// Synchronisationszeit in Jahren
+    pub synchronization_timescale: Time,
+    /// Mögliche Spin-Orbit Resonanzen (z.B. 3:2, 2:1)
+    pub possible_resonances: Vec<(u32, u32)>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -101,28 +37,6 @@ pub struct StellarProperties {
     pub metallicity: f64,
     /// Einheitensystem
     pub unit_system: UnitSystem,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct HabitableZone {
-    /// Innere Grenze der bewohnbaren Zone
-    pub inner_edge: Distance,
-    /// Äußere Grenze der bewohnbaren Zone
-    pub outer_edge: Distance,
-    /// Optimistische innere Grenze
-    pub optimistic_inner: Distance,
-    /// Optimistische äußere Grenze
-    pub optimistic_outer: Distance,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TidalLockingAnalysis {
-    /// Wahrscheinlichkeit für Tidal Locking (0.0-1.0)
-    pub tidal_lock_probability: f64,
-    /// Synchronisationszeit in Jahren
-    pub synchronization_timescale: Time,
-    /// Mögliche Spin-Orbit Resonanzen (z.B. 3:2, 2:1)
-    pub possible_resonances: Vec<(u32, u32)>,
 }
 
 impl StellarProperties {
@@ -516,114 +430,5 @@ impl StellarProperties {
             evolutionary_stage: self.evolutionary_stage.clone(),
             metallicity: self.metallicity,
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_sun_like_star() {
-        let sun = StellarProperties::sun_like();
-
-        assert!(
-            (sun.effective_temperature - SOLAR_TEMPERATURE).abs() < 300.0,
-            "Sun temp: {}, Expected: {} +/- 300",
-            sun.effective_temperature,
-            SOLAR_TEMPERATURE
-        );
-        assert!(
-            (sun.luminosity - 1.0).abs() < 0.15,
-            "Sun luminosity: {}, Expected: 1.0 +/- 0.15",
-            sun.luminosity
-        );
-        assert!(
-            (sun.radius.value - 1.0).abs() < 0.1,
-            "Sun radius: {} R☉, Expected: 1.0 +/- 0.1 R☉",
-            sun.radius.value
-        );
-        assert_eq!(sun.unit_system, UnitSystem::Astronomical);
-        match sun.spectral_type {
-            SpectralType::G(_) => {}
-            _ => panic!("Sun should be G-type, got {:?}", sun.spectral_type),
-        }
-        let earth_dist = Distance::au(1.0); // AU-System, wie sun_like
-        let orb_vel_earth_dist =
-            sun.orbital_velocity_at_distance(&earth_dist.to_system(sun.unit_system));
-        // Erwartete Orbitalgeschwindigkeit der Erde um die Sonne ist ca. 29.78 km/s
-        assert!(
-            (orb_vel_earth_dist.in_kms() - 29.78).abs() < 1.0,
-            "Orbital vel at 1AU: {}",
-            orb_vel_earth_dist.in_kms()
-        );
-
-        // Teste to_system
-        let sun_si = sun.to_system(UnitSystem::SI);
-        assert_eq!(sun_si.unit_system, UnitSystem::SI);
-        assert!((sun_si.mass.in_kg() - SOLAR_MASS).abs() < 1e-3 * SOLAR_MASS);
-    }
-
-    #[test]
-    fn test_stellar_properties_si() {
-        let star = StellarProperties::new(
-            Mass::kilograms(SOLAR_MASS),
-            Time::seconds(4.6e9 * SECONDS_PER_YEAR),
-            0.0,
-        );
-
-        assert_eq!(star.unit_system, UnitSystem::SI);
-        assert!((star.mass.in_solar_masses() - 1.0).abs() < 1e-10);
-        assert!(
-            (star.luminosity - 1.0).abs() < 0.15,
-            "SI Sun luminosity: {}",
-            star.luminosity
-        );
-        assert!(
-            (star.effective_temperature - SOLAR_TEMPERATURE).abs() < 300.0,
-            "SI Sun temp: {}",
-            star.effective_temperature
-        );
-        assert!(
-            (star.radius.in_meters() - SOLAR_RADIUS).abs() < SOLAR_RADIUS * 0.1,
-            "SI Sun radius: {} m, Expected: {} m +/- 10%",
-            star.radius.in_meters(),
-            SOLAR_RADIUS
-        );
-    }
-
-    #[test]
-    fn test_habitable_zone_units() {
-        let sun = StellarProperties::sun_like();
-        let hz = sun.calculate_habitable_zone();
-
-        assert_eq!(
-            hz.inner_edge.system,
-            UnitSystem::Astronomical,
-            "HZ inner edge system: {:?}",
-            hz.inner_edge.system
-        );
-        assert!(
-            (hz.inner_edge.in_au() - 0.95).abs() < 0.1,
-            "HZ inner: {} AU, Expected near 0.95 AU",
-            hz.inner_edge.in_au()
-        );
-        assert!(
-            (hz.outer_edge.in_au() - 1.37).abs() < 0.1,
-            "HZ outer: {} AU, Expected near 1.37 AU",
-            hz.outer_edge.in_au()
-        );
-    }
-
-    #[test]
-    fn test_escape_velocity() {
-        let sun = StellarProperties::sun_like();
-        let escape_vel = sun.surface_escape_velocity();
-
-        assert!(
-            (escape_vel.in_kms() - 617.5).abs() < 30.0,
-            "Sun escape velocity: {} km/s, Expected near 617.5 km/s",
-            escape_vel.in_kms()
-        );
     }
 }

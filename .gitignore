@@ -1,5 +1,5 @@
 /target
 .DS_Store
 *.py
-combined_source.md
+*.md
 *.diff
