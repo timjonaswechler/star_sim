@@ -38,15 +38,16 @@ impl CosmicTime {
 
     /// Bestimmt die kosmische Epoche basierend auf der Zeit
     pub fn era(&self) -> CosmicEra {
-        match self.years_since_big_bang {
-            t if t.value < 380_000.0 => CosmicEra::Recombination,
-            t if t.value < 180_000_000.0 => CosmicEra::DarkAge,
-            t if t.value < 1_000_000_000.0 => CosmicEra::FirstStars,
-            t if t.value < 3_000_000_000.0 => CosmicEra::GalaxyFormation,
-            t if t.value < 10_000_000_000.0 => CosmicEra::StellarPeak,
-            t if t.value < 100_000_000_000.0 => CosmicEra::Modern,
-            t if t.value < 1e14 => CosmicEra::Stelliferous,
-            t if t.value < 1e30 => CosmicEra::Degenerate,
+        let t = &self.years_since_big_bang;
+        match t.value {
+            v if v < 380_000.0 => CosmicEra::Recombination,
+            v if v < 180_000_000.0 => CosmicEra::DarkAge,
+            v if v < 1_000_000_000.0 => CosmicEra::FirstStars,
+            v if v < 3_000_000_000.0 => CosmicEra::GalaxyFormation,
+            v if v < 10_000_000_000.0 => CosmicEra::StellarPeak,
+            v if v < 100_000_000_000.0 => CosmicEra::Modern,
+            v if v < 1e14 => CosmicEra::Stelliferous,
+            v if v < 1e30 => CosmicEra::Degenerate,
             _ => CosmicEra::BlackHole,
         }
     }

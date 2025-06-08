@@ -1,4 +1,13 @@
 use crate::physics::units::*;
+use crate::stellar_objects::bodies::habitability::{HabitableZone, TrojanHabitability, TrojanHabitableZone};
+use crate::stellar_objects::stars::properties::{StellarProperties, TidalLockingAnalysis};
+use crate::physics::astrophysics::orbit::two_body::BinaryOrbit;
+use crate::stellar_objects::stellar_systems::types::SystemType;
+use crate::stellar_objects::stellar_systems::hierarchy::SystemHierarchy;
+use crate::stellar_objects::cosmic_environment::region::CosmicRadiationEnvironment;
+use crate::physics::astrophysics::lagrange_points::LagrangeSystem;
+use crate::stellar_objects::trojans_asteroid::objects::{TrojanObject, TrojanTidalAnalysis};
+use crate::stellar_objects::trojans_asteroid::dynamics::OscillationPattern;
 use serde::{Deserialize, Serialize};
 
 /// Umfassendes Bewohnbarkeits-Assessment
@@ -187,7 +196,7 @@ impl HabitabilityAssessment {
     fn analyze_binary_system(
         primary: &StellarProperties,
         secondary: &StellarProperties,
-        orbital_properties: &crate::system_hierarchy::BinaryOrbit,
+        orbital_properties: &BinaryOrbit,
         radiation_env: &CosmicRadiationEnvironment,
         target_distances: &[Distance],
     ) -> Self {
@@ -281,7 +290,7 @@ impl HabitabilityAssessment {
 
     fn analyze_multiple_system(
         components: &[StellarProperties],
-        hierarchy: &crate::system_hierarchy::SystemHierarchy,
+        hierarchy: &SystemHierarchy,
         radiation_env: &CosmicRadiationEnvironment,
         target_distances: &[Distance],
     ) -> Self {
@@ -366,7 +375,7 @@ impl HabitabilityAssessment {
         radiation_env: &CosmicRadiationEnvironment,
     ) -> RadiationRisks {
         let pre_main_sequence_hazard = match &star.evolutionary_stage {
-            crate::stellar_properties::EvolutionaryStage::PreMainSequence { .. } => 0.9,
+            crate::stellar_objects::stars::types::EvolutionaryStage::PreMainSequence { .. } => 0.9,
             _ => 0.1,
         };
 
@@ -489,14 +498,14 @@ impl HabitabilityAssessment {
     ) -> TemperatureAnalysis {
         // Stefan-Boltzmann Gesetz für Planetentemperatur
         // T = (L☉ * (1-A) / (16π * σ * d²))^0.25
-        let luminosity_watts = star.luminosity * crate::constants::SOLAR_LUMINOSITY;
+        let luminosity_watts = star.luminosity * crate::physics::constants::SOLAR_LUMINOSITY;
         let distance_m = distance.in_meters();
         let albedo = 0.3; // Erdähnliche Albedo
 
         let equilibrium_temperature = (luminosity_watts * (1.0 - albedo)
             / (16.0
-                * crate::constants::PI
-                * crate::constants::STEFAN_BOLTZMANN
+                * crate::physics::constants::PI
+                * crate::physics::constants::STEFAN_BOLTZMANN
                 * distance_m
                 * distance_m))
             .powf(0.25);
@@ -687,8 +696,8 @@ impl HabitabilityAssessment {
 
         // Evolutionary stage
         habitability *= match &star.evolutionary_stage {
-            crate::stellar_properties::EvolutionaryStage::MainSequence { .. } => 1.0,
-            crate::stellar_properties::EvolutionaryStage::PreMainSequence { .. } => 0.3,
+            crate::stellar_objects::stars::types::EvolutionaryStage::MainSequence { .. } => 1.0,
+            crate::stellar_objects::stars::types::EvolutionaryStage::PreMainSequence { .. } => 0.3,
             _ => 0.1,
         };
 

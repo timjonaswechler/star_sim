@@ -1,4 +1,6 @@
-use crate::celestial_objects::stellar_properties::StellarProperties;
+use crate::stellar_objects::stars::properties::StellarProperties;
+use crate::physics::astrophysics::orbit::two_body::BinaryOrbit;
+use crate::stellar_objects::stellar_systems::hierarchy::SystemHierarchy;
 use serde::{Deserialize, Serialize};
 
 /// Typ des Sternsystems (aus original main.rs erweitert)

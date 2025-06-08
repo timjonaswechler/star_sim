@@ -1,4 +1,7 @@
 use crate::physics::units::*;
+use crate::stellar_objects::stars::properties::TidalLockingAnalysis;
+use crate::stellar_objects::bodies::habitability::assessment::TemperatureAnalysis;
+use crate::stellar_objects::trojans_asteroid::objects::TrojanTidalAnalysis;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

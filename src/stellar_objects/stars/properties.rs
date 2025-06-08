@@ -1,6 +1,7 @@
 use super::types::*;
 use crate::physics::constants::*;
 use crate::physics::units::*;
+use crate::physics::astrophysics::orbit::elements::EscapeVelocity;
 use crate::stellar_objects::bodies::habitability::HabitableZone;
 use serde::{Deserialize, Serialize};
 
@@ -43,7 +44,7 @@ pub struct StellarProperties {
 impl StellarProperties {
     /// Erstellt einen neuen Stern mit gegebenem Einheitensystem
     pub fn new(mass: Mass, age: Time, metallicity: f64) -> Self {
-        let unit_system = mass.system;
+        let unit_system = mass.unit_system();
 
         let mut star = StellarProperties {
             mass: mass.clone(),
