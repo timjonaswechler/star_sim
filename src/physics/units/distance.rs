@@ -75,6 +75,19 @@ impl Distance {
         self.as_au()
     }
 
+    /// Konvertiert die Distanz in ein anderes Einheitensystem.
+    /// Wenn das Zielsystem dem aktuellen System entspricht, wird eine
+    /// Kopie des bestehenden Objekts zurückgegeben. Andernfalls erfolgt
+    /// die Umrechnung über die im [`UnitConversion`] Trait implementierten
+    /// Basisfunktionen.
+    pub fn to_system(&self, target: UnitSystem) -> Self {
+        if self.system == target {
+            self.clone()
+        } else {
+            self.to_system_base(target)
+        }
+    }
+
     /// Gibt den Wert der Distanz in Metern zurück.
     pub fn as_meters(&self) -> f64 {
         match self.system {

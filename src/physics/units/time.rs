@@ -184,6 +184,18 @@ impl Time {
         self.as_gigayears()
     }
 
+    /// Konvertiert die Zeit in ein anderes Einheitensystem. Wenn das
+    /// Zielsystem bereits dem aktuellen entspricht, wird eine Kopie
+    /// zurückgegeben, andernfalls erfolgt die Umrechnung über
+    /// [`UnitConversion::to_system_base`].
+    pub fn to_system(&self, target: UnitSystem) -> Self {
+        if self.system == target {
+            self.clone()
+        } else {
+            self.to_system_base(target)
+        }
+    }
+
     // --- Konvertierungsmethoden (`as_...` geben den reinen f64 Wert zurück) ---
 
     /// Gibt den Wert der Zeit in Sekunden zurück.

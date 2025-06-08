@@ -1,4 +1,9 @@
 use serde::{Deserialize, Serialize};
+use rand::Rng;
+use rand_chacha::ChaCha8Rng;
+
+use crate::physics::constants::KILOPARSEC_IN_METERS;
+use crate::physics::units::{Distance, UnitSystem};
 
 /// Galaktische Regionen und ihre Eigenschaften
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -99,7 +104,7 @@ impl GalacticRegion {
 
         let distance = match unit_system {
             UnitSystem::Astronomical => Distance::new(distance_kpc, unit_system),
-            UnitSystem::SI => Distance::meters(distance_kpc * KILOPARSEC_TO_METERS),
+            UnitSystem::SI => Distance::meters(distance_kpc * KILOPARSEC_IN_METERS),
         };
 
         match distance_kpc {
@@ -198,7 +203,7 @@ impl CosmicRadiationEnvironment {
         let age_factor = if epoch.age_universe < 4.0 { 2.0 } else { 1.0 };
         let distance_kpc = match region.distance_from_center().system {
             UnitSystem::Astronomical => region.distance_from_center().value,
-            UnitSystem::SI => region.distance_from_center().in_meters() / KILOPARSEC_TO_METERS,
+            UnitSystem::SI => region.distance_from_center().in_meters() / KILOPARSEC_IN_METERS,
         };
 
         let (base_agn, base_sn, base_grb) = match region {

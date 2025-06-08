@@ -88,6 +88,17 @@ impl Mass {
         self.as_solar_masses()
     }
 
+    /// Konvertiert die Masse in ein anderes Einheitensystem. Bei identischem
+    /// Zielsystem wird eine Kopie zurückgegeben, ansonsten erfolgt die
+    /// Umrechnung über [`UnitConversion::to_system_base`].
+    pub fn to_system(&self, target: UnitSystem) -> Self {
+        if self.0.system == target {
+            self.clone()
+        } else {
+            self.to_system_base(target)
+        }
+    }
+
     // --- Konvertierungsmethoden ---
 
     /// Gibt den Wert der Masse in Kilogramm zurück.
