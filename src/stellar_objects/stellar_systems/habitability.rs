@@ -1,6 +1,7 @@
 use crate::physics::astrophysics::BinaryOrbit;
 use crate::physics::astrophysics::LagrangeSystem;
 use crate::physics::astrophysics::OscillationPattern;
+use crate::physics::constants::{PI, SOLAR_LUMINOSITY, STEFAN_BOLTZMANN};
 use crate::physics::units::{Distance, Time};
 use crate::stellar_objects::bodies::habitability::{
     HabitableRegion, HabitableZone, PlanetaryHabitability, RiskFactor, TemperatureAnalysis,
@@ -576,16 +577,12 @@ impl HabitabilityAssessment {
     ) -> TemperatureAnalysis {
         // Stefan-Boltzmann Gesetz für Planetentemperatur
         // T = (L☉ * (1-A) / (16π * σ * d²))^0.25
-        let luminosity_watts = star.luminosity * crate::constants::SOLAR_LUMINOSITY;
+        let luminosity_watts = star.luminosity * SOLAR_LUMINOSITY;
         let distance_m = distance.in_meters();
         let albedo = 0.3; // Erdähnliche Albedo
 
         let equilibrium_temperature = (luminosity_watts * (1.0 - albedo)
-            / (16.0
-                * crate::constants::PI
-                * crate::constants::STEFAN_BOLTZMANN
-                * distance_m
-                * distance_m))
+            / (16.0 * PI * STEFAN_BOLTZMANN * distance_m * distance_m))
             .powf(0.25);
 
         // Atmosphäreneffekte (vereinfacht)

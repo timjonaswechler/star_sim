@@ -1,10 +1,13 @@
 mod physics;
 mod stellar_objects;
+use stellar_objects::galaxy::properties::GalacticPosition;
+use stellar_objects::universe::UniverseBuilder;
+use stellar_objects::universe::{CosmicTime, Universe};
 fn main() {
     println!("=== Star System Generator - Teil 1: Cosmic Time & Place ===\n");
 
     // Beispiel 1: Universum zur heutigen Zeit
-    let modern_universe = Universe::builder()
+    let modern_universe = UniverseBuilder::new()
         .with_cosmic_time(CosmicTime::new(13.8e9))
         .with_seed(12345)
         .build();
@@ -12,7 +15,10 @@ fn main() {
     println!("Modernes Universum:");
     println!(
         "Kosmische Zeit: {:.2e} Jahre",
-        modern_universe.cosmic_time.years_since_big_bang
+        modern_universe
+            .cosmic_time
+            .years_since_big_bang
+            .as_gigayears()
     );
     println!("Kosmische Epoche: {:?}", modern_universe.cosmic_time.era());
     println!(

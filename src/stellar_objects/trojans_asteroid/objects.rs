@@ -1,6 +1,7 @@
-use super::dynamics::*;
+use crate::physics::astrophysics::OscillationPattern;
 use crate::physics::constants::MIN_LAGRANGE_MASS_RATIO;
 use crate::physics::units::*;
+use crate::stellar_objects::trojans_asteroid::dynamics::{MutualDynamics, TrojanDynamics};
 use serde::{Deserialize, Serialize};
 
 /// Gezeiten-Analyse für Trojaner

@@ -1,3 +1,4 @@
+use crate::physics::astrophysics::OscillationPattern;
 use crate::physics::astrophysics::lagrange_points::LagrangeSystem;
 use crate::physics::astrophysics::orbit::two_body::BinaryOrbit;
 use crate::physics::units::*;
@@ -5,7 +6,6 @@ use crate::stellar_objects::cosmic_environment::region::CosmicRadiationEnvironme
 use crate::stellar_objects::stars::properties::{StellarProperties, TidalLockingAnalysis};
 use crate::stellar_objects::stellar_systems::hierarchy::SystemHierarchy;
 use crate::stellar_objects::stellar_systems::types::SystemType;
-use crate::stellar_objects::trojans_asteroid::dynamics::OscillationPattern;
 use crate::stellar_objects::trojans_asteroid::objects::{TrojanObject, TrojanTidalAnalysis};
 use serde::{Deserialize, Serialize};
 

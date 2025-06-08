@@ -281,7 +281,7 @@ impl SystemStability {
     }
 
     /// Stabilitätsanalyse für Mehrsternsysteme (komplexer)
-    fn multiple_star_stability(
+    pub fn multiple_star_stability(
         components: &[StellarProperties],
         hierarchy: &SystemHierarchy,
     ) -> Self {
