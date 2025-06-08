@@ -2,6 +2,16 @@ use rand::Rng;
 use rand_chacha::ChaCha8Rng;
 use serde::{Deserialize, Serialize};
 
+use crate::physics::units::Distance;
+use crate::stellar_objects::bodies::properties::PhysicalProperties;
+use crate::stellar_objects::bodies::surface::{
+    composition::SurfaceComposition,
+    types::{
+        CarbonType, IceType, LavaComposition, MetalType, RegolithGrainSize,
+        RockType, SulfurType, SurfaceType, VegetationType,
+    },
+};
+
 /// Planetenkomposition bestimmt Masse-Radius-Beziehung
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum PlanetComposition {
@@ -279,7 +289,7 @@ impl SurfaceComposition {
 
                 surfaces.push((
                     SurfaceType::Carbon {
-                        carbon_type,
+                        carbon_type: carbon_type.clone(),
                         albedo: if matches!(carbon_type, CarbonType::Diamond) {
                             0.8
                         } else {

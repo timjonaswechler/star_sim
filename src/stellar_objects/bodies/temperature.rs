@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use crate::physics::units::Distance;
 
 /// Temperaturanalyse für einen Planeten
 #[derive(Debug, Clone, Serialize, Deserialize)]

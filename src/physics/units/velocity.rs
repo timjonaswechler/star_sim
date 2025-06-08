@@ -101,6 +101,15 @@ impl Velocity {
         self.as_au_per_year()
     }
 
+    /// Konvertiert die Geschwindigkeit in ein anderes Einheitensystem.
+    pub fn to_system(&self, target: UnitSystem) -> Self {
+        if self.0.system == target {
+            self.clone()
+        } else {
+            self.to_system_base(target)
+        }
+    }
+
     // --- Konvertierungsmethoden (`as_...` geben den reinen f64 Wert zurück) ---
 
     /// Gibt den Wert der Geschwindigkeit in Meter pro Sekunde zurück.

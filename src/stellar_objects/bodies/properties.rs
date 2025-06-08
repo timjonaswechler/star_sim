@@ -1,4 +1,10 @@
 use serde::{Deserialize, Serialize};
+use rand::Rng;
+use rand_chacha::ChaCha8Rng;
+
+use crate::physics::constants::{G, PI};
+use crate::physics::units::{Distance, Mass, Time, UnitSystem, Velocity};
+use crate::stellar_objects::planets::properties::PlanetComposition;
 
 /// Vollständige physikalische Eigenschaften eines Planeten
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -35,7 +41,7 @@ impl PhysicalProperties {
         age: Time,
         rng: &mut ChaCha8Rng,
     ) -> Self {
-        let unit_system = mass.system;
+        let unit_system = mass.unit_system();
 
         // Radius aus Masse-Radius-Beziehung
         let radius = Self::calculate_radius(&mass, &composition, &age);

@@ -1,3 +1,6 @@
+use serde::{Deserialize, Serialize};
+use crate::physics::units::Distance;
+
 /// Verschiedene Oberflächentypen aus dem Artikel
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum SurfaceType {

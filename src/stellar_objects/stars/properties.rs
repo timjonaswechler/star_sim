@@ -1,6 +1,7 @@
 use super::types::*;
 use crate::physics::constants::*;
 use crate::physics::units::*;
+use crate::stellar_objects::bodies::habitability::HabitableZone;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

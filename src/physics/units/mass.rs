@@ -1,6 +1,9 @@
 // src/physics/units/mass.rs
 use super::generic::{GenericUnitValue, UnitConversion, UnitSystem};
-use crate::physics::constants::{G_TO_KG, KG_TO_G, KG_TO_SOLAR_MASS, SOLAR_MASS_TO_KG};
+use crate::physics::constants::{
+    EARTH_MASS_IN_KG, EARTH_MASS_TO_KG, G_TO_KG, KG_TO_EARTH_MASS, KG_TO_G,
+    KG_TO_SOLAR_MASS, SOLAR_MASS_TO_KG,
+};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -47,6 +50,15 @@ impl Mass {
         ))
     }
 
+    /// Erstellt eine Masse in Erdmassen.
+    pub fn from_earth_masses(value_in_earth_masses: f64) -> Self {
+        Mass(GenericUnitValue::new(
+            value_in_earth_masses * EARTH_MASS_IN_KG,
+            "M⊕".to_string(),
+            UnitSystem::SI,
+        ))
+    }
+
     /// Generische Konstruktion aus Wert und Zielsystem
     pub fn new(value: f64, system: UnitSystem) -> Self {
         match system {
@@ -72,6 +84,10 @@ impl Mass {
         Self::from_solar_masses(value)
     }
 
+    pub fn earth_masses(value: f64) -> Self {
+        Self::from_earth_masses(value)
+    }
+
     pub fn in_kg(&self) -> f64 {
         self.as_kilograms()
     }
@@ -86,6 +102,21 @@ impl Mass {
 
     pub fn in_solar_masses(&self) -> f64 {
         self.as_solar_masses()
+    }
+
+    pub fn in_earth_masses(&self) -> f64 {
+        self.as_earth_masses()
+    }
+
+    /// Konvertiert die Masse in ein anderes Einheitensystem. Bei identischem
+    /// Zielsystem wird eine Kopie zurückgegeben, ansonsten erfolgt die
+    /// Umrechnung über [`UnitConversion::to_system_base`].
+    pub fn to_system(&self, target: UnitSystem) -> Self {
+        if self.0.system == target {
+            self.clone()
+        } else {
+            self.to_system_base(target)
+        }
     }
 
     // --- Konvertierungsmethoden ---
@@ -115,6 +146,15 @@ impl Mass {
         match guv.system {
             UnitSystem::SI => guv.value * KG_TO_SOLAR_MASS, // Interner Wert ist kg, also kg -> M☉
             UnitSystem::Astronomical => guv.value,          // Interner Wert ist bereits in M☉
+        }
+    }
+
+    /// Gibt den Wert der Masse in Erdmassen zurück.
+    pub fn as_earth_masses(&self) -> f64 {
+        let guv = &self.0;
+        match guv.system {
+            UnitSystem::SI => guv.value * KG_TO_EARTH_MASS,
+            UnitSystem::Astronomical => guv.value * SOLAR_MASS_TO_KG * KG_TO_EARTH_MASS,
         }
     }
 

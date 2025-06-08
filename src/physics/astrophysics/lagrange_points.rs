@@ -1,4 +1,11 @@
 use crate::physics::units::*;
+use crate::physics::constants::MIN_LAGRANGE_MASS_RATIO;
+use crate::stellar_objects::stars::properties::StellarProperties;
+use crate::stellar_objects::trojans_asteroid::dynamics::MutualDynamics;
+use crate::stellar_objects::trojans_asteroid::objects::{
+    MutualTrojanSystem, TrojanObject,
+};
+use rand_chacha::ChaCha8Rng;
 use serde::{Deserialize, Serialize};
 
 /// Lagrange-Punkt System für ein 2-Körper System
@@ -288,7 +295,7 @@ impl LagrangeSystem {
             // Leichte Variation der Position für sekundäre Trojaner
             let mut sec_trojan = self.generate_enhanced_trojan(
                 lagrange_point,
-                Mass::new(sec_mass.value, sec_mass.system),
+                Mass::new(sec_mass.value_in_system_base(), sec_mass.unit_system()),
                 primary_mass,
                 secondary_mass,
                 rng,
