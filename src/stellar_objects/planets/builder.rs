@@ -1,10 +1,11 @@
 use super::properties::PlanetComposition;
-use crate::stellar_objects::bodies::builder::{PhysicalPropertiesBuilder};
-use crate::stellar_objects::bodies::properties::PhysicalProperties;
 use crate::physics::units::{Mass, Time};
+use crate::stellar_objects::bodies::builder::PhysicalPropertiesBuilder;
+use crate::stellar_objects::bodies::properties::PhysicalProperties;
+use serde::{Deserialize, Serialize};
 
 /// Einfacher Planet mit physikalischen Eigenschaften
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Planet {
     pub properties: PhysicalProperties,
 }
@@ -49,4 +50,3 @@ impl PlanetBuilder {
         }
     }
 }
-
