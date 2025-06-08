@@ -70,7 +70,25 @@ stellar_objects/
 ## Setup
 
 ```bash
-git clone
+git clone <repository-url>
 cd star_sim
-setup.sh
+./setup.sh
+cargo check
 ```
+
+## Builder Usage
+
+The library exposes builders for creating planets, stars, moons and star systems.
+They offer sensible defaults and allow customization via method chaining.
+
+```rust
+use star_sim::stellar_objects::planets::builder::PlanetBuilder;
+use star_sim::physics::units::Mass;
+
+let planet = PlanetBuilder::new()
+    .with_seed(42)
+    .with_mass(Mass::earth_masses(1.0))
+    .build();
+```
+
+Every module features its own `*Builder` type following this pattern.
