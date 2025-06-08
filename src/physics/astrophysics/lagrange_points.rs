@@ -1,4 +1,4 @@
-use crate::physics::units::;
+use crate::physics::units::*;
 use serde::{Deserialize, Serialize};
 
 /// Lagrange-Punkt System für ein 2-Körper System
@@ -200,7 +200,7 @@ impl LagrangeSystem {
             mass: trojan_mass,
             lagrange_point,
             oscillation_amplitude: Distance::new(amplitude, self.unit_system),
-            oscillation_period: crate::units::Time::years(oscillation_period_years),
+            oscillation_period: Time::years(oscillation_period_years),
             stability,
         })
     }

@@ -2,7 +2,7 @@
 use crate::constants::MIN_LAGRANGE_MASS_RATIO;
 use crate::stellar_properties::*;
 use crate::system_hierarchy::*;
-use crate::units::*;
+use crate::physics::units::*;
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 use serde::{Deserialize, Serialize};
@@ -48,7 +48,7 @@ pub struct TrojanObject {
     /// Oszillationsamplitude um den L-Punkt (tadpole orbit)
     pub oscillation_amplitude: Distance,
     /// Oszillationsperiode
-    pub oscillation_period: crate::units::Time,
+    pub oscillation_period: Time,
     /// Stabilität des Trojaners (0.0-1.0)
     pub stability: f64,
 }
@@ -294,7 +294,7 @@ impl LagrangeSystem {
             mass: trojan_mass,
             lagrange_point,
             oscillation_amplitude: Distance::new(amplitude, self.unit_system),
-            oscillation_period: crate::units::Time::years(oscillation_period_years),
+            oscillation_period: Time::years(oscillation_period_years),
             stability,
         })
     }
@@ -740,7 +740,7 @@ impl MutualTrojanSystem {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::units::Time;
+    use crate::physics::units::Time;
 
     #[test]
     fn test_sun_jupiter_lagrange_system() {

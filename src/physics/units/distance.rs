@@ -42,6 +42,39 @@ impl Distance {
         }
     }
 
+    /// Generische Konstruktion aus Wert und Zielsystem
+    pub fn new(value: f64, system: UnitSystem) -> Self {
+        match system {
+            UnitSystem::SI => Self::from_meters(value),
+            UnitSystem::Astronomical => Self::from_au(value),
+        }
+    }
+
+    // Bequeme Kurzschreibweisen für die meistgenutzten Einheiten
+    pub fn meters(value: f64) -> Self {
+        Self::from_meters(value)
+    }
+
+    pub fn km(value: f64) -> Self {
+        Self::from_km(value)
+    }
+
+    pub fn au(value: f64) -> Self {
+        Self::from_au(value)
+    }
+
+    pub fn in_meters(&self) -> f64 {
+        self.as_meters()
+    }
+
+    pub fn in_km(&self) -> f64 {
+        self.as_km()
+    }
+
+    pub fn in_au(&self) -> f64 {
+        self.as_au()
+    }
+
     /// Gibt den Wert der Distanz in Metern zurück.
     pub fn as_meters(&self) -> f64 {
         match self.system {

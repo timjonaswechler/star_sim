@@ -59,6 +59,43 @@ impl Acceleration {
         }
     }
 
+    /// Konstruktion aus Wert und System
+    pub fn new(value: f64, system: UnitSystem) -> Self {
+        match system {
+            UnitSystem::SI => Self::from_meters_per_second_squared(value),
+            UnitSystem::Astronomical => Self::from_au_per_year_squared(value),
+        }
+    }
+
+    // Kurzschreibweisen
+    pub fn meters_per_second_squared(value: f64) -> Self {
+        Self::from_meters_per_second_squared(value)
+    }
+
+    pub fn km_per_second_squared(value: f64) -> Self {
+        Self::from_km_per_second_squared(value)
+    }
+
+    pub fn meters_per_minute_squared(value: f64) -> Self {
+        Self::from_meters_per_minute_squared(value)
+    }
+
+    pub fn au_per_year_squared(value: f64) -> Self {
+        Self::from_au_per_year_squared(value)
+    }
+
+    pub fn in_ms2(&self) -> f64 {
+        self.as_meters_per_second_squared()
+    }
+
+    pub fn in_kms2(&self) -> f64 {
+        self.as_km_per_second_squared()
+    }
+
+    pub fn in_au_yr2(&self) -> f64 {
+        self.as_au_per_year_squared()
+    }
+
     // --- Konvertierungsmethoden (`as_...` geben den reinen f64 Wert zurück) ---
 
     /// Gibt den Wert der Beschleunigung in Meter pro Sekunde-Quadrat zurück.

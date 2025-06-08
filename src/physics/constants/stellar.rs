@@ -6,12 +6,16 @@ pub const SOLAR_MASS_IN_KG: f64 = 1.98847e30;
 
 /// Sonnenradius in Metern
 pub const SOLAR_RADIUS_IN_METERS: f64 = 6.957e8;
+/// Alias für einfacheren Zugriff
+pub const SOLAR_RADIUS: f64 = SOLAR_RADIUS_IN_METERS;
 
 /// Sonnenleuchtkraft in Watt
 pub const SOLAR_LUMINOSITY_IN_WATTS: f64 = 3.828e26;
+pub const SOLAR_LUMINOSITY: f64 = SOLAR_LUMINOSITY_IN_WATTS;
 
 /// Effektivtemperatur der Sonne in Kelvin
 pub const SOLAR_TEMPERATURE_IN_KELVIN: f64 = 5778.0;
+pub const SOLAR_TEMPERATURE: f64 = SOLAR_TEMPERATURE_IN_KELVIN;
 
 /// Parsec in Metern
 pub const PARSEC_IN_METERS: f64 = 3.0857e16;

@@ -111,6 +111,79 @@ impl Time {
         }
     }
 
+    /// Konstruktion aus Wert und System
+    pub fn new(value: f64, system: UnitSystem) -> Self {
+        match system {
+            UnitSystem::SI => Self::from_seconds(value),
+            UnitSystem::Astronomical => Self::from_years(value),
+        }
+    }
+
+    // Kurzschreibweisen für häufig genutzte Einheiten
+    pub fn seconds(value: f64) -> Self {
+        Self::from_seconds(value)
+    }
+
+    pub fn minutes(value: f64) -> Self {
+        Self::from_minutes(value)
+    }
+
+    pub fn hours(value: f64) -> Self {
+        Self::from_hours(value)
+    }
+
+    pub fn days(value: f64) -> Self {
+        Self::from_days(value)
+    }
+
+    pub fn years(value: f64) -> Self {
+        Self::from_years(value)
+    }
+
+    pub fn kiloyears(value: f64) -> Self {
+        Self::from_kiloyears(value)
+    }
+
+    pub fn megayears(value: f64) -> Self {
+        Self::from_megayears(value)
+    }
+
+    pub fn gigayears(value: f64) -> Self {
+        Self::from_gigayears(value)
+    }
+
+    pub fn in_seconds(&self) -> f64 {
+        self.as_seconds()
+    }
+
+    pub fn in_minutes(&self) -> f64 {
+        self.as_minutes()
+    }
+
+    pub fn in_hours(&self) -> f64 {
+        self.as_hours()
+    }
+
+    pub fn in_days(&self) -> f64 {
+        self.as_days()
+    }
+
+    pub fn in_years(&self) -> f64 {
+        self.as_years()
+    }
+
+    pub fn in_kiloyears(&self) -> f64 {
+        self.as_kiloyears()
+    }
+
+    pub fn in_megayears(&self) -> f64 {
+        self.as_megayears()
+    }
+
+    pub fn in_gigayears(&self) -> f64 {
+        self.as_gigayears()
+    }
+
     // --- Konvertierungsmethoden (`as_...` geben den reinen f64 Wert zurück) ---
 
     /// Gibt den Wert der Zeit in Sekunden zurück.

@@ -60,6 +60,47 @@ impl Velocity {
         ))
     }
 
+    /// Konstruktion aus Wert und System
+    pub fn new(value: f64, system: UnitSystem) -> Self {
+        match system {
+            UnitSystem::SI => Self::from_meters_per_second(value),
+            UnitSystem::Astronomical => Self::from_au_per_year(value),
+        }
+    }
+
+    // Kurzschreibweisen
+    pub fn meters_per_second(value: f64) -> Self {
+        Self::from_meters_per_second(value)
+    }
+
+    pub fn km_per_second(value: f64) -> Self {
+        Self::from_km_per_second(value)
+    }
+
+    pub fn km_per_hour(value: f64) -> Self {
+        Self::from_km_per_hour(value)
+    }
+
+    pub fn au_per_year(value: f64) -> Self {
+        Self::from_au_per_year(value)
+    }
+
+    pub fn in_ms(&self) -> f64 {
+        self.as_meters_per_second()
+    }
+
+    pub fn in_kms(&self) -> f64 {
+        self.as_km_per_second()
+    }
+
+    pub fn in_kmh(&self) -> f64 {
+        self.as_km_per_hour()
+    }
+
+    pub fn in_au_per_year(&self) -> f64 {
+        self.as_au_per_year()
+    }
+
     // --- Konvertierungsmethoden (`as_...` geben den reinen f64 Wert zurück) ---
 
     /// Gibt den Wert der Geschwindigkeit in Meter pro Sekunde zurück.

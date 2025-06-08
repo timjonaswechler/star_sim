@@ -19,3 +19,17 @@ pub trait UnitConversion: Sized + Clone {
         }
     }
 }
+
+/// Einfacher generischer Wrapper für einen Wert mit Einheit und System
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GenericUnitValue<T> {
+    pub value: T,
+    pub unit: String,
+    pub system: UnitSystem,
+}
+
+impl<T> GenericUnitValue<T> {
+    pub fn new(value: T, unit: String, system: UnitSystem) -> Self {
+        Self { value, unit, system }
+    }
+}
