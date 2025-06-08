@@ -91,6 +91,7 @@ impl Distance {
         self.as_au()
     }
 
+
     pub fn in_earth_radii(&self) -> f64 {
         self.as_earth_radii()
     }

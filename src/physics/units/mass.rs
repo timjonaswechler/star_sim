@@ -104,6 +104,7 @@ impl Mass {
         self.as_solar_masses()
     }
 
+
     pub fn in_earth_masses(&self) -> f64 {
         self.as_earth_masses()
     }
