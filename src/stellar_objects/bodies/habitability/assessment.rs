@@ -1,13 +1,12 @@
-use crate::physics::units::*;
-use crate::stellar_objects::bodies::habitability::{HabitableZone, TrojanHabitability, TrojanHabitableZone};
-use crate::stellar_objects::stars::properties::{StellarProperties, TidalLockingAnalysis};
-use crate::physics::astrophysics::orbit::two_body::BinaryOrbit;
-use crate::stellar_objects::stellar_systems::types::SystemType;
-use crate::stellar_objects::stellar_systems::hierarchy::SystemHierarchy;
-use crate::stellar_objects::cosmic_environment::region::CosmicRadiationEnvironment;
 use crate::physics::astrophysics::lagrange_points::LagrangeSystem;
-use crate::stellar_objects::trojans_asteroid::objects::{TrojanObject, TrojanTidalAnalysis};
+use crate::physics::astrophysics::orbit::two_body::BinaryOrbit;
+use crate::physics::units::*;
+use crate::stellar_objects::cosmic_environment::region::CosmicRadiationEnvironment;
+use crate::stellar_objects::stars::properties::{StellarProperties, TidalLockingAnalysis};
+use crate::stellar_objects::stellar_systems::hierarchy::SystemHierarchy;
+use crate::stellar_objects::stellar_systems::types::SystemType;
 use crate::stellar_objects::trojans_asteroid::dynamics::OscillationPattern;
+use crate::stellar_objects::trojans_asteroid::objects::{TrojanObject, TrojanTidalAnalysis};
 use serde::{Deserialize, Serialize};
 
 /// Umfassendes Bewohnbarkeits-Assessment
@@ -864,4 +863,50 @@ impl HabitabilityAssessment {
             special_zones,
         }
     }
+}
+
+/// Spezielle bewohnbare Zonen für Trojaner
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum TrojanHabitableZone {
+    /// Stabile Region um Lagrange-Punkt
+    LagrangeCore {
+        radius: Distance,
+        temperature_range: (f64, f64),
+    },
+    /// Oszillations-tolerante Zone
+    LibrationZone {
+        amplitude: Distance,
+        seasonal_variation: f64,
+    },
+    /// Geschützte Zone innerhalb Hill-Sphäre
+    HillSphereProtected { protection_factor: f64 },
+}
+
+/// Trojaner-spezifische Bewohnbarkeitsanalyse
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TrojanHabitability {
+    /// Bewohnbarkeitsscore für Trojaner (0.0-1.0)
+    pub habitability_score: f64,
+    /// Stabile Temperaturbereiche
+    pub temperature_stability: f64,
+    /// Schutz durch Hill-Sphäre
+    pub hill_sphere_protection: f64,
+    /// Tidally locked Analyse für Trojaner
+    pub tidal_considerations: TrojanTidalAnalysis,
+    /// Langzeit-Bewohnbarkeit über Millionen Jahre
+    pub long_term_viability: f64,
+    /// Spezielle Habitabilitätszonen
+    pub special_zones: Vec<TrojanHabitableZone>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HabitableZone {
+    /// Innere Grenze der bewohnbaren Zone
+    pub inner_edge: Distance,
+    /// Äußere Grenze der bewohnbaren Zone
+    pub outer_edge: Distance,
+    /// Optimistische innere Grenze
+    pub optimistic_inner: Distance,
+    /// Optimistische äußere Grenze
+    pub optimistic_outer: Distance,
 }

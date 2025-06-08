@@ -1,3 +1,18 @@
+use crate::physics::astrophysics::BinaryOrbit;
+use crate::physics::astrophysics::LagrangeSystem;
+use crate::physics::astrophysics::OscillationPattern;
+use crate::physics::units::{Distance, Time};
+use crate::stellar_objects::bodies::habitability::{
+    HabitableRegion, HabitableZone, PlanetaryHabitability, RiskFactor, TemperatureAnalysis,
+    TemporalHabitability, TrojanHabitability, TrojanHabitableZone,
+};
+use crate::stellar_objects::cosmic_environment::region::CosmicRadiationEnvironment;
+use crate::stellar_objects::stars::properties::StellarProperties;
+use crate::stellar_objects::stellar_systems::hierarchy::SystemHierarchy;
+use crate::stellar_objects::stellar_systems::types::SystemType;
+use crate::stellar_objects::trojans_asteroid::objects::{TrojanObject, TrojanTidalAnalysis};
+use serde::{Deserialize, Serialize};
+
 /// Umfassendes Bewohnbarkeits-Assessment
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HabitabilityAssessment {
@@ -259,7 +274,7 @@ impl HabitabilityAssessment {
     fn analyze_binary_system(
         primary: &StellarProperties,
         secondary: &StellarProperties,
-        orbital_properties: &crate::system_hierarchy::BinaryOrbit,
+        orbital_properties: &BinaryOrbit,
         radiation_env: &CosmicRadiationEnvironment,
         target_distances: &[Distance],
     ) -> Self {
@@ -353,7 +368,7 @@ impl HabitabilityAssessment {
 
     fn analyze_multiple_system(
         components: &[StellarProperties],
-        hierarchy: &crate::system_hierarchy::SystemHierarchy,
+        hierarchy: &SystemHierarchy,
         radiation_env: &CosmicRadiationEnvironment,
         target_distances: &[Distance],
     ) -> Self {

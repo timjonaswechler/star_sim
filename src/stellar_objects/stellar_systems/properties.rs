@@ -1,10 +1,26 @@
+use crate::physics::astrophysics::orbit::two_body::BinaryOrbit;
+use crate::physics::units::{Distance, Mass, Time, UnitSystem};
+use crate::stellar_objects::bodies::habitability::HabitabilityAssessment;
+use crate::stellar_objects::cosmic_environment::dynamic::GalacticDynamics;
+use crate::stellar_objects::cosmic_environment::elemental_abundance::ElementalAbundance;
+use crate::stellar_objects::cosmic_environment::epoch::CosmicEpoch;
+use crate::stellar_objects::cosmic_environment::region::CosmicRadiationEnvironment;
+use crate::stellar_objects::cosmic_environment::region::GalacticRegion;
+use crate::stellar_objects::stars::properties::StellarProperties;
+use crate::stellar_objects::stellar_systems::hierarchy::SystemHierarchy;
+use crate::stellar_objects::stellar_systems::stability::SystemStability;
+use crate::stellar_objects::stellar_systems::types::SystemType;
+use rand::{Rng, SeedableRng};
+use rand_chacha::ChaCha8Rng;
+use serde::{Deserialize, Serialize};
+
 pub type CosmicTime = f64;
 pub type Metallicity = f64;
 
 /// Vollständiges Sternsystem mit kosmischer Umgebung
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StarSystem {
-    pub name: &str,
+    pub name: String,
     /// Eindeutige Seed für Reproduzierbarkeit
     pub seed: u64,
     /// Kosmische Parameter
@@ -70,6 +86,7 @@ impl StarSystem {
         );
 
         StarSystem {
+            name: format!("System-{}", seed),
             seed,
             cosmic_epoch,
             galactic_distance,

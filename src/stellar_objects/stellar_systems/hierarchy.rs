@@ -1,4 +1,10 @@
-/// Hierarchische Struktur für Mehrsternsysteme
+use crate::physics::astrophysics::OrbitalElements;
+use crate::physics::units::{Distance, Mass, Time};
+use crate::stellar_objects::stars::properties::StellarProperties;
+use crate::stellar_objects::stellar_systems::stability::SystemStability;
+use serde::{Deserialize, Serialize};
+
+/// Hierarchische Struktur für Mehrsternsysteme///
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SystemHierarchy {
     /// Hierarchische Ebenen von innersten zu äußersten Orbits

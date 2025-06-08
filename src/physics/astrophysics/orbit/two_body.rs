@@ -1,9 +1,9 @@
-use serde::{Deserialize, Serialize};
 use crate::physics::astrophysics::lagrange_points::LagrangeSystem;
-use crate::physics::astrophysics::orbit::elements::{OrbitalElements, EscapeVelocity};
-use crate::physics::units::*;
-use crate::stellar_objects::stars::properties::StellarProperties;
+use crate::physics::astrophysics::orbit::elements::{EscapeVelocity, OrbitalElements};
 use crate::physics::constants::MIN_LAGRANGE_MASS_RATIO;
+use crate::physics::units::{Distance, GenericUnitValue, Mass, UnitSystem};
+use crate::stellar_objects::stars::properties::StellarProperties;
+use serde::{Deserialize, Serialize};
 
 /// Erweiterte Binärbahnparameter mit vollständigen orbitalen Elementen
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -75,8 +75,8 @@ impl BinaryOrbit {
         if let Some(ref mut lag_sys) = lagrange_system_opt {
             if lag_sys.l4_l5_stable {
                 // Versuche, einen kleinen Test-Trojaner zu generieren
-                let trojan_mass_val = primary.mass.value * 0.000001; // Sehr kleine Masse
-                let trojan_mass = Mass::new(trojan_mass_val, primary.mass.system);
+                let trojan_mass_val = primary.mass.value_in_system_base() * 0.000001; // Sehr kleine Masse
+                let trojan_mass = Mass::new(trojan_mass_val, primary.mass.unit_system());
                 match lag_sys.generate_trojan(4, trojan_mass, &primary.mass, &secondary.mass) {
                     Ok(trojan) => {
                         if lag_sys.add_trojan(trojan).is_ok() {

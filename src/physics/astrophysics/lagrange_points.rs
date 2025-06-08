@@ -27,6 +27,26 @@ pub struct LagrangeSystem {
     pub unit_system: UnitSystem,
 }
 
+/// Oszillationsmuster für Trojaner (vereinfacht nach Artikel)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum OscillationPattern {
+    /// Tadpole-Orbit: Kleine Oszillationen um L4/L5
+    Tadpole {
+        center_point: u8,       // 4 oder 5
+        amplitude_degrees: f64, // Winkelabweichung in Grad
+    },
+    /// Horseshoe-Orbit: Größere Oszillationen zwischen L3, L4, L5
+    Horseshoe {
+        transition_probability: f64, // Wahrscheinlichkeit für L4↔L5 Wechsel
+        period_ratio: f64,           // Verhältnis zur Orbitalperiode
+    },
+    /// Quasi-stable: Nur temporär an Lagrange-Punkt gefangen
+    QuasiStable {
+        escape_timescale: Time,
+        drift_direction: f64, // Richtung der Drift in Grad
+    },
+}
+
 /// Status aller Lagrange-Punkte
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LagrangePointsStatus {

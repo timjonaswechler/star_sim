@@ -1,3 +1,7 @@
+use crate::physics::constants::{DEG_TO_RAD, G, J2000_EPOCH, PI, RAD_TO_DEG, TAU};
+use crate::physics::units::{Distance, Mass, Time, UnitSystem, Velocity};
+use serde::{Deserialize, Serialize};
+
 /// Vollständige orbitale Elemente (6 Parameter nach dem Artikel)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OrbitalElements {
