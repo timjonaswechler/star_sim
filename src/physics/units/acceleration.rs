@@ -96,6 +96,15 @@ impl Acceleration {
         self.as_au_per_year_squared()
     }
 
+    /// Konvertiert die Beschleunigung in ein anderes Einheitensystem.
+    pub fn to_system(&self, target: UnitSystem) -> Self {
+        if self.system == target {
+            self.clone()
+        } else {
+            self.to_system_base(target)
+        }
+    }
+
     // --- Konvertierungsmethoden (`as_...` geben den reinen f64 Wert zurück) ---
 
     /// Gibt den Wert der Beschleunigung in Meter pro Sekunde-Quadrat zurück.

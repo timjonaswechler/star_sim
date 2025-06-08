@@ -1,4 +1,10 @@
 use serde::{Deserialize, Serialize};
+use rand::Rng;
+use rand_chacha::ChaCha8Rng;
+
+use crate::physics::constants::{KILOPARSEC_IN_METERS, PI};
+use crate::physics::units::{Distance, UnitSystem};
+use crate::stellar_objects::cosmic_environment::region::{GalacticRegion, SpiralArmContext, GasDistribution};
 
 /// Galaktische Dynamik und Struktur
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -37,9 +43,9 @@ impl GalacticDynamics {
         age_gyr: f64,
         rng: &mut ChaCha8Rng,
     ) -> Self {
-        let distance_kpc = match region.distance_from_center().system {
-            UnitSystem::Astronomical => region.distance_from_center().value,
-            UnitSystem::SI => region.distance_from_center().in_meters() / KILOPARSEC_TO_METERS,
+        let distance_kpc = match region.get_distance_from_center().system {
+            UnitSystem::Astronomical => region.get_distance_from_center().value,
+            UnitSystem::SI => region.get_distance_from_center().in_meters() / KILOPARSEC_IN_METERS,
         };
 
         // Rotationskurve der Milchstraße (vereinfacht)
@@ -52,7 +58,7 @@ impl GalacticDynamics {
         };
 
         // Umlaufperiode
-        let orbital_period = 2.0 * PI * distance_kpc * KILOPARSEC_TO_METERS
+        let orbital_period = 2.0 * PI * distance_kpc * KILOPARSEC_IN_METERS
             / (rotation_velocity * 1000.0)
             / (1e6 * 365.25 * 24.0 * 3600.0); // Myr
 
