@@ -41,7 +41,7 @@ pub struct TrojanObject {
     /// Oszillationsamplitude um den L-Punkt (tadpole orbit)
     pub oscillation_amplitude: Distance,
     /// Oszillationsperiode
-    pub oscillation_period: crate::units::Time,
+    pub oscillation_period: Time,
     /// Stabilität des Trojaners (0.0-1.0)
     pub stability: f64,
 }

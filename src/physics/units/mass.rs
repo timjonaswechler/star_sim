@@ -47,6 +47,47 @@ impl Mass {
         ))
     }
 
+    /// Generische Konstruktion aus Wert und Zielsystem
+    pub fn new(value: f64, system: UnitSystem) -> Self {
+        match system {
+            UnitSystem::SI => Self::from_kilograms(value),
+            UnitSystem::Astronomical => Self::from_solar_masses(value),
+        }
+    }
+
+    // Kurzschreibweisen
+    pub fn kilograms(value: f64) -> Self {
+        Self::from_kilograms(value)
+    }
+
+    pub fn grams(value: f64) -> Self {
+        Self::from_grams(value)
+    }
+
+    pub fn tonnes(value: f64) -> Self {
+        Self::from_tonnes(value)
+    }
+
+    pub fn solar_masses(value: f64) -> Self {
+        Self::from_solar_masses(value)
+    }
+
+    pub fn in_kg(&self) -> f64 {
+        self.as_kilograms()
+    }
+
+    pub fn in_g(&self) -> f64 {
+        self.as_grams()
+    }
+
+    pub fn in_tonnes(&self) -> f64 {
+        self.as_tonnes()
+    }
+
+    pub fn in_solar_masses(&self) -> f64 {
+        self.as_solar_masses()
+    }
+
     // --- Konvertierungsmethoden ---
 
     /// Gibt den Wert der Masse in Kilogramm zurück.
