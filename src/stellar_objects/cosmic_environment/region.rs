@@ -5,6 +5,9 @@ use rand_chacha::ChaCha8Rng;
 use crate::physics::constants::KILOPARSEC_IN_METERS;
 use crate::physics::units::{Distance, UnitSystem};
 
+use crate::stellar_objects::cosmic_environment::epoch::CosmicEpoch;
+
+
 /// Galaktische Regionen und ihre Eigenschaften
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum GalacticRegion {
@@ -155,6 +158,11 @@ impl GalacticRegion {
                 ..
             } => distance_from_center,
         }
+    }
+
+    /// Alias für `get_distance_from_center` zur Rückwärtskompatibilität
+    pub fn distance_from_center(&self) -> &Distance {
+        self.get_distance_from_center()
     }
 
     /// Bewertet das Bewohnbarkeitspotenzial dieser galaktischen Region

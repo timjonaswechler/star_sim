@@ -1,6 +1,8 @@
 // src/physics/units/distance.rs
 use super::generic::{UnitConversion, UnitSystem};
-use crate::physics::constants::{AU_TO_M, KM_TO_M, M_TO_AU, M_TO_KM};
+use crate::physics::constants::{
+    AU_TO_M, EARTH_RADIUS_IN_METERS, KM_TO_M, M_TO_AU, M_TO_KM, METERS_TO_EARTH_RADIUS,
+};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -42,6 +44,15 @@ impl Distance {
         }
     }
 
+    /// Erstellt eine Distanz in Erdradien.
+    pub fn from_earth_radii(value_in_er: f64) -> Self {
+        Distance {
+            value: value_in_er * EARTH_RADIUS_IN_METERS,
+            unit: "R⊕".to_string(),
+            system: UnitSystem::SI,
+        }
+    }
+
     /// Generische Konstruktion aus Wert und Zielsystem
     pub fn new(value: f64, system: UnitSystem) -> Self {
         match system {
@@ -63,6 +74,11 @@ impl Distance {
         Self::from_au(value)
     }
 
+    /// Erstellt eine Distanz in Erdradien.
+    pub fn earth_radii(value: f64) -> Self {
+        Self::from_earth_radii(value)
+    }
+
     pub fn in_meters(&self) -> f64 {
         self.as_meters()
     }
@@ -73,6 +89,11 @@ impl Distance {
 
     pub fn in_au(&self) -> f64 {
         self.as_au()
+    }
+
+
+    pub fn in_earth_radii(&self) -> f64 {
+        self.as_earth_radii()
     }
 
     /// Konvertiert die Distanz in ein anderes Einheitensystem.
@@ -107,6 +128,11 @@ impl Distance {
             UnitSystem::SI => self.value * M_TO_AU, // Interner Wert ist Meter, also m -> AU
             UnitSystem::Astronomical => self.value, // Interner Wert ist bereits in AU
         }
+    }
+
+    /// Gibt den Wert der Distanz in Erdradien zurück.
+    pub fn as_earth_radii(&self) -> f64 {
+        self.as_meters() * METERS_TO_EARTH_RADIUS
     }
 
     /// Gibt das ursprüngliche Einheitenlabel zurück (z.B. "km", "m", "AU").

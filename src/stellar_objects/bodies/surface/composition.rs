@@ -1,3 +1,7 @@
+use serde::{Deserialize, Serialize};
+
+use super::types::SurfaceType;
+
 /// Oberflächenkomposition eines Planeten
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SurfaceComposition {
