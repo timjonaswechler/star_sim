@@ -1,7 +1,7 @@
 use crate::physics::astrophysics::OscillationPattern;
 use crate::physics::astrophysics::lagrange_points::LagrangeSystem;
 use crate::physics::astrophysics::orbit::two_body::BinaryOrbit;
-use crate::physics::units::*;
+use crate::physics::unit_system::*;
 use crate::stellar_objects::cosmic_environment::region::CosmicRadiationEnvironment;
 use crate::stellar_objects::stars::properties::{StellarProperties, TidalLockingAnalysis};
 use crate::stellar_objects::stellar_systems::hierarchy::SystemHierarchy;
@@ -258,7 +258,7 @@ impl HabitabilityAssessment {
             name: "Orbital instability".to_string(),
             severity: 0.3,
             probability: 0.1,
-            timescale: Time::years(1e8),
+            timescale: Time::new(1e8, TimeUnit::Years),
             impact_description: "Close stellar encounters may destabilize planetary orbits"
                 .to_string(),
         });

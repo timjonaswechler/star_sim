@@ -1,0 +1,443 @@
+(
+    star: (
+        mass: ((
+            value: 2.688340473619696,
+            unit: "M☉",
+            system: Astronomical,
+        )),
+        luminosity: 6689.8170568224405,
+        effective_temperature: 3500.0,
+        radius: (
+            value: 222.908231892799,
+            unit: "AU",
+            system: Astronomical,
+        ),
+        spectral_type: M(1),
+        luminosity_class: III,
+        evolutionary_stage: RedGiant,
+        main_sequence_lifetime: (
+            value: 301391702.95524675,
+            unit: "yr",
+            system: Astronomical,
+        ),
+        age: (
+            value: 5201750781.36356,
+            unit: "yr",
+            system: Astronomical,
+        ),
+        metallicity: 0.23000892451909127,
+        unit_system: Astronomical,
+    ),
+    system: (
+        name: "System-13971078269572320270",
+        seed: 13971078269572320270,
+        cosmic_epoch: (
+            age_universe: 13.105404868472306,
+            era: "Late Universe",
+            star_formation_rate: 0.3,
+            epoch_metallicity: 0.2,
+            redshift: 0.05300066182607477,
+            hubble_parameter: 71.83107435468139,
+        ),
+        galactic_distance: (
+            value: 12.857144694835373,
+            unit: "AU",
+            system: Astronomical,
+        ),
+        galactic_region: OuterDisk(
+            distance_from_center: (
+                value: 12.857144694835373,
+                unit: "AU",
+                system: Astronomical,
+            ),
+            gas_density: 0.4043007512751672,
+        ),
+        radiation_environment: (
+            agn_risk: 0.1396129141922714,
+            supernova_frequency: 0.10926059534580995,
+            grb_risk: 0.37771802621958406,
+            stellar_encounter_rate: 0.1,
+            cosmic_ray_flux: 0.7777776666087403,
+            uv_background: 1.7760614365066527,
+            gravitational_wave_activity: 0.12399691898159171,
+        ),
+        system_type: Binary(
+            primary: (
+                mass: ((
+                    value: 9.932627987242874,
+                    unit: "M☉",
+                    system: Astronomical,
+                )),
+                luminosity: 6485.506356383121,
+                effective_temperature: 18209.986442072157,
+                radius: (
+                    value: 8.107888633490715,
+                    unit: "AU",
+                    system: Astronomical,
+                ),
+                spectral_type: B(5),
+                luminosity_class: V,
+                evolutionary_stage: NeutronStar,
+                main_sequence_lifetime: (
+                    value: 11486336.734679611,
+                    unit: "yr",
+                    system: Astronomical,
+                ),
+                age: (
+                    value: 1647713729.1672251,
+                    unit: "yr",
+                    system: Astronomical,
+                ),
+                metallicity: 0.2,
+                unit_system: Astronomical,
+            ),
+            secondary: (
+                mass: ((
+                    value: 9.002858886432428,
+                    unit: "M☉",
+                    system: Astronomical,
+                )),
+                luminosity: 4597.808141906939,
+                effective_temperature: 17336.7528890352,
+                radius: (
+                    value: 7.531734104583496,
+                    unit: "AU",
+                    system: Astronomical,
+                ),
+                spectral_type: B(6),
+                luminosity_class: V,
+                evolutionary_stage: NeutronStar,
+                main_sequence_lifetime: (
+                    value: 14685571.812537337,
+                    unit: "yr",
+                    system: Astronomical,
+                ),
+                age: (
+                    value: 1647713729.1672251,
+                    unit: "yr",
+                    system: Astronomical,
+                ),
+                metallicity: 0.2,
+                unit_system: Astronomical,
+            ),
+            orbital_properties: (
+                orbital_elements: (
+                    semimajor_axis: (
+                        value: 17910.546641601206,
+                        unit: "AU",
+                        system: Astronomical,
+                    ),
+                    eccentricity: 0.616139867540716,
+                    inclination: 81.4774160208971,
+                    longitude_of_ascending_node: 16.678896754288015,
+                    argument_of_periapsis: 293.7746252093742,
+                    true_anomaly_at_epoch: 0.0,
+                    epoch: 2451545.0,
+                    unit_system: Astronomical,
+                ),
+                barycenter_position: 0.4754490310438481,
+                s_type_stability: ((
+                    value: 0.0,
+                    unit: "AU",
+                    system: Astronomical,
+                ), (
+                    value: 0.0,
+                    unit: "AU",
+                    system: Astronomical,
+                )),
+                p_type_stability: (
+                    value: 110862.11489386068,
+                    unit: "AU",
+                    system: Astronomical,
+                ),
+                lagrange_system: None,
+                mutual_hill_sphere: (
+                    value: 9692.51343460643,
+                    unit: "AU",
+                    system: Astronomical,
+                ),
+            ),
+        ),
+        elemental_abundance: (
+            hydrogen: 0.4515,
+            helium: 0.4485,
+            lithium: 0.00000000003449667019454516,
+            carbon: 0.01530501952759083,
+            nitrogen: 0.004539624436149823,
+            oxygen: 0.026673536151263173,
+            heavy_metals: 0.05348181985049951,
+            alpha_elements: 0.03035063194454453,
+            iron_group: 0.021256971566098376,
+            s_process_elements: 0.0014591649973338715,
+            r_process_elements: 0.0004150513770194124,
+        ),
+        habitability_assessment: (
+            overall_habitability: 0.007641052605514923,
+            system_habitable_zone: (
+                inner_edge: (
+                    value: 100.0134557682454,
+                    unit: "AU",
+                    system: Astronomical,
+                ),
+                outer_edge: (
+                    value: 144.229930949996,
+                    unit: "AU",
+                    system: Astronomical,
+                ),
+                optimistic_inner: (
+                    value: 88.43295036350119,
+                    unit: "AU",
+                    system: Astronomical,
+                ),
+                optimistic_outer: (
+                    value: 175.81312750838927,
+                    unit: "AU",
+                    system: Astronomical,
+                ),
+            ),
+            radiation_risks: (
+                pre_main_sequence_hazard: 0.1,
+                stellar_flare_risk: 0.1,
+                galactic_radiation_risk: 0.20886384525255516,
+                x_ray_flux: 0.1,
+                cosmic_ray_flux: 0.432348323892489,
+            ),
+            habitability_conditions: [
+                "Dual star system with complex dynamics",
+                "Multiple potential orbital configurations",
+                "Enhanced stellar activity during close approaches",
+            ],
+            planetary_analysis: [],
+            temporal_evolution: (
+                past_habitability: [
+                    (0.5, 0.5),
+                    (1.0, 0.9),
+                    (2.0, 0.9),
+                    (3.0, 0.9),
+                    (4.0, 0.9),
+                ],
+                current_habitability: 0.3,
+                future_habitability: [],
+                total_habitable_lifetime: 9189069.38774369,
+                habitability_window: (0.5, 10337703.061211651),
+            ),
+            risk_factors: [
+                (
+                    name: "Stellar evolution",
+                    severity: 0.8,
+                    probability: 1.0,
+                    timescale: (
+                        value: 1148633.6734679611,
+                        unit: "yr",
+                        system: Astronomical,
+                    ),
+                    impact_description: "Star will leave main sequence, altering habitable zone",
+                ),
+                (
+                    name: "Orbital instability",
+                    severity: 0.3,
+                    probability: 0.1,
+                    timescale: (
+                        value: 100000000.0,
+                        unit: "yr",
+                        system: Astronomical,
+                    ),
+                    impact_description: "Close stellar encounters may destabilize planetary orbits",
+                ),
+            ],
+        ),
+        unit_system: Astronomical,
+        galactic_dynamics: (
+            rotation_velocity: 194.02174894548043,
+            orbital_period: 407.12120023273667,
+            vertical_oscillation: (
+                amplitude: 66.05756508257593,
+                period: 77.03493291231577,
+                current_phase: 0.797436166107448,
+                velocity_z: 2.8634651643397007,
+            ),
+            spiral_arm_context: InterArm(
+                distance_to_nearest_arm: (
+                    value: 0.24159777809781763,
+                    unit: "AU",
+                    system: Astronomical,
+                ),
+                nearest_arm_name: "Perseus Arm",
+            ),
+            local_stellar_density: 0.09746449796654848,
+            gas_distribution: (
+                hi_density: 0.8945070052663419,
+                h2_density: 24.87100382286913,
+                hii_density: 0.033652400790998384,
+                helium_density: 0.1101975761508944,
+                dust_to_gas_ratio: 0.008689875893923591,
+                turbulence_velocity: 12.754953002316574,
+            ),
+        ),
+    ),
+    planets: [
+        (
+            planet: (
+                properties: (
+                    mass: ((
+                        value: 56803635719117480000000000.0,
+                        unit: "M⊕",
+                        system: SI,
+                    )),
+                    radius: (
+                        value: 6182101.512256182,
+                        unit: "R⊕",
+                        system: SI,
+                    ),
+                    density: 13.703590176880732,
+                    surface_gravity: 10.101473678515527,
+                    escape_velocity: ((
+                        value: 35021.75136488129,
+                        unit: "m/s",
+                        system: SI,
+                    )),
+                    rotation_period: (
+                        value: 54732.435312908856,
+                        unit: "hr",
+                        system: SI,
+                    ),
+                    obliquity: 22.694242432203385,
+                    oblateness: 0.00041064518511002996,
+                    horizon_distance: (
+                        value: 4972.766438213716,
+                        unit: "m",
+                        system: SI,
+                    ),
+                    composition: Terrestrial(
+                        rock_fraction: 0.7,
+                    ),
+                    unit_system: SI,
+                ),
+            ),
+            moons: [
+                (
+                    mass: ((
+                        value: 477844059966174040000000.0,
+                        unit: "M⊕",
+                        system: SI,
+                    )),
+                    semi_major_axis: (
+                        value: 1480325771.5670972,
+                        unit: "R⊕",
+                        system: SI,
+                    ),
+                    seed: 1185098871006462261,
+                ),
+                (
+                    mass: ((
+                        value: 290694725353883550000000.0,
+                        unit: "M⊕",
+                        system: SI,
+                    )),
+                    semi_major_axis: (
+                        value: 419984558.50525206,
+                        unit: "R⊕",
+                        system: SI,
+                    ),
+                    seed: 693344371693792117,
+                ),
+            ],
+            trojans: [
+                (
+                    mass: ((
+                        value: 33638771823467930000000.0,
+                        unit: "M⊕",
+                        system: SI,
+                    )),
+                    lagrange_point: 5,
+                    oscillation_amplitude: (
+                        value: 0.08716187792720852,
+                        unit: "AU",
+                        system: Astronomical,
+                    ),
+                    oscillation_period: (
+                        value: 456.5286896324751,
+                        unit: "yr",
+                        system: Astronomical,
+                    ),
+                    stability: 0.751301408282262,
+                ),
+            ],
+        ),
+        (
+            planet: (
+                properties: (
+                    mass: ((
+                        value: 43588359559008370000000000.0,
+                        unit: "M⊕",
+                        system: SI,
+                    )),
+                    radius: (
+                        value: 5947695.03397913,
+                        unit: "R⊕",
+                        system: SI,
+                    ),
+                    density: 11.808400456937887,
+                    surface_gravity: 8.374405910539599,
+                    escape_velocity: ((
+                        value: 31277.26544887372,
+                        unit: "m/s",
+                        system: SI,
+                    )),
+                    rotation_period: (
+                        value: 66143.65441431447,
+                        unit: "hr",
+                        system: SI,
+                    ),
+                    obliquity: 26.592541027258463,
+                    oblateness: 0.00032630460083943894,
+                    horizon_distance: (
+                        value: 4877.579331586163,
+                        unit: "m",
+                        system: SI,
+                    ),
+                    composition: Terrestrial(
+                        rock_fraction: 0.7,
+                    ),
+                    unit_system: SI,
+                ),
+            ),
+            moons: [
+                (
+                    mass: ((
+                        value: 351746050308591300000000.0,
+                        unit: "M⊕",
+                        system: SI,
+                    )),
+                    semi_major_axis: (
+                        value: 6319397548.804505,
+                        unit: "R⊕",
+                        system: SI,
+                    ),
+                    seed: 2807070451753893855,
+                ),
+            ],
+            trojans: [
+                (
+                    mass: ((
+                        value: 6065990235843091000000.0,
+                        unit: "M⊕",
+                        system: SI,
+                    )),
+                    lagrange_point: 5,
+                    oscillation_amplitude: (
+                        value: 0.05403324001512852,
+                        unit: "AU",
+                        system: Astronomical,
+                    ),
+                    oscillation_period: (
+                        value: 271.14003421434757,
+                        unit: "yr",
+                        system: Astronomical,
+                    ),
+                    stability: 0.6837120817191744,
+                ),
+            ],
+        ),
+    ],
+)

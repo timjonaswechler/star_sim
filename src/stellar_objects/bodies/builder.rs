@@ -1,6 +1,7 @@
 use super::properties::PhysicalProperties;
+use crate::physics::unit_system::mass::Mass;
+use crate::physics::unit_system::time::Time;
 use crate::stellar_objects::planets::properties::PlanetComposition;
-use crate::physics::units::{Mass, Time};
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 
@@ -49,11 +50,12 @@ impl PhysicalPropertiesBuilder {
         let mass = self
             .mass
             .unwrap_or_else(|| Mass::earth_masses(rng.gen_range(0.1..10.0)));
-        let comp = self.composition.unwrap_or_else(|| PlanetComposition::Terrestrial { rock_fraction: 0.7 });
+        let comp = self
+            .composition
+            .unwrap_or_else(|| PlanetComposition::Terrestrial { rock_fraction: 0.7 });
         let age = self
             .age
             .unwrap_or_else(|| Time::years(rng.gen_range(1.0e6..4.5e9)));
         PhysicalProperties::from_mass_and_composition(mass, comp, age, &mut rng)
     }
 }
-
