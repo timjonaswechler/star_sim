@@ -92,3 +92,15 @@ let planet = PlanetBuilder::new()
 ```
 
 Every module features its own `*Builder` type following this pattern.
+
+The crate also provides an optional typed unit system located in `physics::unit_system`.
+It works similarly to the [`uom`](https://crates.io/crates/uom) crate but is
+implemented manually without macros. Quantities are stored internally in SI base
+units and can be converted to any supported unit on demand.
+
+```rust
+use star_sim::physics::unit_system::{Mass, MassUnit};
+
+let mass = Mass::new(1.0, MassUnit::EarthMass);
+let in_kg = mass.get(MassUnit::Kilogram);
+```
