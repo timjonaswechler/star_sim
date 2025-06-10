@@ -76,7 +76,7 @@ impl BinaryOrbit {
             if lag_sys.l4_l5_stable {
                 // Versuche, einen kleinen Test-Trojaner zu generieren
                 let trojan_mass_val = primary.mass.value_in_system_base() * 0.000001; // Sehr kleine Masse
-                let trojan_mass = Mass::new(trojan_mass_val, primary.mass.unit_system());
+                let trojan_mass = Mass::new(trojan_mass_val, primary.mass.units());
                 match lag_sys.generate_trojan(4, trojan_mass, &primary.mass, &secondary.mass) {
                     Ok(trojan) => {
                         if lag_sys.add_trojan(trojan).is_ok() {
@@ -132,15 +132,15 @@ impl BinaryOrbit {
         let sqrt_l_combined = combined_luminosity.sqrt();
 
         crate::stellar_objects::bodies::habitability::HabitableZone {
-            inner_edge: Distance::new(0.95 * sqrt_l_combined, self.orbital_elements.unit_system),
-            outer_edge: Distance::new(1.37 * sqrt_l_combined, self.orbital_elements.unit_system),
+            inner_edge: Distance::new(0.95 * sqrt_l_combined, self.orbital_elements.units),
+            outer_edge: Distance::new(1.37 * sqrt_l_combined, self.orbital_elements.units),
             optimistic_inner: Distance::new(
                 0.84 * sqrt_l_combined,
-                self.orbital_elements.unit_system,
+                self.orbital_elements.units,
             ),
             optimistic_outer: Distance::new(
                 1.67 * sqrt_l_combined,
-                self.orbital_elements.unit_system,
+                self.orbital_elements.units,
             ),
         }
     }

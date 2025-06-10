@@ -1,4 +1,6 @@
+use super::{Time, TimeUnit};
 use std::ops::{Add, Div, Mul, Neg, Sub};
+
 // Basic math operations
 impl<U: TimeUnit> Add for Time<U> {
     type Output = Time<U>;

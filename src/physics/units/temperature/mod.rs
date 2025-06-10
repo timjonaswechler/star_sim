@@ -7,3 +7,5 @@ pub use convert::*;
 pub use operations::*;
 pub use prefix::*;
 pub use traits::*;
+
+pub const KELVIN_OFFSET: f64 = 273.15;

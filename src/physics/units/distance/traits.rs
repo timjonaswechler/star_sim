@@ -1,29 +1,25 @@
-use crate::physics::units::UnitSymbol;
+use super::Prefixed;
+use crate::physics::units::{Kilo, UnitSymbol};
 use std::marker::PhantomData;
 
 // Marker trait
-pub trait LengthUnit {}
+pub trait DistanceUnit {}
 
-// Length unit types
+// Distance unit types
 pub struct Meter;
-pub struct Kilometer;
+pub type Kilometer = Prefixed<Kilo, Meter>;
 pub struct AstronomicalUnit;
 pub struct EarthRadius;
+pub struct SunRadius;
 
-impl LengthUnit for Meter {}
-impl LengthUnit for Kilometer {}
-impl LengthUnit for AstronomicalUnit {}
-impl LengthUnit for EarthRadius {}
+impl DistanceUnit for Meter {}
+impl DistanceUnit for AstronomicalUnit {}
+impl DistanceUnit for EarthRadius {}
+impl DistanceUnit for SunRadius {}
 
 impl UnitSymbol for Meter {
     fn symbol() -> String {
         "m".into()
-    }
-}
-
-impl UnitSymbol for Kilometer {
-    fn symbol() -> String {
-        "km".into()
     }
 }
 
@@ -39,15 +35,21 @@ impl UnitSymbol for EarthRadius {
     }
 }
 
+impl UnitSymbol for SunRadius {
+    fn symbol() -> String {
+        "R☉".into()
+    }
+}
+
 // Quantity struct
 #[derive(Debug, Clone, Copy)]
-pub struct Distance<U: LengthUnit> {
+pub struct Distance<U: DistanceUnit> {
     pub value: f64,
     _unit: PhantomData<U>,
 }
 
 // Basic constructors and accessors
-impl<U: LengthUnit> Distance<U> {
+impl<U: DistanceUnit> Distance<U> {
     pub fn new(value: f64) -> Self {
         Distance {
             value,
@@ -61,15 +63,15 @@ impl<U: LengthUnit> Distance<U> {
 }
 
 // Conversion trait
-pub trait LengthConvertTo<V: LengthUnit> {
+pub trait DistanceConvertTo<V: DistanceUnit> {
     fn convert(self) -> Distance<V>;
 }
 
 // Generic get method
-impl<U: LengthUnit> Distance<U> {
-    pub fn get<V: LengthUnit>(self) -> Distance<V>
+impl<U: DistanceUnit> Distance<U> {
+    pub fn get<V: DistanceUnit>(self) -> Distance<V>
     where
-        Self: LengthConvertTo<V>,
+        Self: DistanceConvertTo<V>,
     {
         self.convert()
     }

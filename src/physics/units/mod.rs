@@ -1,14 +1,14 @@
-pub mod prefix;
-pub mod time;
-pub mod velocity;
 pub mod acceleration;
+pub mod distance;
 pub mod energy;
 pub mod force;
-pub mod length;
 pub mod mass;
 pub mod power;
+pub mod prefix;
 pub mod pressure;
 pub mod temperature;
+pub mod time;
+pub mod velocity;
 
 /// Trait for returning the short symbol of a unit.
 pub trait UnitSymbol {
@@ -16,15 +16,11 @@ pub trait UnitSymbol {
 }
 
 pub use acceleration::*;
+pub use distance::*;
 pub use energy::*;
 pub use force::*;
-pub use length::*;
 pub use mass::*;
 pub use power::*;
-pub use pressure::*;
-pub use temperature::*;
-pub use time::*;
-pub use velocity::*;
 pub use prefix::Atto;
 pub use prefix::Centi;
 pub use prefix::Deca;
@@ -46,3 +42,7 @@ pub use prefix::Yocto;
 pub use prefix::Yotta;
 pub use prefix::Zepto;
 pub use prefix::Zetta;
+pub use pressure::*;
+pub use temperature::*;
+pub use time::*;
+pub use velocity::*;

@@ -95,7 +95,7 @@ pub struct GasDistribution {
 
 impl GalacticRegion {
     /// Generiert eine zufällige galaktische Region
-    pub fn generate_random(rng: &mut ChaCha8Rng, unit_system: UnitSystem) -> Self {
+    pub fn generate_random(rng: &mut ChaCha8Rng, units: UnitSystem) -> Self {
         let r: f64 = rng.r#gen();
         let distance_kpc = match r {
             x if x < 0.05 => rng.gen_range(0.0..1.0),   // 5% Core
@@ -105,8 +105,8 @@ impl GalacticRegion {
             _ => rng.gen_range(20.0..50.0),             // 10% Halo
         };
 
-        let distance = match unit_system {
-            UnitSystem::Astronomical => Distance::new(distance_kpc, unit_system),
+        let distance = match units {
+            UnitSystem::Astronomical => Distance::new(distance_kpc, units),
             UnitSystem::SI => Distance::meters(distance_kpc * KILOPARSEC_IN_METERS),
         };
 

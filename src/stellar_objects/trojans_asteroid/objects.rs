@@ -36,13 +36,13 @@ pub enum TrojanConfiguration {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TrojanObject {
     /// Masse des Trojaners
-    pub mass: Mass,
+    pub mass: Mass<Kilogram>,
     /// Lagrange-Punkt (4 oder 5)
     pub lagrange_point: u8,
     /// Oszillationsamplitude um den L-Punkt (tadpole orbit)
-    pub oscillation_amplitude: Distance,
+    pub oscillation_amplitude: Distance<Meter>,
     /// Oszillationsperiode
-    pub oscillation_period: Time,
+    pub oscillation_period: Time<Year>,
     /// Stabilität des Trojaners (0.0-1.0)
     pub stability: f64,
 }
@@ -79,23 +79,13 @@ impl TrojanConfiguration {
 }
 
 impl TrojanObject {
-    /// Konvertiert zu anderem Einheitensystem
-    pub fn to_system(&self, target: UnitSystem) -> Self {
-        Self {
-            mass: self.mass.to_system(target),
-            oscillation_amplitude: self.oscillation_amplitude.to_system(target),
-            oscillation_period: self.oscillation_period.to_system(target),
-            ..self.clone()
-        }
-    }
-
     /// Prüft ob der Trojaner langfristig stabil ist
     pub fn is_long_term_stable(&self) -> bool {
         self.stability > 0.7
     }
 
     /// Berechnet maximale Entfernung vom Lagrange-Punkt während Oszillation
-    pub fn maximum_distance_from_lagrange_point(&self) -> Distance {
+    pub fn maximum_distance_from_lagrange_point(&self) -> Distance<Meter> {
         // Tadpole-Orbit: maximale Abweichung etwa die Oszillationsamplitude
         self.oscillation_amplitude.clone()
     }
@@ -103,9 +93,9 @@ impl TrojanObject {
     /// Berechnet detaillierte Trojaner-Dynamik basierend auf dem Artikel
     pub fn calculate_libration_dynamics(
         &self,
-        primary_mass: &Mass,
-        secondary_mass: &Mass,
-        separation: &Distance,
+        primary_mass: &Mass<Kilogram>,
+        secondary_mass: &Mass<Kilogram>,
+        separation: &Distance<Meter>,
     ) -> TrojanDynamics {
         let mass_parameter =
             secondary_mass.in_kg() / (primary_mass.in_kg() + secondary_mass.in_kg());
@@ -169,19 +159,23 @@ impl TrojanObject {
     /// Berechnet Librations-Amplitude
     fn calculate_libration_amplitude(
         &self,
-        separation: &Distance,
+        separation: &Distance<Meter>,
         mass_parameter: f64,
-    ) -> Distance {
+    ) -> Distance<Meter> {
         // Vereinfachte Formel basierend auf Hill-Sphäre und Trojaner-Masse
         let hill_scale = (mass_parameter / 3.0).powf(1.0 / 3.0);
         let trojan_factor = (self.mass.in_kg() / 1e15).powf(0.1); // Schwache Massenabhängigkeit
 
         let amplitude_fraction = hill_scale * trojan_factor * 0.1; // ~10% der Hill-Sphäre
-        Distance::new(separation.value * amplitude_fraction, separation.system)
+        (separation.value * amplitude_fraction).get()
     }
 
     /// Schätzt säkulare Drift durch Perturbationen
-    fn estimate_secular_drift(&self, primary_mass: &Mass, secondary_mass: &Mass) -> f64 {
+    fn estimate_secular_drift(
+        &self,
+        primary_mass: &Mass<Kilogram>,
+        secondary_mass: &Mass<Kilogram>,
+    ) -> f32 {
         let mass_ratio = primary_mass.in_kg() / secondary_mass.in_kg();
 
         // Drift ist stärker für:
@@ -201,7 +195,11 @@ impl TrojanObject {
     }
 
     /// Bewertet Langzeit-Stabilität über Millionen Jahre
-    fn assess_long_term_stability(&self, primary_mass: &Mass, secondary_mass: &Mass) -> f64 {
+    fn assess_long_term_stability(
+        &self,
+        primary_mass: &Mass<Kilogram>,
+        secondary_mass: &Mass<Kilogram>,
+    ) -> f64 {
         let mass_ratio = primary_mass.in_kg() / secondary_mass.in_kg();
 
         // Basiert auf dem 24.96:1 Kriterium aus dem Artikel
@@ -235,10 +233,10 @@ impl TrojanObject {
     /// Berechnet Orbitalperiode für Trojaner-System
     fn calculate_orbital_period(
         &self,
-        primary_mass: &Mass,
-        secondary_mass: &Mass,
-        separation: &Distance,
-    ) -> Time {
+        primary_mass: &Mass<Kilogram>,
+        secondary_mass: &Mass<Kilogram>,
+        separation: &Distance<Meter>,
+    ) -> Time<Year> {
         let total_mass = Mass::kilograms(primary_mass.in_kg() + secondary_mass.in_kg());
 
         // Trojaner haben dieselbe Periode wie der sekundäre Körper
@@ -257,7 +255,7 @@ impl MutualTrojanSystem {
     }
 
     /// Berechnet Gesamtmasse aller Trojaner
-    pub fn total_trojan_mass(&self) -> Mass {
+    pub fn total_trojan_mass(&self) -> Mass<Kilogram> {
         let total_kg = self.primary_trojan.mass.in_kg()
             + self
                 .secondary_trojans
@@ -268,7 +266,7 @@ impl MutualTrojanSystem {
     }
 
     /// Schätzt Lebensdauer des Systems
-    pub fn estimated_lifetime(&self) -> Time {
+    pub fn estimated_lifetime(&self) -> Time<Year> {
         let base_lifetime = 1e9; // 1 Gyr für perfekte Bedingungen
         let stability_factor = self.system_stability;
         let crowding_penalty = 0.9_f64.powf(self.secondary_trojans.len() as f64);

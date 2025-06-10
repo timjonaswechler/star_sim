@@ -1,3 +1,4 @@
+use crate::physics::units::UnitSymbol;
 use crate::physics::units::prefix::Prefix;
 use crate::physics::units::velocity::{Velocity, VelocityConvertTo, VelocityUnit};
 use std::marker::PhantomData;

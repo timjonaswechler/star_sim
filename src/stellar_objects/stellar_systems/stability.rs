@@ -1,6 +1,6 @@
 use crate::physics::astrophysics::LagrangePointsStatus;
 use crate::physics::astrophysics::orbit::two_body::BinaryOrbit;
-use crate::physics::units::{Distance, Mass, Time};
+use crate::physics::units::{Distance, Mass, Meter, Time, Year};
 use crate::stellar_objects::stars::properties::StellarProperties;
 use crate::stellar_objects::stellar_systems::hierarchy::SystemHierarchy;
 use crate::stellar_objects::stellar_systems::types::SystemType;
@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SystemStability {
     /// Charakteristische Stabilitäts-Zeitskala (typisch 1-10 Myr)
-    pub stability_timescale: Time,
+    pub stability_timescale: Time<Year>,
     /// Wahrscheinlichkeit für Sternauswurf in 1 Myr (0.0-1.0)
     pub ejection_probability: f64,
     /// Kollisionsrisiko in 1 Myr (0.0-1.0)
@@ -55,9 +55,9 @@ pub struct TrojanStabilityAnalysis {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HillSphereAnalysis {
     /// Hill-Radius für jede Komponente
-    pub hill_radii: Vec<Distance>,
+    pub hill_radii: Vec<Distance<Meter>>,
     /// Minimum-Abstand zwischen Komponenten
-    pub minimum_separations: Vec<Distance>,
+    pub minimum_separations: Vec<Distance<Meter>>,
     /// Stabilität basierend auf Hill-Kriterium
     pub hill_stability_ratios: Vec<f64>,
 }

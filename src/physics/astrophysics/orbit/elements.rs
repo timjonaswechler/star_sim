@@ -20,7 +20,7 @@ pub struct OrbitalElements {
     /// Reference epoch (Julian Date, Standard: J2000.0)
     pub epoch: f64,
     /// Einheitensystem für Berechnungen
-    pub unit_system: UnitSystem,
+    pub units: UnitSystem,
 }
 
 impl OrbitalElements {
@@ -33,7 +33,7 @@ impl OrbitalElements {
         argument_of_periapsis: f64,
         true_anomaly_at_epoch: f64,
     ) -> Self {
-        let unit_system_val = semimajor_axis.system;
+        let units_val = semimajor_axis.system;
         Self {
             semimajor_axis,
             eccentricity,
@@ -42,7 +42,7 @@ impl OrbitalElements {
             argument_of_periapsis: argument_of_periapsis % 360.0,
             true_anomaly_at_epoch: true_anomaly_at_epoch % 360.0,
             epoch: J2000_EPOCH,
-            unit_system: unit_system_val,
+            units: units_val,
         }
     }
 
@@ -65,7 +65,7 @@ impl OrbitalElements {
     /// Berechnet Orbitalperiode mit Kepler's 3rd Law
     /// P² = 4π²a³ / GM (SI) oder P² = a³ / M (astronomische Einheiten)
     pub fn orbital_period(&self, total_mass: &Mass) -> Time {
-        match self.unit_system {
+        match self.units {
             UnitSystem::Astronomical => {
                 // P² = a³ / M (Jahre, AU, Sonnenmassen)
                 let period_years =
@@ -85,7 +85,7 @@ impl OrbitalElements {
     /// Berechnet orbitale Geschwindigkeit an gegebener Position
     /// v² = GM(2/r - 1/a) (Vis-viva Gleichung)
     pub fn orbital_velocity_at_distance(&self, distance: &Distance, total_mass: &Mass) -> Velocity {
-        let gm = match self.unit_system {
+        let gm = match self.units {
             UnitSystem::Astronomical => {
                 // Vereinfachte Berechnung in astronomischen Einheiten
                 total_mass.in_solar_masses()
@@ -93,13 +93,13 @@ impl OrbitalElements {
             UnitSystem::SI => G * total_mass.in_kg(),
         };
 
-        let r = distance.to_system(self.unit_system).value;
+        let r = distance.to_system(self.units).value;
         let a = self.semimajor_axis.value;
 
         let v_squared = gm * (2.0 / r - 1.0 / a);
         let velocity = v_squared.sqrt();
 
-        match self.unit_system {
+        match self.units {
             UnitSystem::Astronomical => Velocity::au_per_year(velocity),
             UnitSystem::SI => Velocity::meters_per_second(velocity),
         }
@@ -157,7 +157,7 @@ impl OrbitalElements {
     /// Vereinfachte Implementierung für elliptische Bahnen
     pub fn true_anomaly_at_time(&self, time: f64, total_mass: &Mass) -> f64 {
         let period = self.orbital_period(total_mass);
-        let period_value = match self.unit_system {
+        let period_value = match self.units {
             UnitSystem::Astronomical => period.in_years(),
             UnitSystem::SI => period.in_seconds(),
         };
@@ -179,7 +179,7 @@ impl OrbitalElements {
 
     /// Konvertiert zu anderem Einheitensystem
     pub fn to_system(&self, target: UnitSystem) -> Self {
-        if target == self.unit_system {
+        if target == self.units {
             return self.clone();
         }
 
@@ -191,7 +191,7 @@ impl OrbitalElements {
             argument_of_periapsis: self.argument_of_periapsis,
             true_anomaly_at_epoch: self.true_anomaly_at_epoch,
             epoch: self.epoch,
-            unit_system: target,
+            units: target,
         }
     }
 }

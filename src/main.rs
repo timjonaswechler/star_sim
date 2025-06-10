@@ -7,10 +7,11 @@ use std::fs::File;
 use std::io::Write;
 
 use physics::astrophysics::orbit::elements::OrbitalElements;
-use physics::units::Distance;
 use physics::constants::KILOPARSEC_IN_METERS;
+use physics::units::Distance;
 
 use stellar_objects::cosmic_environment::builder::CosmicEnvironmentBuilder;
+use stellar_objects::galaxy::properties::GalacticPosition;
 use stellar_objects::moons::builder::{Moon, MoonBuilder};
 use stellar_objects::planets::builder::{Planet, PlanetBuilder};
 use stellar_objects::stars::builder::StellarBuilder;
@@ -20,7 +21,6 @@ use stellar_objects::stellar_systems::properties::StarSystem;
 use stellar_objects::trojans_asteroid::builder::TrojanBuilder;
 use stellar_objects::trojans_asteroid::objects::TrojanObject;
 use stellar_objects::universe::UniverseBuilder;
-use stellar_objects::galaxy::properties::GalacticPosition;
 
 #[derive(Serialize, Deserialize)]
 struct PlanetEntry {
@@ -47,7 +47,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let env_seed = rng.r#gen::<u64>();
     let environment = CosmicEnvironmentBuilder::new()
         .with_seed(env_seed)
-        .with_unit_system(universe.cosmic_time.years_since_big_bang.system)
+        .with_units(universe.cosmic_time.years_since_big_bang.system)
         .build();
 
     // Generate the stellar system
@@ -60,11 +60,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Evaluate the galactic environment
     let stability = environment.dynamics.environmental_stability();
-    let distance_kpc = environment
-        .region
-        .distance_from_center()
-        .in_meters()
-        / KILOPARSEC_IN_METERS;
+    let distance_kpc = environment.region.distance_from_center().in_meters() / KILOPARSEC_IN_METERS;
     let position = GalacticPosition {
         distance_from_center_kpc: distance_kpc,
         azimuth: 0.0,
@@ -72,14 +68,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let habitability = universe.evaluate_habitability(&position);
 
     // Example orbital calculation using physics modules
-    let earth_orbit = OrbitalElements::new(
-        Distance::au(1.0),
-        0.0167,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-    );
+    let earth_orbit = OrbitalElements::new(Distance::au(1.0), 0.0167, 0.0, 0.0, 0.0, 0.0);
     let period = earth_orbit.orbital_period(&star.mass);
 
     // Generate planets with moons and trojans

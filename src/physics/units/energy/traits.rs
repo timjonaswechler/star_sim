@@ -4,20 +4,12 @@ use std::marker::PhantomData;
 pub trait EnergyUnit {}
 
 pub struct Joule;
-pub struct KilowattHour;
 
 impl EnergyUnit for Joule {}
-impl EnergyUnit for KilowattHour {}
 
 impl UnitSymbol for Joule {
     fn symbol() -> String {
         "J".into()
-    }
-}
-
-impl UnitSymbol for KilowattHour {
-    fn symbol() -> String {
-        "kWh".into()
     }
 }
 

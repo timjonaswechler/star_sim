@@ -30,7 +30,7 @@ pub struct PhysicalProperties {
     /// Komposition
     pub composition: PlanetComposition,
     /// Einheitensystem
-    pub unit_system: UnitSystem,
+    pub units: UnitSystem,
 }
 
 impl PhysicalProperties {
@@ -41,7 +41,7 @@ impl PhysicalProperties {
         age: Time,
         rng: &mut ChaCha8Rng,
     ) -> Self {
-        let unit_system = mass.unit_system();
+        let units = mass.units();
 
         // Radius aus Masse-Radius-Beziehung
         let radius = Self::calculate_radius(&mass, &composition, &age);
@@ -80,7 +80,7 @@ impl PhysicalProperties {
             oblateness,
             horizon_distance,
             composition,
-            unit_system,
+            units,
         }
     }
 
@@ -258,7 +258,7 @@ impl PhysicalProperties {
 
     /// Konvertiert zu anderem Einheitensystem
     pub fn to_system(&self, target: UnitSystem) -> Self {
-        if target == self.unit_system {
+        if target == self.units {
             return self.clone();
         }
 
@@ -268,7 +268,7 @@ impl PhysicalProperties {
             escape_velocity: self.escape_velocity.to_system(target),
             rotation_period: self.rotation_period.to_system(target),
             horizon_distance: self.horizon_distance.to_system(target),
-            unit_system: target,
+            units: target,
             ..self.clone()
         }
     }

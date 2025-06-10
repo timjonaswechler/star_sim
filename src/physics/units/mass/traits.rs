@@ -1,21 +1,22 @@
-use crate::physics::units::UnitSymbol;
+use super::Prefixed;
+use crate::physics::units::{Kilo, UnitSymbol};
 use std::marker::PhantomData;
 
 // Marker trait
 pub trait MassUnit {}
 
 // Mass unit types
-pub struct Kilogram;
+pub struct Gram;
 pub struct EarthMass;
 pub struct SolarMass;
 
-impl MassUnit for Kilogram {}
+pub type Kilogram = Prefixed<Kilo, Gram>;
 impl MassUnit for EarthMass {}
 impl MassUnit for SolarMass {}
 
-impl UnitSymbol for Kilogram {
+impl UnitSymbol for Gram {
     fn symbol() -> String {
-        "kg".into()
+        "g".into()
     }
 }
 

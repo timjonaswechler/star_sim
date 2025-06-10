@@ -1,5 +1,5 @@
 use crate::physics::units::Time;
-
+use crate::physics::units::time::Year;
 /// Kosmische Epochen basierend auf der Entstehung und dem Schicksal des Universums
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CosmicEra {
@@ -26,7 +26,7 @@ pub enum CosmicEra {
 /// Zeitrechnung seit dem Big Bang in Jahren
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub struct CosmicTime {
-    pub years_since_big_bang: Time,
+    pub years_since_big_bang: Time<Year>,
 }
 
 impl CosmicTime {

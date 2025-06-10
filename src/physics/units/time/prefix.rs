@@ -1,5 +1,4 @@
-use crate::physics::units::prefix::Prefix;
-use crate::physics::units::time::{Time, TimeConvertTo, TimeUnit};
+use crate::physics::units::{Prefix, Time, TimeConvertTo, TimeUnit, UnitSymbol};
 use std::marker::PhantomData;
 
 /// Einheiten-Typ mit Präfix.

@@ -22,28 +22,3 @@ pub const DEG_TO_RAD: f64 = PI / 180.0;
 
 /// Umwandlung von Radiant zu Grad
 pub const RAD_TO_DEG: f64 = 180.0 / PI;
-
-pub const SECONDS_PER_MINUTE: f64 = 60.0;
-pub const MINUTES_PER_SECOND: f64 = 1.0 / SECONDS_PER_MINUTE;
-
-pub const MINUTES_PER_HOUR: f64 = 60.0;
-pub const HOURS_PER_MINUTE: f64 = 1.0 / MINUTES_PER_HOUR;
-
-pub const HOURS_PER_DAY: f64 = 24.0;
-pub const DAYS_PER_HOUR: f64 = 1.0 / HOURS_PER_DAY;
-
-pub const DAYS_PER_YEAR_ASTRO: f64 = 365.25; // Julianisches Jahr
-pub const SECONDS_PER_HOUR: f64 = SECONDS_PER_MINUTE * MINUTES_PER_HOUR; // 3600.0 Sekunden pro Stunde
-pub const SECONDS_PER_DAY: f64 = SECONDS_PER_HOUR * HOURS_PER_DAY; // 86400.0 Sekunden pro Tag
-pub const SECONDS_PER_YEAR: f64 = SECONDS_PER_DAY * DAYS_PER_YEAR_ASTRO; // 31_557_600.0 Sekunden pro Jahr
-
-pub const YEARS_PER_SECONDS: f64 = 1.0 / SECONDS_PER_YEAR; // 31_557_600.0 Sekunden pro Jahr    
-pub const DAYS_PER_SECONDS: f64 = 1.0 / SECONDS_PER_DAY; // 86_400.0 Sekunden pro Tag
-pub const HOURS_PER_SECONDS: f64 = 1.0 / SECONDS_PER_HOUR; // 3600.0 Sekunden pro Stunde
-pub const MINUTES_PER_SECONDS: f64 = 1.0 / SECONDS_PER_MINUTE; // 60.0 Sekunden pro Minute
-
-pub const KM_TO_M: f64 = 1000.0; // Kilometer zu Meter
-pub const M_TO_KM: f64 = 0.001; // Meter zu Kilometer
-
-pub const G_TO_KG: f64 = 0.001; // Gramm zu Kilogramm
-pub const KG_TO_G: f64 = 1000.0; // Kilogramm zu Gramm

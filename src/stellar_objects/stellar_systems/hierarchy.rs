@@ -1,5 +1,5 @@
 use crate::physics::astrophysics::OrbitalElements;
-use crate::physics::units::{Distance, Mass, Time};
+use crate::physics::units::{Distance, Mass, Time, Year};
 use crate::stellar_objects::stars::properties::StellarProperties;
 use crate::stellar_objects::stellar_systems::stability::SystemStability;
 use serde::{Deserialize, Serialize};
@@ -12,7 +12,7 @@ pub struct SystemHierarchy {
     /// Gesamtstabilität des Systems (0.0-1.0)
     pub stability_factor: f64,
     /// Charakteristische Zeitskala für chaotische Entwicklung
-    pub chaos_timescale: Time,
+    pub chaos_timescale: Time<Year>,
 }
 
 /// Eine Ebene in der Systemhierarchie
@@ -57,8 +57,7 @@ impl SystemHierarchy {
             };
 
             hierarchy_levels.push(level);
-            current_separation =
-                Distance::new(current_separation.value * 3.0, current_separation.system);
+            current_separation = Distance::new(current_separation.value * 3.0);
         }
 
         let stability_factor = hierarchy_levels

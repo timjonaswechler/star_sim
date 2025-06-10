@@ -1,6 +1,6 @@
 use super::properties::PhysicalProperties;
-use crate::physics::unit_system::mass::Mass;
-use crate::physics::unit_system::time::Time;
+use crate::physics::units::mass::Mass;
+use crate::physics::units::time::Time;
 use crate::stellar_objects::planets::properties::PlanetComposition;
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;

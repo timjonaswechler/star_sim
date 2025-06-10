@@ -1,3 +1,4 @@
+use crate::physics::units::velocity::{Velocity, VelocityUnit};
 use std::ops::{Add, Div, Mul, Neg, Sub};
 // Basic math operations
 impl<U: VelocityUnit> Add for Velocity<U> {

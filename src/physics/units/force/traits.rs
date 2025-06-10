@@ -4,20 +4,12 @@ use std::marker::PhantomData;
 pub trait ForceUnit {}
 
 pub struct Newton;
-pub struct Dyne;
 
 impl ForceUnit for Newton {}
-impl ForceUnit for Dyne {}
 
 impl UnitSymbol for Newton {
     fn symbol() -> String {
         "N".into()
-    }
-}
-
-impl UnitSymbol for Dyne {
-    fn symbol() -> String {
-        "dyn".into()
     }
 }
 

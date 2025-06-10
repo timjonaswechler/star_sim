@@ -10,21 +10,19 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LagrangeSystem {
     /// Position von L1 (zwischen den Körpern, näher zum weniger massiven)
-    pub l1_distance_from_secondary: Distance,
+    pub l1_distance_from_secondary: Distance<Meter>,
     /// Position von L2 (hinter dem weniger massiven Körper)
-    pub l2_distance_from_secondary: Distance,
+    pub l2_distance_from_secondary: Distance<Meter>,
     /// Position von L3 (gegenüber dem weniger massiven Körper)
-    pub l3_distance_from_primary: Distance,
+    pub l3_distance_from_primary: Distance<Meter>,
     /// L4/L5 Stabilität (erfordert Massenverhältnis ≥ 24.96:1)
     pub l4_l5_stable: bool,
     /// Massenverhältnis Primary:Secondary
     pub mass_ratio: f64,
     /// Semimajor axis des Binärsystems
-    pub separation: Distance,
+    pub separation: Distance<Meter>,
     /// Liste von Trojanern an L4/L5
     pub trojans: Vec<TrojanObject>,
-    /// Einheitensystem
-    pub unit_system: UnitSystem,
 }
 
 /// Oszillationsmuster für Trojaner (vereinfacht nach Artikel)
@@ -42,8 +40,8 @@ pub enum OscillationPattern {
     },
     /// Quasi-stable: Nur temporär an Lagrange-Punkt gefangen
     QuasiStable {
-        escape_timescale: Time,
-        drift_direction: f64, // Richtung der Drift in Grad
+        escape_timescale: Time<Year>, // Zeit bis zur Flucht
+        drift_direction: f64,         // Richtung der Drift in Grad
     },
 }
 
@@ -64,7 +62,7 @@ impl LagrangeSystem {
     pub fn new(
         primary: &StellarProperties,
         secondary: &StellarProperties,
-        separation: Distance,
+        separation: Distance<Meter>,
     ) -> Self {
         let primary_mass = primary.mass.clone();
         let secondary_mass = secondary.mass.clone();
@@ -86,7 +84,7 @@ impl LagrangeSystem {
         let l3_distance = Self::calculate_l3_distance(&separation, mu);
 
         // L4/L5 Stabilität nach Artikel: Massenverhältnis muss ≥ 24.96 sein
-        let l4_l5_stable = mass_ratio.max(1.0 / mass_ratio) >= MIN_LAGRANGE_MASS_RATIO;
+        let l4_l5_stable = f64::max(mass_ratio, 1.0 / mass_ratio) >= MIN_LAGRANGE_MASS_RATIO;
 
         Self {
             l1_distance_from_secondary: l1_distance,
@@ -96,29 +94,28 @@ impl LagrangeSystem {
             mass_ratio,
             separation: separation.clone(),
             trojans: Vec::new(),
-            unit_system: separation.system,
         }
     }
 
     /// Berechnet L1 Position (zwischen den Körpern)
     /// Vereinfachte Näherung: r ≈ a * (μ/3)^(1/3)
-    fn calculate_l1_distance(separation: &Distance, mu: f64) -> Distance {
+    fn calculate_l1_distance(separation: &Distance<Meter>, mu: f64) -> Distance<Meter> {
         let distance = separation.value * (mu / 3.0).powf(1.0 / 3.0);
-        Distance::new(distance, separation.system)
+        distance.get()
     }
 
     /// Berechnet L2 Position (hinter dem kleineren Körper)
     /// Vereinfachte Näherung: r ≈ a * (μ/3)^(1/3)
-    fn calculate_l2_distance(separation: &Distance, mu: f64) -> Distance {
+    fn calculate_l2_distance(separation: &Distance<Meter>, mu: f64) -> Distance<Meter> {
         let distance = separation.value * (mu / 3.0).powf(1.0 / 3.0);
-        Distance::new(distance, separation.system)
+        distance.get()
     }
 
     /// Berechnet L3 Position (gegenüber dem kleineren Körper)
     /// Vereinfachte Näherung: r ≈ a * (7μ/12)
-    fn calculate_l3_distance(separation: &Distance, mu: f64) -> Distance {
+    fn calculate_l3_distance(separation: &Distance<Meter>, mu: f64) -> Distance<Meter> {
         let distance = separation.value * (7.0 * mu / 12.0);
-        Distance::new(distance, separation.system)
+        distance.get()
     }
 
     /// Fügt einen Trojaner an L4 oder L5 hinzu
@@ -137,24 +134,21 @@ impl LagrangeSystem {
 
     /// Berechnet die Position von L4 in kartesischen Koordinaten
     /// L4 bildet ein gleichseitiges Dreieck mit den beiden Hauptkörpern
-    pub fn l4_position(&self) -> (Distance, Distance) {
+    pub fn l4_position(&self) -> (Distance<Meter>, Distance<Meter>) {
         let x = self.separation.value * 0.5; // Mittelpunkt zwischen den Körpern
         let y = self.separation.value * (3.0_f64.sqrt() / 2.0); // Höhe des gleichseitigen Dreiecks
 
-        (
-            Distance::new(x, self.separation.system),
-            Distance::new(y, self.separation.system),
-        )
+        (x.get(), y.get())
     }
 
     /// Berechnet die Position von L5 in kartesischen Koordinaten
-    pub fn l5_position(&self) -> (Distance, Distance) {
+    pub fn l5_position(&self) -> (Distance<Meter>, Distance<Meter>) {
         let (x, y) = self.l4_position();
-        (x, Distance::new(-y.value, y.system)) // Gespiegelt über x-Achse
+        (x.get(), -y.get()) // Gespiegelt über x-Achse
     }
 
     /// Prüft, ob ein kleiner Körper gravitativ von einem Lagrange-Punkt gefangen werden kann
-    pub fn can_capture_at_lagrange_point(&self, point: u8, _test_mass: &Mass) -> bool {
+    pub fn can_capture_at_lagrange_point(&self, point: u8, _test_mass: &Mass<Kilogram>) -> bool {
         match point {
             1 | 2 | 3 => {
                 // L1, L2, L3 sind nur quasi-stabil
@@ -169,7 +163,11 @@ impl LagrangeSystem {
     }
 
     /// Berechnet die Hill-Sphäre an einem Lagrange-Punkt
-    pub fn hill_sphere_at_lagrange_point(&self, point: u8, body_mass: &Mass) -> Option<Distance> {
+    pub fn hill_sphere_at_lagrange_point(
+        &self,
+        point: u8,
+        body_mass: &Mass<Kilogram>,
+    ) -> Option<Distance<Meter>> {
         if !self.can_capture_at_lagrange_point(point, body_mass) {
             return None;
         }
@@ -186,16 +184,16 @@ impl LagrangeSystem {
             * (body_mass.in_kg() / (3.0 * total_system_mass.in_kg())).powf(1.0 / 3.0)
             * 0.5;
 
-        Some(Distance::new(hill_radius, distance_to_point.system))
+        Some(hill_radius.get())
     }
 
     /// Generiert einen Trojaner mit realistischen Eigenschaften
     pub fn generate_trojan(
         &self,
         lagrange_point: u8,
-        trojan_mass: Mass,
-        primary_mass: &Mass,
-        secondary_mass: &Mass,
+        trojan_mass: Mass<Kilogram>,
+        primary_mass: &Mass<Kilogram>,
+        secondary_mass: &Mass<Kilogram>,
     ) -> Result<TrojanObject, String> {
         if lagrange_point != 4 && lagrange_point != 5 {
             return Err("Can only generate trojans at L4 or L5".to_string());
@@ -207,12 +205,12 @@ impl LagrangeSystem {
 
         // Oszillationsamplitude basierend auf Systemparametern
         let base_amplitude = self.separation.value * 0.1; // ~10% der Separation
-        let mass_factor = (trojan_mass.in_kg() / secondary_mass.in_kg()).min(1.0);
+        let mass_factor = (trojan_mass / secondary_mass).min(1.0);
         let amplitude = base_amplitude * (1.0 - mass_factor * 0.5);
 
         // Oszillationsperiode (mehrere Orbitalperioden)
-        let orbital_period_years = (self.separation.in_au().powf(3.0)
-            / (primary_mass.in_solar_masses() + secondary_mass.in_solar_masses()))
+        let orbital_period_years = (self.separation.powf(3.0)
+            / (primary_mass.get::<SolarMass>() + secondary_mass.get::<SolarMass>()))
         .sqrt();
         let oscillation_period_years = orbital_period_years * (2.0 + mass_factor);
 
@@ -224,36 +222,19 @@ impl LagrangeSystem {
         Ok(TrojanObject {
             mass: trojan_mass,
             lagrange_point,
-            oscillation_amplitude: Distance::new(amplitude, self.unit_system),
+            oscillation_amplitude: amplitude.get(),
             oscillation_period: Time::years(oscillation_period_years),
             stability,
         })
-    }
-
-    /// Konvertiert zu anderem Einheitensystem
-    pub fn to_system(&self, target: UnitSystem) -> Self {
-        if target == self.unit_system {
-            return self.clone();
-        }
-
-        Self {
-            l1_distance_from_secondary: self.l1_distance_from_secondary.to_system(target),
-            l2_distance_from_secondary: self.l2_distance_from_secondary.to_system(target),
-            l3_distance_from_primary: self.l3_distance_from_primary.to_system(target),
-            separation: self.separation.to_system(target),
-            trojans: self.trojans.iter().map(|t| t.to_system(target)).collect(),
-            unit_system: target,
-            ..self.clone()
-        }
     }
 
     /// Generiert einen Trojaner mit detaillierter Dynamik-Analyse
     pub fn generate_enhanced_trojan(
         &self,
         lagrange_point: u8,
-        trojan_mass: Mass,
-        primary_mass: &Mass,
-        secondary_mass: &Mass,
+        trojan_mass: Mass<Kilogram>,
+        primary_mass: &Mass<Kilogram>,
+        secondary_mass: &Mass<Kilogram>,
         rng: &mut ChaCha8Rng,
     ) -> Result<TrojanObject, String> {
         if !self.l4_l5_stable {
@@ -313,7 +294,7 @@ impl LagrangeSystem {
             // Leichte Variation der Position für sekundäre Trojaner
             let mut sec_trojan = self.generate_enhanced_trojan(
                 lagrange_point,
-                Mass::new(sec_mass.value_in_system_base(), sec_mass.unit_system()),
+                Mass::new(sec_mass.value_in_system_base(), sec_mass.units()),
                 primary_mass,
                 secondary_mass,
                 rng,

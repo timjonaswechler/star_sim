@@ -1,15 +1,15 @@
 use super::objects::TrojanObject;
-use crate::physics::units::{Distance, Mass, Time};
+use crate::physics::units::{Distance, Kilogram, Mass, Meter, Time, Year};
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 
 /// Builder für [`TrojanObject`]
 pub struct TrojanBuilder {
     seed: u64,
-    mass: Option<Mass>,
+    mass: Option<Mass<Kilogram>>,
     lagrange_point: Option<u8>,
-    amplitude: Option<Distance>,
-    period: Option<Time>,
+    amplitude: Option<Distance<Meter>>,
+    period: Option<Time<Year>>,
 }
 
 impl TrojanBuilder {
@@ -28,7 +28,7 @@ impl TrojanBuilder {
         self
     }
 
-    pub fn with_mass(mut self, mass: Mass) -> Self {
+    pub fn with_mass(mut self, mass: Mass<Kilogram>) -> Self {
         self.mass = Some(mass);
         self
     }
@@ -38,12 +38,12 @@ impl TrojanBuilder {
         self
     }
 
-    pub fn with_amplitude(mut self, amp: Distance) -> Self {
+    pub fn with_amplitude(mut self, amp: Distance<Meter>) -> Self {
         self.amplitude = Some(amp);
         self
     }
 
-    pub fn with_period(mut self, period: Time) -> Self {
+    pub fn with_period(mut self, period: Time<Year>) -> Self {
         self.period = Some(period);
         self
     }
@@ -53,7 +53,9 @@ impl TrojanBuilder {
         let mass = self
             .mass
             .unwrap_or_else(|| Mass::earth_masses(rng.gen_range(0.0001..0.01)));
-        let lagrange_point = self.lagrange_point.unwrap_or(if rng.gen_bool(0.5) { 4 } else { 5 });
+        let lagrange_point = self
+            .lagrange_point
+            .unwrap_or(if rng.gen_bool(0.5) { 4 } else { 5 });
         let amplitude = self
             .amplitude
             .unwrap_or_else(|| Distance::au(rng.gen_range(0.001..0.1)));
@@ -69,4 +71,3 @@ impl TrojanBuilder {
         }
     }
 }
-

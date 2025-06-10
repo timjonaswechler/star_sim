@@ -1,3 +1,12 @@
+use super::{Day, Hour, Minute, Second, Time, TimeConvertTo, TimeUnit, Year};
+use crate::physics::units::UnitSymbol;
+use std::fmt;
+
+const SECONDS_PER_MINUTE: f64 = 60.0;
+const MINUTES_PER_HOUR: f64 = 60.0;
+const HOURS_PER_DAY: f64 = 24.0;
+const DAYS_PER_YEAR: f64 = 365.25;
+
 // Time conversions
 impl TimeConvertTo<Second> for Time<Minute> {
     fn convert(self) -> Time<Second> {
@@ -112,33 +121,5 @@ impl TimeConvertTo<Year> for Time<Day> {
 impl<U: TimeUnit + UnitSymbol> fmt::Display for Time<U> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{} {}", self.value, U::symbol())
-    }
-}
-
-impl<U: TimeUnit> Add for Time<U> {
-    type Output = Time<U>;
-    fn add(self, other: Time<U>) -> Time<U> {
-        Time::new(self.value + other.value)
-    }
-}
-
-impl<U: TimeUnit> Sub for Time<U> {
-    type Output = Time<U>;
-    fn sub(self, other: Time<U>) -> Time<U> {
-        Time::new(self.value - other.value)
-    }
-}
-
-impl<U: TimeUnit> Mul<f64> for Time<U> {
-    type Output = Time<U>;
-    fn mul(self, scalar: f64) -> Time<U> {
-        Time::new(self.value * scalar)
-    }
-}
-
-impl<U: TimeUnit> Div<f64> for Time<U> {
-    type Output = Time<U>;
-    fn div(self, scalar: f64) -> Time<U> {
-        Time::new(self.value / scalar)
     }
 }

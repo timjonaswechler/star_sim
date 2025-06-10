@@ -1,7 +1,7 @@
 use crate::physics::astrophysics::BinaryOrbit;
 use crate::physics::astrophysics::LagrangeSystem;
 use crate::physics::astrophysics::OscillationPattern;
-use crate::physics::constants::{PI, SOLAR_LUMINOSITY, STEFAN_BOLTZMANN};
+use crate::physics::constants::{PI, STEFAN_BOLTZMANN};
 use crate::physics::units::{Distance, Time};
 use crate::stellar_objects::bodies::habitability::{
     HabitableRegion, HabitableZone, PlanetaryHabitability, RiskFactor, TemperatureAnalysis,
@@ -381,16 +381,10 @@ impl HabitabilityAssessment {
 
         let total_luminosity: f64 = components.iter().map(|s| s.luminosity).sum();
         let system_habitable_zone = HabitableZone {
-            inner_edge: Distance::new(0.95 * total_luminosity.sqrt(), dominant_star.unit_system),
-            outer_edge: Distance::new(1.37 * total_luminosity.sqrt(), dominant_star.unit_system),
-            optimistic_inner: Distance::new(
-                0.84 * total_luminosity.sqrt(),
-                dominant_star.unit_system,
-            ),
-            optimistic_outer: Distance::new(
-                1.67 * total_luminosity.sqrt(),
-                dominant_star.unit_system,
-            ),
+            inner_edge: Distance::new(0.95 * total_luminosity.sqrt(), dominant_star.units),
+            outer_edge: Distance::new(1.37 * total_luminosity.sqrt(), dominant_star.units),
+            optimistic_inner: Distance::new(0.84 * total_luminosity.sqrt(), dominant_star.units),
+            optimistic_outer: Distance::new(1.67 * total_luminosity.sqrt(), dominant_star.units),
         };
 
         let radiation_risks = Self::calculate_radiation_risks(dominant_star, radiation_env);

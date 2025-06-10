@@ -1,7 +1,7 @@
 use crate::physics::astrophysics::OscillationPattern;
 use crate::physics::astrophysics::lagrange_points::LagrangeSystem;
 use crate::physics::astrophysics::orbit::two_body::BinaryOrbit;
-use crate::physics::unit_system::*;
+use crate::physics::units::*;
 use crate::stellar_objects::cosmic_environment::region::CosmicRadiationEnvironment;
 use crate::stellar_objects::stars::properties::{StellarProperties, TidalLockingAnalysis};
 use crate::stellar_objects::stellar_systems::hierarchy::SystemHierarchy;
@@ -258,7 +258,7 @@ impl HabitabilityAssessment {
             name: "Orbital instability".to_string(),
             severity: 0.3,
             probability: 0.1,
-            timescale: Time::new(1e8, TimeUnit::Years),
+            timescale: Time::<Year>::new(1e8),
             impact_description: "Close stellar encounters may destabilize planetary orbits"
                 .to_string(),
         });
@@ -291,7 +291,7 @@ impl HabitabilityAssessment {
         components: &[StellarProperties],
         hierarchy: &SystemHierarchy,
         radiation_env: &CosmicRadiationEnvironment,
-        target_distances: &[Distance],
+        target_distances: &[Distance<AstronomicalUnit>],
     ) -> Self {
         // Vereinfachte Multiple-System Analyse
         let dominant_star = components
@@ -301,16 +301,10 @@ impl HabitabilityAssessment {
 
         let total_luminosity: f64 = components.iter().map(|s| s.luminosity).sum();
         let system_habitable_zone = HabitableZone {
-            inner_edge: Distance::new(0.95 * total_luminosity.sqrt(), dominant_star.unit_system),
-            outer_edge: Distance::new(1.37 * total_luminosity.sqrt(), dominant_star.unit_system),
-            optimistic_inner: Distance::new(
-                0.84 * total_luminosity.sqrt(),
-                dominant_star.unit_system,
-            ),
-            optimistic_outer: Distance::new(
-                1.67 * total_luminosity.sqrt(),
-                dominant_star.unit_system,
-            ),
+            inner_edge: Distance::<AstronomicalUnit>::new(0.95 * total_luminosity.sqrt()),
+            outer_edge: Distance::<AstronomicalUnit>::new(1.37 * total_luminosity.sqrt()),
+            optimistic_inner: Distance::<AstronomicalUnit>::new(0.84 * total_luminosity.sqrt()),
+            optimistic_outer: Distance::<AstronomicalUnit>::new(1.67 * total_luminosity.sqrt()),
         };
 
         let radiation_risks = Self::calculate_radiation_risks(dominant_star, radiation_env);

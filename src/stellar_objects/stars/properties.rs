@@ -38,29 +38,29 @@ pub struct StellarProperties {
     /// Metallizität [Fe/H]
     pub metallicity: f64,
     /// Einheitensystem
-    pub unit_system: UnitSystem,
+    pub units: UnitSystem,
 }
 
 impl StellarProperties {
     /// Erstellt einen neuen Stern mit gegebenem Einheitensystem
     pub fn new(mass: Mass, age: Time, metallicity: f64) -> Self {
-        let unit_system = mass.unit_system();
+        let units = mass.units();
 
         let mut star = StellarProperties {
             mass: mass.clone(),
             age: age.clone(),
             metallicity,
-            unit_system,
+            units,
             luminosity: 0.0,
             effective_temperature: 0.0,
-            radius: Distance::new(0.0, unit_system),
+            radius: Distance::new(0.0, units),
             spectral_type: SpectralType::G(2), // Default, wird überschrieben
             luminosity_class: LuminosityClass::V, // Default, wird überschrieben
             evolutionary_stage: EvolutionaryStage::MainSequence {
                 // Default, wird überschrieben
                 fraction_complete: 0.0,
             },
-            main_sequence_lifetime: Time::new(0.0, unit_system), // Default, wird berechnet
+            main_sequence_lifetime: Time::new(0.0, units), // Default, wird berechnet
         };
 
         star.calculate_properties();
@@ -151,14 +151,14 @@ impl StellarProperties {
             } else {
                 mass_solar.powf(0.57)
             };
-            match self.unit_system {
+            match self.units {
                 UnitSystem::Astronomical => {
                     Distance::new(fallback_radius_solar.max(0.01), UnitSystem::Astronomical)
                 }
                 UnitSystem::SI => Distance::meters(fallback_radius_solar.max(0.01) * SOLAR_RADIUS),
             }
         } else {
-            match self.unit_system {
+            match self.units {
                 UnitSystem::Astronomical => Distance::new(radius_solar, UnitSystem::Astronomical),
                 UnitSystem::SI => Distance::meters(radius_solar * SOLAR_RADIUS),
             }
@@ -345,18 +345,18 @@ impl StellarProperties {
         let sqrt_l = self.luminosity.sqrt();
         if sqrt_l <= 0.0 || sqrt_l.is_nan() {
             return HabitableZone {
-                inner_edge: Distance::new(0.0, self.unit_system),
-                outer_edge: Distance::new(0.0, self.unit_system),
-                optimistic_inner: Distance::new(0.0, self.unit_system),
-                optimistic_outer: Distance::new(0.0, self.unit_system),
+                inner_edge: Distance::new(0.0, self.units),
+                outer_edge: Distance::new(0.0, self.units),
+                optimistic_inner: Distance::new(0.0, self.units),
+                optimistic_outer: Distance::new(0.0, self.units),
             };
         }
 
         HabitableZone {
-            inner_edge: Distance::new(0.95 * sqrt_l, self.unit_system),
-            outer_edge: Distance::new(1.37 * sqrt_l, self.unit_system),
-            optimistic_inner: Distance::new(0.84 * sqrt_l, self.unit_system),
-            optimistic_outer: Distance::new(1.67 * sqrt_l, self.unit_system),
+            inner_edge: Distance::new(0.95 * sqrt_l, self.units),
+            outer_edge: Distance::new(1.37 * sqrt_l, self.units),
+            optimistic_inner: Distance::new(0.84 * sqrt_l, self.units),
+            optimistic_outer: Distance::new(1.67 * sqrt_l, self.units),
         }
     }
 
@@ -416,7 +416,7 @@ impl StellarProperties {
 
     /// Konvertiert zu anderem Einheitensystem
     pub fn to_system(&self, target: UnitSystem) -> Self {
-        if target == self.unit_system {
+        if target == self.units {
             return self.clone();
         }
         Self {
@@ -424,7 +424,7 @@ impl StellarProperties {
             age: self.age.to_system(target),
             main_sequence_lifetime: self.main_sequence_lifetime.to_system(target),
             radius: self.radius.to_system(target),
-            unit_system: target,
+            units: target,
             luminosity: self.luminosity,
             effective_temperature: self.effective_temperature,
             spectral_type: self.spectral_type.clone(),

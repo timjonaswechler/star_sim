@@ -22,7 +22,7 @@ pub struct CosmicEnvironmentBuilder {
     seed: u64,
     epoch: Option<CosmicEpoch>,
     region: Option<GalacticRegion>,
-    unit_system: UnitSystem,
+    units: UnitSystem,
 }
 
 impl CosmicEnvironmentBuilder {
@@ -32,7 +32,7 @@ impl CosmicEnvironmentBuilder {
             seed: 0,
             epoch: None,
             region: None,
-            unit_system: UnitSystem::Astronomical,
+            units: UnitSystem::Astronomical,
         }
     }
 
@@ -51,8 +51,8 @@ impl CosmicEnvironmentBuilder {
         self
     }
 
-    pub fn with_unit_system(mut self, unit_system: UnitSystem) -> Self {
-        self.unit_system = unit_system;
+    pub fn with_units(mut self, units: UnitSystem) -> Self {
+        self.units = units;
         self
     }
 
@@ -64,7 +64,7 @@ impl CosmicEnvironmentBuilder {
             .unwrap_or_else(|| CosmicEpoch::from_age(rng.gen_range(3.0..13.8)));
         let region = self
             .region
-            .unwrap_or_else(|| GalacticRegion::generate_random(&mut rng, self.unit_system));
+            .unwrap_or_else(|| GalacticRegion::generate_random(&mut rng, self.units));
         let dynamics = GalacticDynamics::calculate_for_position(&region, epoch.age_universe, &mut rng);
         let radiation = CosmicRadiationEnvironment::from_region_and_epoch(&region, &epoch, &mut rng);
         let elements = ElementalAbundance::from_epoch(&epoch);

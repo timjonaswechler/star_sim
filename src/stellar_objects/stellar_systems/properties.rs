@@ -1,5 +1,5 @@
 use crate::physics::astrophysics::orbit::two_body::BinaryOrbit;
-use crate::physics::units::{Distance, Mass, Time, UnitSystem};
+use crate::physics::units::{AstronomicalUnit, Distance, Mass, Time};
 use crate::stellar_objects::bodies::habitability::HabitabilityAssessment;
 use crate::stellar_objects::cosmic_environment::dynamic::GalacticDynamics;
 use crate::stellar_objects::cosmic_environment::elemental_abundance::ElementalAbundance;
@@ -25,7 +25,7 @@ pub struct StarSystem {
     pub seed: u64,
     /// Kosmische Parameter
     pub cosmic_epoch: CosmicEpoch,
-    pub galactic_distance: Distance, // Wird jetzt aus GalacticRegion abgeleitet
+    pub galactic_distance: Distance<AstronomicalUnit>, // Wird jetzt aus GalacticRegion abgeleitet
     pub galactic_region: GalacticRegion,
     pub radiation_environment: CosmicRadiationEnvironment,
     /// Sternsystem Konfiguration
@@ -34,17 +34,12 @@ pub struct StarSystem {
     pub elemental_abundance: ElementalAbundance,
     /// Gesamte Bewohnbarkeitsbewertung
     pub habitability_assessment: HabitabilityAssessment,
-    /// Einheitensystem für Berechnungen
-    pub unit_system: UnitSystem,
+
     pub galactic_dynamics: GalacticDynamics,
 }
 
 impl StarSystem {
     pub fn generate_from_seed(seed: u64) -> Self {
-        Self::generate_from_seed_with_units(seed, UnitSystem::Astronomical)
-    }
-
-    pub fn generate_from_seed_with_units(seed: u64, unit_system: UnitSystem) -> Self {
         let mut rng = ChaCha8Rng::seed_from_u64(seed);
 
         let age_universe_gyr = rng.gen_range(3.0..13.8);
@@ -52,9 +47,9 @@ impl StarSystem {
 
         // System Type wird vor galaktischer Umgebung generiert,
         // da manche Sterneigenschaften (z.B. Alter) von der kosmischen Epoche abhängen können.
-        let system_type = Self::generate_system_type(&mut rng, &cosmic_epoch, unit_system);
+        let system_type = Self::generate_system_type(&mut rng, &cosmic_epoch, units);
 
-        let galactic_region = GalacticRegion::generate_random(&mut rng, unit_system);
+        let galactic_region = GalacticRegion::generate_random(&mut rng, units);
         let galactic_distance = galactic_region.distance_from_center().clone();
 
         let radiation_environment = CosmicRadiationEnvironment::from_region_and_epoch(
@@ -95,18 +90,14 @@ impl StarSystem {
             system_type,
             elemental_abundance,
             habitability_assessment,
-            unit_system,
+            units,
             galactic_dynamics, // <<-- HIER ZUWEISEN
         }
     }
 
-    fn generate_system_type(
-        rng: &mut ChaCha8Rng,
-        cosmic_epoch: &CosmicEpoch,
-        unit_system: UnitSystem,
-    ) -> SystemType {
+    fn generate_system_type(rng: &mut ChaCha8Rng, cosmic_epoch: &CosmicEpoch) -> SystemType {
         let primary_mass_solar = Self::generate_stellar_mass(rng);
-        let primary_mass = Mass::solar_masses(primary_mass_solar).to_system(unit_system);
+        let primary_mass = Mass::solar_masses(primary_mass_solar).to_system(units);
 
         let multiplicity_probability = match primary_mass_solar {
             m if m > 15.0 => 0.8,
@@ -120,26 +111,26 @@ impl StarSystem {
         // Wir nehmen hier einen Bruchteil des Universumsalters, oder die Logik in StellarProperties::new kümmert sich darum.
         // cosmic_epoch.age_universe ist in Gyr. StellarProperties erwartet Time.
         let star_age_gyr = rng.gen_range(0.1..cosmic_epoch.age_universe.min(10.0)); // Sterne können jünger sein als das Universum
-        let age = Time::years(star_age_gyr * 1e9).to_system(unit_system);
+        let age = Time::years(star_age_gyr * 1e9).to_system(units);
 
         if rng.r#gen::<f64>() < multiplicity_probability {
             let secondary_mass_solar = Self::generate_secondary_mass(rng, primary_mass_solar);
-            let secondary_mass = Mass::solar_masses(secondary_mass_solar).to_system(unit_system);
+            let secondary_mass = Mass::solar_masses(secondary_mass_solar).to_system(units);
 
             let primary = StellarProperties::new(
                 primary_mass.clone(),
                 age.clone(),
                 cosmic_epoch.epoch_metallicity,
-            ); // unit_system hinzugefügt
+            ); // units hinzugefügt
             let secondary = StellarProperties::new(
                 secondary_mass.clone(),
                 age.clone(),
                 cosmic_epoch.epoch_metallicity,
-            ); // unit_system hinzugefügt
+            ); // units hinzugefügt
 
             let separation_au =
                 Self::generate_binary_separation(rng, primary_mass_solar, secondary_mass_solar);
-            let separation = Distance::au(separation_au).to_system(unit_system);
+            let separation = Distance::au(separation_au).to_system(units);
             let eccentricity = rng.gen_range(0.0..0.8);
             let inclination = rng.gen_range(0.0..180.0);
             let longitude_of_ascending_node = rng.gen_range(0.0..360.0);
@@ -158,7 +149,7 @@ impl StarSystem {
             if rng.r#gen::<f64>() < 0.1 && primary_mass_solar > 2.0 {
                 let tertiary_mass_solar = Self::generate_secondary_mass(rng, secondary_mass_solar);
                 let tertiary_mass = Mass::solar_masses(tertiary_mass_solar) // .clone() nicht nötig für f64
-                    .to_system(unit_system);
+                    .to_system(units);
                 let tertiary = StellarProperties::new(
                     tertiary_mass,
                     age.clone(),
@@ -181,7 +172,7 @@ impl StarSystem {
             }
         } else {
             let star =
-                StellarProperties::new(primary_mass, age.clone(), cosmic_epoch.epoch_metallicity); // unit_system hinzugefügt
+                StellarProperties::new(primary_mass, age.clone(), cosmic_epoch.epoch_metallicity); // units hinzugefügt
             SystemType::Single(star)
         }
     }
