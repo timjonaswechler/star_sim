@@ -1,9 +1,13 @@
 use crate::physics::units::UnitSymbol;
+use serde::{Deserialize, Serialize};
 use std::marker::PhantomData;
 
 pub trait PressureUnit {}
 
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct Pascal;
+
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct Bar;
 
 impl PressureUnit for Pascal {}
@@ -21,7 +25,7 @@ impl UnitSymbol for Bar {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct Pressure<U: PressureUnit> {
     pub value: f64,
     _unit: PhantomData<U>,

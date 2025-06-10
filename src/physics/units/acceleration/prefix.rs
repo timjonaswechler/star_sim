@@ -1,8 +1,10 @@
+use crate::physics::units::UnitSymbol;
 use crate::physics::units::acceleration::{Acceleration, AccelerationConvertTo, AccelerationUnit};
 use crate::physics::units::prefix::Prefix;
-use crate::physics::units::UnitSymbol;
+use serde::{Deserialize, Serialize};
 use std::marker::PhantomData;
 
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct Prefixed<P: Prefix, U: AccelerationUnit>(PhantomData<(P, U)>);
 
 impl<P: Prefix, U: AccelerationUnit> AccelerationUnit for Prefixed<P, U> {}

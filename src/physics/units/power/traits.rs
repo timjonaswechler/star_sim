@@ -1,9 +1,13 @@
 use crate::physics::units::UnitSymbol;
+use serde::{Deserialize, Serialize};
 use std::marker::PhantomData;
 
 pub trait PowerUnit {}
 
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct Watt;
+
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct SolarLuminosity;
 
 impl PowerUnit for Watt {}
@@ -21,7 +25,7 @@ impl UnitSymbol for SolarLuminosity {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct Power<U: PowerUnit> {
     pub value: f64,
     _unit: PhantomData<U>,

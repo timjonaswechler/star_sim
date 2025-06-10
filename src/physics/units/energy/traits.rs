@@ -1,8 +1,10 @@
 use crate::physics::units::UnitSymbol;
+use serde::{Deserialize, Serialize};
 use std::marker::PhantomData;
 
 pub trait EnergyUnit {}
 
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct Joule;
 
 impl EnergyUnit for Joule {}
@@ -13,7 +15,7 @@ impl UnitSymbol for Joule {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct Energy<U: EnergyUnit> {
     pub value: f64,
     _unit: PhantomData<U>,

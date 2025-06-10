@@ -1,8 +1,10 @@
+use crate::physics::units::UnitSymbol;
 use crate::physics::units::prefix::Prefix;
 use crate::physics::units::temperature::{Temperature, TemperatureConvertTo, TemperatureUnit};
-use crate::physics::units::UnitSymbol;
+use serde::{Deserialize, Serialize};
 use std::marker::PhantomData;
 
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct Prefixed<P: Prefix, U: TemperatureUnit>(PhantomData<(P, U)>);
 
 impl<P: Prefix, U: TemperatureUnit> TemperatureUnit for Prefixed<P, U> {}

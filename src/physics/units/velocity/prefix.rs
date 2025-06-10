@@ -1,10 +1,11 @@
 use crate::physics::units::UnitSymbol;
 use crate::physics::units::prefix::Prefix;
 use crate::physics::units::velocity::{Velocity, VelocityConvertTo, VelocityUnit};
+use serde::{Deserialize, Serialize};
 use std::marker::PhantomData;
 
 /// Einheiten-Typ mit Präfix.
-/// Z. B. `Prefixed<Kilo, Second>` repräsentiert „Kilosekunde“.
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct Prefixed<P: Prefix, U: VelocityUnit>(PhantomData<(P, U)>);
 
 impl<P: Prefix, U: VelocityUnit> VelocityUnit for Prefixed<P, U> {}

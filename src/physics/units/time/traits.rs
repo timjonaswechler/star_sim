@@ -1,16 +1,27 @@
 use super::Prefixed;
 use crate::physics::units::{Giga, Mega, UnitSymbol};
+use serde::{Deserialize, Serialize};
 use std::marker::PhantomData;
 
 // Marker traits
 pub trait TimeUnit {}
 
 // Time unit types
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct Second;
+
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct Minute;
+
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct Hour;
+
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct Day;
+
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct Year;
+
 pub type Megayear = Prefixed<Mega, Year>;
 pub type Gigayear = Prefixed<Giga, Year>;
 
@@ -47,7 +58,7 @@ impl UnitSymbol for Year {
 }
 
 // Quantity structs
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct Time<U: TimeUnit> {
     pub value: f64,
     _unit: PhantomData<U>,

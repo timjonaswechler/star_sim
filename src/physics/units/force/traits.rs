@@ -1,8 +1,10 @@
 use crate::physics::units::UnitSymbol;
+use serde::{Deserialize, Serialize};
 use std::marker::PhantomData;
 
 pub trait ForceUnit {}
 
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct Newton;
 
 impl ForceUnit for Newton {}
@@ -13,7 +15,7 @@ impl UnitSymbol for Newton {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct Force<U: ForceUnit> {
     pub value: f64,
     _unit: PhantomData<U>,

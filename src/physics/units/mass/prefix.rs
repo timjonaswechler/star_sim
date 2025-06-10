@@ -1,9 +1,11 @@
+use crate::physics::units::UnitSymbol;
 use crate::physics::units::mass::{Mass, MassConvertTo, MassUnit};
 use crate::physics::units::prefix::Prefix;
-use crate::physics::units::UnitSymbol;
+use serde::{Deserialize, Serialize};
 use std::marker::PhantomData;
 
 /// Unit type with SI prefix, e.g. `Prefixed<Kilo, Kilogram>` for kilograms.
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct Prefixed<P: Prefix, U: MassUnit>(PhantomData<(P, U)>);
 
 impl<P: Prefix, U: MassUnit> MassUnit for Prefixed<P, U> {}

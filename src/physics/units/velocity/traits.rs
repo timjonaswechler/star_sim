@@ -1,11 +1,15 @@
 use crate::physics::units::UnitSymbol;
+use serde::{Deserialize, Serialize};
 use std::marker::PhantomData;
 
 // Marker traits
 pub trait VelocityUnit {}
 
 // Velocity unit types
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct MeterPerSecond;
+
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct KilometerPerHour;
 
 impl VelocityUnit for MeterPerSecond {}
@@ -23,7 +27,7 @@ impl UnitSymbol for KilometerPerHour {
 }
 
 // Quantity structs
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct Velocity<U: VelocityUnit> {
     pub value: f64,
     _unit: PhantomData<U>,

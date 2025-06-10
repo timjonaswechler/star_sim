@@ -1,15 +1,24 @@
 use super::Prefixed;
 use crate::physics::units::{Kilo, UnitSymbol};
+use serde::{Deserialize, Serialize};
 use std::marker::PhantomData;
 
 // Marker trait
 pub trait DistanceUnit {}
 
 // Distance unit types
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct Meter;
+
 pub type Kilometer = Prefixed<Kilo, Meter>;
+
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct AstronomicalUnit;
+
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct EarthRadius;
+
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct SunRadius;
 
 impl DistanceUnit for Meter {}
@@ -42,7 +51,7 @@ impl UnitSymbol for SunRadius {
 }
 
 // Quantity struct
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct Distance<U: DistanceUnit> {
     pub value: f64,
     _unit: PhantomData<U>,

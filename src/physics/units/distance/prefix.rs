@@ -1,7 +1,9 @@
 use crate::physics::units::{Distance, DistanceConvertTo, DistanceUnit, Prefix, UnitSymbol};
+use serde::{Deserialize, Serialize};
 use std::marker::PhantomData;
 
 /// Unit type with prefix.
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct Prefixed<P: Prefix, U: DistanceUnit>(PhantomData<(P, U)>);
 
 impl<P: Prefix, U: DistanceUnit> DistanceUnit for Prefixed<P, U> {}

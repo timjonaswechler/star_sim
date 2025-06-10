@@ -1,16 +1,23 @@
 use super::Prefixed;
 use crate::physics::units::{Kilo, UnitSymbol};
+use serde::{Deserialize, Serialize};
 use std::marker::PhantomData;
 
 // Marker trait
 pub trait MassUnit {}
 
 // Mass unit types
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct Gram;
+
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct EarthMass;
+
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct SolarMass;
 
 pub type Kilogram = Prefixed<Kilo, Gram>;
+impl MassUnit for Gram {}
 impl MassUnit for EarthMass {}
 impl MassUnit for SolarMass {}
 
@@ -33,7 +40,7 @@ impl UnitSymbol for SolarMass {
 }
 
 // Quantity struct
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct Mass<U: MassUnit> {
     pub value: f64,
     _unit: PhantomData<U>,
