@@ -1,0 +1,54 @@
+use crate::physics::units::UnitSymbol;
+use std::marker::PhantomData;
+
+pub trait EnergyUnit {}
+
+pub struct Joule;
+pub struct KilowattHour;
+
+impl EnergyUnit for Joule {}
+impl EnergyUnit for KilowattHour {}
+
+impl UnitSymbol for Joule {
+    fn symbol() -> String {
+        "J".into()
+    }
+}
+
+impl UnitSymbol for KilowattHour {
+    fn symbol() -> String {
+        "kWh".into()
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct Energy<U: EnergyUnit> {
+    pub value: f64,
+    _unit: PhantomData<U>,
+}
+
+impl<U: EnergyUnit> Energy<U> {
+    pub fn new(value: f64) -> Self {
+        Energy {
+            value,
+            _unit: PhantomData,
+        }
+    }
+
+    pub fn value(&self) -> f64 {
+        self.value
+    }
+}
+
+pub trait EnergyConvertTo<V: EnergyUnit> {
+    fn convert(self) -> Energy<V>;
+}
+
+impl<U: EnergyUnit> Energy<U> {
+    pub fn get<V: EnergyUnit>(self) -> Energy<V>
+    where
+        Self: EnergyConvertTo<V>,
+    {
+        self.convert()
+    }
+}
