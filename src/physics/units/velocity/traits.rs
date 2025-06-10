@@ -9,13 +9,13 @@ impl VelocityUnit for MeterPerSecond {}
 impl VelocityUnit for KilometerPerHour {}
 
 impl UnitSymbol for MeterPerSecond {
-    fn symbol() -> &'static str {
-        "m/s"
+    fn symbol() -> String {
+        "m/s".into()
     }
 }
 impl UnitSymbol for KilometerPerHour {
-    fn symbol() -> &'static str {
-        "km/h"
+    fn symbol() -> String {
+        "km/h".into()
     }
 }
 

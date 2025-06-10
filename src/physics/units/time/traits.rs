@@ -17,28 +17,28 @@ impl TimeUnit for Day {}
 impl TimeUnit for Year {}
 
 impl UnitSymbol for Second {
-    fn symbol() -> &'static str {
-        "s"
+    fn symbol() -> String {
+        "s".into()
     }
 }
 impl UnitSymbol for Minute {
-    fn symbol() -> &'static str {
-        "min"
+    fn symbol() -> String {
+        "min".into()
     }
 }
 impl UnitSymbol for Hour {
-    fn symbol() -> &'static str {
-        "h"
+    fn symbol() -> String {
+        "h".into()
     }
 }
 impl UnitSymbol for Day {
-    fn symbol() -> &'static str {
-        "d"
+    fn symbol() -> String {
+        "d".into()
     }
 }
 impl UnitSymbol for Year {
-    fn symbol() -> &'static str {
-        "yr"
+    fn symbol() -> String {
+        "yr".into()
     }
 }
 
