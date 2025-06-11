@@ -1,2 +1,2 @@
-// pub mod physics;
-// pub mod stellar_objects;
+pub mod physics;
+pub mod stellar_objects;
