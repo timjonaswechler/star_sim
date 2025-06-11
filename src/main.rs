@@ -2,10 +2,8 @@ use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::Write;
-mod lib;
-mod stellar_objects;
+
 use stellar_objects::generate_teacup_system;
-mod physics;
 
 // Dieser Code würde in einer Bevy-App laufen.
 // Der Einfachheit halber hier nur der Aufruf der Setup-Funktion.

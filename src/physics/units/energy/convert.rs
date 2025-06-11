@@ -1,5 +1,5 @@
 use crate::physics::units::UnitSymbol;
-use crate::physics::units::energy::{Energy, EnergyConvertTo, EnergyUnit, Joule};
+use crate::physics::units::energy::{Energy, EnergyUnit};
 use std::fmt;
 
 impl<U: EnergyUnit + UnitSymbol> fmt::Display for Energy<U> {

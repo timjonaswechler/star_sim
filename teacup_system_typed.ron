@@ -1,0 +1,114 @@
+(
+    name: "Teacup System",
+    age: (
+        value: 6.0,
+        _unit: (),
+    ),
+    roots: [
+        /*[0]*/ (
+            name: "Teacup A",
+            kind: Star((
+                mass: (
+                    value: 0.7,
+                    _unit: (),
+                ),
+                radius: (
+                    value: 0.66,
+                    _unit: (),
+                ),
+                temperature: (
+                    value: 4500.0,
+                    _unit: (),
+                ),
+                luminosity: (
+                    value: 0.15,
+                    _unit: (),
+                ),
+                spectral_type: K(5),
+                luminosity_class: V,
+            )),
+            orbit: None,
+            satellites: [
+                /*[0]*/ (
+                    name: "Teacup Ae",
+                    kind: Planet((
+                        body_type: SuperEarth,
+                        mass: (
+                            value: 0.8,
+                            _unit: (),
+                        ),
+                        radius: (
+                            value: 0.96,
+                            _unit: (),
+                        ),
+                        active_core: (true),
+                    )),
+                    orbit: Some((
+                        semi_major_axis: (
+                            value: 0.45,
+                            _unit: (),
+                        ),
+                        eccentricity: 0.1,
+                        inclination: (
+                            value: 0.0,
+                            _unit: (),
+                        ),
+                        longitude_of_ascending_node: (
+                            value: 0.0,
+                            _unit: (),
+                        ),
+                        argument_of_periapsis: (
+                            value: 2.79,
+                            _unit: (),
+                        ),
+                        mean_anomaly_at_epoch: (
+                            value: 2.09,
+                            _unit: (),
+                        ),
+                    )),
+                    satellites: [
+                        /*[0]*/ (
+                            name: "Teacup Ae II",
+                            kind: Planet((
+                                body_type: Rocky,
+                                mass: (
+                                    value: 0.004,
+                                    _unit: (),
+                                ),
+                                radius: (
+                                    value: 0.18,
+                                    _unit: (),
+                                ),
+                                active_core: (false),
+                            )),
+                            orbit: Some((
+                                semi_major_axis: (
+                                    value: 0.00167,
+                                    _unit: (),
+                                ),
+                                eccentricity: 0.01,
+                                inclination: (
+                                    value: 0.087,
+                                    _unit: (),
+                                ),
+                                longitude_of_ascending_node: (
+                                    value: 0.0,
+                                    _unit: (),
+                                ),
+                                argument_of_periapsis: (
+                                    value: 0.0,
+                                    _unit: (),
+                                ),
+                                mean_anomaly_at_epoch: (
+                                    value: 0.0,
+                                    _unit: (),
+                                ),
+                            )),
+                            satellites: [],
+                        ),
+                    ],
+                ),
+            ],
+        ),
+    ],
+)
