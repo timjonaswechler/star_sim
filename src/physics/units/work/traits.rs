@@ -4,7 +4,7 @@ use std::marker::PhantomData;
 
 pub trait WorkUnit {}
 
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize, Default)]
 pub struct Joule;
 
 impl WorkUnit for Joule {}
@@ -15,7 +15,7 @@ impl UnitSymbol for Joule {
     }
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default)]
 pub struct Work<U: WorkUnit> {
     pub value: f64,
     _unit: PhantomData<U>,

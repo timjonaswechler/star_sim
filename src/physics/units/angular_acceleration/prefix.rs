@@ -1,10 +1,12 @@
 use crate::physics::units::UnitSymbol;
-use crate::physics::units::angular_acceleration::{AngularAcceleration, AngularAccelerationConvertTo, AngularAccelerationUnit};
+use crate::physics::units::angular_acceleration::{
+    AngularAcceleration, AngularAccelerationConvertTo, AngularAccelerationUnit,
+};
 use crate::physics::units::prefix::Prefix;
 use serde::{Deserialize, Serialize};
 use std::marker::PhantomData;
 
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize, Default)]
 pub struct Prefixed<P: Prefix, U: AngularAccelerationUnit>(PhantomData<(P, U)>);
 
 impl<P: Prefix, U: AngularAccelerationUnit> AngularAccelerationUnit for Prefixed<P, U> {}

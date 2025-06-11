@@ -4,7 +4,7 @@ use std::marker::PhantomData;
 
 pub trait ShearModulusUnit {}
 
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize, Default)]
 pub struct Pascal;
 
 impl ShearModulusUnit for Pascal {}
@@ -15,7 +15,7 @@ impl UnitSymbol for Pascal {
     }
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default)]
 pub struct ShearModulus<U: ShearModulusUnit> {
     pub value: f64,
     _unit: PhantomData<U>,
@@ -23,7 +23,10 @@ pub struct ShearModulus<U: ShearModulusUnit> {
 
 impl<U: ShearModulusUnit> ShearModulus<U> {
     pub fn new(value: f64) -> Self {
-        ShearModulus { value, _unit: PhantomData }
+        ShearModulus {
+            value,
+            _unit: PhantomData,
+        }
     }
 
     pub fn value(&self) -> f64 {

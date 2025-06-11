@@ -4,7 +4,7 @@ use crate::physics::units::pressure::{Pressure, PressureConvertTo, PressureUnit}
 use serde::{Deserialize, Serialize};
 use std::marker::PhantomData;
 
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize, Default)]
 pub struct Prefixed<P: Prefix, U: PressureUnit>(PhantomData<(P, U)>);
 
 impl<P: Prefix, U: PressureUnit> PressureUnit for Prefixed<P, U> {}

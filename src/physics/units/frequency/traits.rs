@@ -4,7 +4,7 @@ use std::marker::PhantomData;
 
 pub trait FrequencyUnit {}
 
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize, Default)]
 pub struct Hertz;
 
 impl FrequencyUnit for Hertz {}
@@ -15,7 +15,7 @@ impl UnitSymbol for Hertz {
     }
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default)]
 pub struct Frequency<U: FrequencyUnit> {
     pub value: f64,
     _unit: PhantomData<U>,

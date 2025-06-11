@@ -4,10 +4,10 @@ use std::marker::PhantomData;
 
 pub trait AngleUnit {}
 
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize, Default)]
 pub struct Radian;
 
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize, Default)]
 pub struct Degree;
 
 impl AngleUnit for Radian {}
@@ -25,7 +25,7 @@ impl UnitSymbol for Degree {
     }
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default)]
 pub struct Angle<U: AngleUnit> {
     pub value: f64,
     _unit: PhantomData<U>,
@@ -33,7 +33,10 @@ pub struct Angle<U: AngleUnit> {
 
 impl<U: AngleUnit> Angle<U> {
     pub fn new(value: f64) -> Self {
-        Angle { value, _unit: PhantomData }
+        Angle {
+            value,
+            _unit: PhantomData,
+        }
     }
 
     pub fn value(&self) -> f64 {

@@ -4,7 +4,7 @@ use crate::physics::units::prefix::Prefix;
 use serde::{Deserialize, Serialize};
 use std::marker::PhantomData;
 
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize, Default)]
 pub struct Prefixed<P: Prefix, U: AngleUnit>(PhantomData<(P, U)>);
 
 impl<P: Prefix, U: AngleUnit> AngleUnit for Prefixed<P, U> {}

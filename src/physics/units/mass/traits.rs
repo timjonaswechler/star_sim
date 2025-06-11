@@ -7,13 +7,13 @@ use std::marker::PhantomData;
 pub trait MassUnit {}
 
 // Mass unit types
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize, Default)]
 pub struct Gram;
 
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize, Default)]
 pub struct EarthMass;
 
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize, Default)]
 pub struct SolarMass;
 
 pub type Kilogram = Prefixed<Kilo, Gram>;
@@ -40,7 +40,7 @@ impl UnitSymbol for SolarMass {
 }
 
 // Quantity struct
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default)]
 pub struct Mass<U: MassUnit> {
     pub value: f64,
     _unit: PhantomData<U>,

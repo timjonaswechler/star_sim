@@ -4,7 +4,7 @@ use std::marker::PhantomData;
 
 /// Einheiten-Typ mit Präfix.
 /// Z. B. `Prefixed<Kilo, Second>` repräsentiert „Kilosekunde“.
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize, Default)]
 pub struct Prefixed<P: Prefix, U: TimeUnit>(PhantomData<(P, U)>);
 
 impl<P: Prefix, U: TimeUnit> TimeUnit for Prefixed<P, U> {}

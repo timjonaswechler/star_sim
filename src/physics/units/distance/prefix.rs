@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::marker::PhantomData;
 
 /// Unit type with prefix.
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize, Default)]
 pub struct Prefixed<P: Prefix, U: DistanceUnit>(PhantomData<(P, U)>);
 
 impl<P: Prefix, U: DistanceUnit> DistanceUnit for Prefixed<P, U> {}

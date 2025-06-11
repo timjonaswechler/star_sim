@@ -4,10 +4,10 @@ use std::marker::PhantomData;
 
 pub trait AreaUnit {}
 
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize, Default)]
 pub struct SquareMeter;
 
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize, Default)]
 pub struct SquareKilometer;
 
 impl AreaUnit for SquareMeter {}
@@ -25,7 +25,7 @@ impl UnitSymbol for SquareKilometer {
     }
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default)]
 pub struct Area<U: AreaUnit> {
     pub value: f64,
     _unit: PhantomData<U>,

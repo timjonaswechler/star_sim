@@ -4,10 +4,10 @@ use std::marker::PhantomData;
 
 pub trait DensityUnit {}
 
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize, Default)]
 pub struct KilogramPerCubicMeter;
 
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize, Default)]
 pub struct GramPerCubicCentimeter;
 
 impl DensityUnit for KilogramPerCubicMeter {}
@@ -25,7 +25,7 @@ impl UnitSymbol for GramPerCubicCentimeter {
     }
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default)]
 pub struct Density<U: DensityUnit> {
     pub value: f64,
     _unit: PhantomData<U>,

@@ -4,10 +4,10 @@ use std::marker::PhantomData;
 
 pub trait VolumeUnit {}
 
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize, Default)]
 pub struct CubicMeter;
 
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize, Default)]
 pub struct Liter;
 
 impl VolumeUnit for CubicMeter {}
@@ -25,7 +25,7 @@ impl UnitSymbol for Liter {
     }
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default)]
 pub struct Volume<U: VolumeUnit> {
     pub value: f64,
     _unit: PhantomData<U>,

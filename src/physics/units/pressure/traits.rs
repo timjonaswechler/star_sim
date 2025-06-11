@@ -4,10 +4,10 @@ use std::marker::PhantomData;
 
 pub trait PressureUnit {}
 
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize, Default)]
 pub struct Pascal;
 
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize, Default)]
 pub struct Bar;
 
 impl PressureUnit for Pascal {}
@@ -25,7 +25,7 @@ impl UnitSymbol for Bar {
     }
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default)]
 pub struct Pressure<U: PressureUnit> {
     pub value: f64,
     _unit: PhantomData<U>,

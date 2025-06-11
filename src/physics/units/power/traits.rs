@@ -4,10 +4,10 @@ use std::marker::PhantomData;
 
 pub trait PowerUnit {}
 
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize, Default)]
 pub struct Watt;
 
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize, Default)]
 pub struct SolarLuminosity;
 
 impl PowerUnit for Watt {}
@@ -25,7 +25,7 @@ impl UnitSymbol for SolarLuminosity {
     }
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default)]
 pub struct Power<U: PowerUnit> {
     pub value: f64,
     _unit: PhantomData<U>,

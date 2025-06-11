@@ -4,10 +4,10 @@ use std::marker::PhantomData;
 
 pub trait AngularVelocityUnit {}
 
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize, Default)]
 pub struct RadianPerSecond;
 
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize, Default)]
 pub struct DegreePerSecond;
 
 impl AngularVelocityUnit for RadianPerSecond {}
@@ -25,7 +25,7 @@ impl UnitSymbol for DegreePerSecond {
     }
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default)]
 pub struct AngularVelocity<U: AngularVelocityUnit> {
     pub value: f64,
     _unit: PhantomData<U>,

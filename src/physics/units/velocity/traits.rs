@@ -6,10 +6,10 @@ use std::marker::PhantomData;
 pub trait VelocityUnit {}
 
 // Velocity unit types
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize, Default)]
 pub struct MeterPerSecond;
 
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize, Default)]
 pub struct KilometerPerHour;
 
 impl VelocityUnit for MeterPerSecond {}
@@ -27,7 +27,7 @@ impl UnitSymbol for KilometerPerHour {
 }
 
 // Quantity structs
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default)]
 pub struct Velocity<U: VelocityUnit> {
     pub value: f64,
     _unit: PhantomData<U>,

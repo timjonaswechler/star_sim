@@ -1,10 +1,10 @@
 use crate::physics::units::UnitSymbol;
-use crate::physics::units::work::{Work, WorkConvertTo, WorkUnit};
 use crate::physics::units::prefix::Prefix;
+use crate::physics::units::work::{Work, WorkConvertTo, WorkUnit};
 use serde::{Deserialize, Serialize};
 use std::marker::PhantomData;
 
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize, Default)]
 pub struct Prefixed<P: Prefix, U: WorkUnit>(PhantomData<(P, U)>);
 
 impl<P: Prefix, U: WorkUnit> WorkUnit for Prefixed<P, U> {}
