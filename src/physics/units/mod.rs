@@ -1,13 +1,25 @@
 pub mod acceleration;
+pub mod angle;
+pub mod angular_acceleration;
+pub mod angular_velocity;
+pub mod area;
+pub mod compression_modulus;
+pub mod density;
 pub mod distance;
+pub mod elastic_modulus;
 pub mod energy;
 pub mod force;
+pub mod frequency;
 pub mod mass;
+pub mod momentum;
 pub mod power;
 pub mod prefix;
 pub mod pressure;
+pub mod shear_modulus;
 pub mod temperature;
 pub mod time;
+pub mod volume;
+pub mod work;
 pub mod velocity;
 
 /// Trait for returning the short symbol of a unit.
@@ -16,10 +28,19 @@ pub trait UnitSymbol {
 }
 
 pub use acceleration::*;
+pub use angle::*;
+pub use angular_acceleration::*;
+pub use angular_velocity::*;
+pub use area::*;
+pub use compression_modulus::*;
+pub use density::*;
 pub use distance::*;
+pub use elastic_modulus::*;
 pub use energy::*;
 pub use force::*;
+pub use frequency::*;
 pub use mass::*;
+pub use momentum::*;
 pub use power::*;
 pub use prefix::Atto;
 pub use prefix::Centi;
@@ -43,6 +64,9 @@ pub use prefix::Yotta;
 pub use prefix::Zepto;
 pub use prefix::Zetta;
 pub use pressure::*;
+pub use shear_modulus::*;
 pub use temperature::*;
 pub use time::*;
+pub use volume::*;
+pub use work::*;
 pub use velocity::*;
