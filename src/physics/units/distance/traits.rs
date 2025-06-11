@@ -9,7 +9,6 @@ pub trait DistanceUnit {}
 // Distance unit types
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct Meter;
-
 pub type Kilometer = Prefixed<Kilo, Meter>;
 
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
@@ -21,10 +20,19 @@ pub struct EarthRadius;
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct SunRadius;
 
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
+pub struct LightYear;
+
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
+pub struct Parsec;
+pub type Kiloparsec = Prefixed<Kilo, Parsec>;
+
 impl DistanceUnit for Meter {}
 impl DistanceUnit for AstronomicalUnit {}
 impl DistanceUnit for EarthRadius {}
 impl DistanceUnit for SunRadius {}
+impl DistanceUnit for LightYear {}
+impl DistanceUnit for Parsec {}
 
 impl UnitSymbol for Meter {
     fn symbol() -> String {
@@ -47,6 +55,16 @@ impl UnitSymbol for EarthRadius {
 impl UnitSymbol for SunRadius {
     fn symbol() -> String {
         "R☉".into()
+    }
+}
+impl UnitSymbol for LightYear {
+    fn symbol() -> String {
+        "ly".into()
+    }
+}
+impl UnitSymbol for Parsec {
+    fn symbol() -> String {
+        "pc".into()
     }
 }
 

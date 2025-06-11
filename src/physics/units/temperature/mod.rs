@@ -8,4 +8,4 @@ pub use operations::*;
 pub use prefix::*;
 pub use traits::*;
 
-pub const KELVIN_OFFSET: f64 = 273.15;
+pub const KELVIN_OFFSET: f32 = 273.15;

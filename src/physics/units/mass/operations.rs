@@ -1,5 +1,5 @@
-use std::ops::{Add, Div, Mul, Neg, Sub};
 use crate::physics::units::mass::{Mass, MassUnit};
+use std::ops::{Add, Div, Mul, Neg, Sub};
 
 // Basic math operations
 impl<U: MassUnit> Add for Mass<U> {

@@ -18,14 +18,16 @@ pub mod pressure;
 pub mod shear_modulus;
 pub mod temperature;
 pub mod time;
+pub mod velocity;
 pub mod volume;
 pub mod work;
-pub mod velocity;
 
 /// Trait for returning the short symbol of a unit.
 pub trait UnitSymbol {
     fn symbol() -> String;
 }
+
+pub(crate) type Float = f64;
 
 pub use acceleration::*;
 pub use angle::*;
@@ -67,6 +69,6 @@ pub use pressure::*;
 pub use shear_modulus::*;
 pub use temperature::*;
 pub use time::*;
+pub use velocity::*;
 pub use volume::*;
 pub use work::*;
-pub use velocity::*;

@@ -1,7 +1,8 @@
-use crate::physics::constants::DEG_TO_RAD;
 use crate::physics::units::UnitSymbol;
 use crate::physics::units::angle::{Angle, AngleConvertTo, AngleUnit, Degree, Radian};
 use std::fmt;
+
+const DEG_TO_RAD: f64 = std::f64::consts::PI / 180.0;
 
 impl AngleConvertTo<Radian> for Angle<Degree> {
     fn convert(self) -> Angle<Radian> {

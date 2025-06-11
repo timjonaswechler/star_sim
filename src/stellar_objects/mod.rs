@@ -1,9 +1,0 @@
-pub mod bodies;
-pub mod cosmic_environment;
-pub mod galaxy;
-pub mod moons;
-pub mod planets;
-pub mod stars;
-pub mod stellar_systems;
-pub mod trojans_asteroid;
-pub mod universe;

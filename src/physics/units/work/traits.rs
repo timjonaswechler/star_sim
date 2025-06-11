@@ -20,7 +20,6 @@ pub struct Work<U: WorkUnit> {
     pub value: f64,
     _unit: PhantomData<U>,
 }
-
 impl<U: WorkUnit> Work<U> {
     pub fn new(value: f64) -> Self {
         Work {
