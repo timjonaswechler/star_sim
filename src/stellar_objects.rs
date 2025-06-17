@@ -1,10 +1,5 @@
-// Benötigte Typen aus Ihrem Einheitensystem importieren
-use crate::physics::units::angle::{Angle, Radian};
-use crate::physics::units::distance::{AstronomicalUnit, Distance, EarthRadius, SunRadius};
-use crate::physics::units::mass::{EarthMass, Mass, SolarMass};
-use crate::physics::units::power::{Power, SolarLuminosity};
-use crate::physics::units::temperature::{Kelvin, Temperature};
-use crate::physics::units::time::{Gigayear, Time};
+// Benötigte Typen aus dem neuen Einheitensystem importieren
+use crate::physics::units_v2::*;
 
 use bevy::prelude::Component;
 use serde::{Deserialize, Serialize};
@@ -42,12 +37,12 @@ pub struct Orbit {
 impl Default for Orbit {
     fn default() -> Self {
         Orbit {
-            semi_major_axis: Distance::new(1.0), // Standardwert 1 AU
+            semi_major_axis: Distance::<AstronomicalUnit>::new(1.0), // Standardwert 1 AU
             eccentricity: 0.0,
-            inclination: Angle::new(0.0),
-            longitude_of_ascending_node: Angle::new(0.0),
-            argument_of_periapsis: Angle::new(0.0),
-            mean_anomaly_at_epoch: Angle::new(0.0),
+            inclination: Angle::<Radian>::new(0.0),
+            longitude_of_ascending_node: Angle::<Radian>::new(0.0),
+            argument_of_periapsis: Angle::<Radian>::new(0.0),
+            mean_anomaly_at_epoch: Angle::<Radian>::new(0.0),
         }
     }
 }
@@ -148,14 +143,14 @@ pub fn generate_teacup_system() -> SerializableStellarSystem {
         name: "Teacup Ae II".to_string(),
         kind: BodyKind::Planet(PlanetData {
             body_type: BodyType::Rocky,
-            mass: Mass::new(0.004),
-            radius: Distance::new(0.18),
+            mass: Mass::<EarthMass>::new(0.004),
+            radius: Distance::<EarthRadius>::new(0.18),
             active_core: ActiveCore(false),
         }),
         orbit: Some(Orbit {
-            semi_major_axis: Distance::new(0.00167),
+            semi_major_axis: Distance::<AstronomicalUnit>::new(0.00167),
             eccentricity: 0.01,
-            inclination: Angle::new(0.087),
+            inclination: Angle::<Radian>::new(0.087),
             ..Default::default()
         }),
         satellites: vec![],
@@ -165,17 +160,17 @@ pub fn generate_teacup_system() -> SerializableStellarSystem {
         name: "Teacup Ae".to_string(),
         kind: BodyKind::Planet(PlanetData {
             body_type: BodyType::SuperEarth,
-            mass: Mass::new(0.8),
-            radius: Distance::new(0.96),
+            mass: Mass::<EarthMass>::new(0.8),
+            radius: Distance::<EarthRadius>::new(0.96),
             active_core: ActiveCore(true),
         }),
         orbit: Some(Orbit {
-            semi_major_axis: Distance::new(0.45),
+            semi_major_axis: Distance::<AstronomicalUnit>::new(0.45),
             eccentricity: 0.1,
-            inclination: Angle::new(0.0),
-            longitude_of_ascending_node: Angle::new(0.0),
-            argument_of_periapsis: Angle::new(2.79), // ~160 Grad in Radiant
-            mean_anomaly_at_epoch: Angle::new(2.09), // ~120 Grad in Radiant
+            inclination: Angle::<Radian>::new(0.0),
+            longitude_of_ascending_node: Angle::<Radian>::new(0.0),
+            argument_of_periapsis: Angle::<Radian>::new(2.79), // ~160 Grad in Radiant
+            mean_anomaly_at_epoch: Angle::<Radian>::new(2.09), // ~120 Grad in Radiant
         }),
         satellites: vec![moon_ae_2],
     };
@@ -183,10 +178,10 @@ pub fn generate_teacup_system() -> SerializableStellarSystem {
     let star_a = SerializableBody {
         name: "Teacup A".to_string(),
         kind: BodyKind::Star(StarData {
-            mass: Mass::new(0.7),
-            radius: Distance::new(0.66),
-            temperature: Temperature::new(4500.0),
-            luminosity: Power::new(0.15),
+            mass: Mass::<SolarMass>::new(0.7),
+            radius: Distance::<SunRadius>::new(0.66),
+            temperature: Temperature::<Kelvin>::new(4500.0),
+            luminosity: Power::<SolarLuminosity>::new(0.15),
             spectral_type: SpectralType::K(5),
             luminosity_class: LuminosityClass::V,
         }),
@@ -196,7 +191,7 @@ pub fn generate_teacup_system() -> SerializableStellarSystem {
 
     SerializableStellarSystem {
         name: "Teacup System".to_string(),
-        age: Time::new(6.0), // 6 Milliarden Jahre
+        age: Time::<Gigayear>::new(6.0), // 6 Milliarden Jahre
         roots: vec![star_a],
     }
 }

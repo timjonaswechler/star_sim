@@ -3,6 +3,7 @@
     age: (
         value: 6.0,
         _unit: (),
+        _dims: (),
     ),
     roots: [
         /*[0]*/ (
@@ -11,18 +12,22 @@
                 mass: (
                     value: 0.7,
                     _unit: (),
+                    _dims: (),
                 ),
                 radius: (
                     value: 0.66,
                     _unit: (),
+                    _dims: (),
                 ),
                 temperature: (
                     value: 4500.0,
                     _unit: (),
+                    _dims: (),
                 ),
                 luminosity: (
                     value: 0.15,
                     _unit: (),
+                    _dims: (),
                 ),
                 spectral_type: K(5),
                 luminosity_class: V,
@@ -36,10 +41,12 @@
                         mass: (
                             value: 0.8,
                             _unit: (),
+                            _dims: (),
                         ),
                         radius: (
                             value: 0.96,
                             _unit: (),
+                            _dims: (),
                         ),
                         active_core: (true),
                     )),
@@ -47,23 +54,28 @@
                         semi_major_axis: (
                             value: 0.45,
                             _unit: (),
+                            _dims: (),
                         ),
                         eccentricity: 0.1,
                         inclination: (
                             value: 0.0,
                             _unit: (),
+                            _dims: (),
                         ),
                         longitude_of_ascending_node: (
                             value: 0.0,
                             _unit: (),
+                            _dims: (),
                         ),
                         argument_of_periapsis: (
                             value: 2.79,
                             _unit: (),
+                            _dims: (),
                         ),
                         mean_anomaly_at_epoch: (
                             value: 2.09,
                             _unit: (),
+                            _dims: (),
                         ),
                     )),
                     satellites: [
@@ -74,10 +86,12 @@
                                 mass: (
                                     value: 0.004,
                                     _unit: (),
+                                    _dims: (),
                                 ),
                                 radius: (
                                     value: 0.18,
                                     _unit: (),
+                                    _dims: (),
                                 ),
                                 active_core: (false),
                             )),
@@ -85,23 +99,28 @@
                                 semi_major_axis: (
                                     value: 0.00167,
                                     _unit: (),
+                                    _dims: (),
                                 ),
                                 eccentricity: 0.01,
                                 inclination: (
                                     value: 0.087,
                                     _unit: (),
+                                    _dims: (),
                                 ),
                                 longitude_of_ascending_node: (
                                     value: 0.0,
                                     _unit: (),
+                                    _dims: (),
                                 ),
                                 argument_of_periapsis: (
                                     value: 0.0,
                                     _unit: (),
+                                    _dims: (),
                                 ),
                                 mean_anomaly_at_epoch: (
                                     value: 0.0,
                                     _unit: (),
+                                    _dims: (),
                                 ),
                             )),
                             satellites: [],
