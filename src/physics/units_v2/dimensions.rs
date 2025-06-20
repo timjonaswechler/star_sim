@@ -1,37 +1,38 @@
-use crate::physics::units_v2::core::*;
 use crate::physics::units_v2::constants::*;
+use crate::physics::units_v2::core::*;
 use crate::{define_quantity, define_unit_dimension};
 
 // Define basic quantity types using dimensional analysis
-define_quantity!(Distance, 1, 0, 0, 0, 0, 0, 0);    // Length
-define_quantity!(Mass, 0, 1, 0, 0, 0, 0, 0);        // Mass
-define_quantity!(Time, 0, 0, 1, 0, 0, 0, 0);        // Time
+define_quantity!(Distance, 1, 0, 0, 0, 0, 0, 0); // Length
+define_quantity!(Mass, 0, 1, 0, 0, 0, 0, 0); // Mass
+define_quantity!(Time, 0, 0, 1, 0, 0, 0, 0); // Time
 define_quantity!(Temperature, 0, 0, 0, 1, 0, 0, 0); // Temperature
-define_quantity!(Current, 0, 0, 0, 0, 1, 0, 0);     // Current
+define_quantity!(Current, 0, 0, 0, 0, 1, 0, 0); // Current
 define_quantity!(LuminousIntensity, 0, 0, 0, 0, 0, 1, 0); // Luminous Intensity
 define_quantity!(AmountOfSubstance, 0, 0, 0, 0, 0, 0, 1); // Amount
 
 // Derived quantities
-define_quantity!(Area, 2, 0, 0, 0, 0, 0, 0);        // Length²
-define_quantity!(Volume, 3, 0, 0, 0, 0, 0, 0);      // Length³
-define_quantity!(Velocity, 1, 0, -1, 0, 0, 0, 0);   // Length/Time
+define_quantity!(Area, 2, 0, 0, 0, 0, 0, 0); // Length²
+define_quantity!(Volume, 3, 0, 0, 0, 0, 0, 0); // Length³
+define_quantity!(Velocity, 1, 0, -1, 0, 0, 0, 0); // Length/Time
 define_quantity!(Acceleration, 1, 0, -2, 0, 0, 0, 0); // Length/Time²
-define_quantity!(Force, 1, 1, -2, 0, 0, 0, 0);      // Mass×Length/Time²
-define_quantity!(Energy, 2, 1, -2, 0, 0, 0, 0);     // Mass×Length²/Time²
-define_quantity!(Power, 2, 1, -3, 0, 0, 0, 0);      // Mass×Length²/Time³
-define_quantity!(Pressure, -1, 1, -2, 0, 0, 0, 0);  // Mass/(Length×Time²)
-define_quantity!(Density, -3, 1, 0, 0, 0, 0, 0);    // Mass/Length³
-define_quantity!(Frequency, 0, 0, -1, 0, 0, 0, 0);  // 1/Time
+define_quantity!(Force, 1, 1, -2, 0, 0, 0, 0); // Mass×Length/Time²
+define_quantity!(Energy, 2, 1, -2, 0, 0, 0, 0); // Mass×Length²/Time²
+define_quantity!(Power, 2, 1, -3, 0, 0, 0, 0); // Mass×Length²/Time³
+define_quantity!(Pressure, -1, 1, -2, 0, 0, 0, 0); // Mass/(Length×Time²)
+define_quantity!(Density, -3, 1, 0, 0, 0, 0, 0); // Mass/Length³
+define_quantity!(Frequency, 0, 0, -1, 0, 0, 0, 0); // 1/Time
 
 // Angular quantities (dimensionless in SI but physically important)
-define_quantity!(Angle, 0, 0, 0, 0, 0, 0, 0);       // Dimensionless
+define_quantity!(Angle, 0, 0, 0, 0, 0, 0, 0); // Dimensionless
 define_quantity!(AngularVelocity, 0, 0, -1, 0, 0, 0, 0); // 1/Time
 define_quantity!(AngularAcceleration, 0, 0, -2, 0, 0, 0, 0); // 1/Time²
 
 // Additional derived quantities
-define_quantity!(Momentum, 1, 1, -1, 0, 0, 0, 0);   // Mass×Length/Time
+define_quantity!(Momentum, 1, 1, -1, 0, 0, 0, 0); // Mass×Length/Time
 
 // Define Distance units with astronomical focus
+
 define_unit_dimension! {
     dimension Distance {
         base_unit: Meter = 1.0,
@@ -43,6 +44,7 @@ define_unit_dimension! {
             SunRadius = METERS_PER_SUN_RADIUS,
             LightYear = METERS_PER_LIGHT_YEAR,
             Parsec = METERS_PER_PARSEC,
+
             Kiloparsec = METERS_PER_KILOPARSEC,
         },
         symbols: {
@@ -205,7 +207,7 @@ define_unit_dimension! {
     }
 }
 
-// Define Volume units (Length³)  
+// Define Volume units (Length³)
 define_unit_dimension! {
     dimension Volume {
         base_unit: CubicMeter = 1.0,
