@@ -1,5 +1,5 @@
-use star_sim::physics::units_v2::core::*;
-use star_sim::physics::units_v2::*;
+use star_sim::physics::units::core::*;
+use star_sim::physics::units::*;
 
 #[test]
 fn test_basic_unit_creation() {

@@ -7,7 +7,7 @@
 //! # Key Improvements Over Traditional Unit Systems
 //!
 //! ## 🚀 Hub-and-Spoke Conversions (O(n) complexity)
-//! 
+//!
 //! Traditional unit systems require O(n²) conversion implementations. This system
 //! uses SI units as a conversion hub, reducing complexity to O(n):
 //!
@@ -40,7 +40,7 @@
 //!         },
 //!         symbols: {
 //!             Meter = "m",
-//!             AstronomicalUnit = "AU", 
+//!             AstronomicalUnit = "AU",
 //!             LightYear = "ly",
 //!         }
 //!     }
@@ -110,8 +110,8 @@
 
 pub mod constants;
 pub mod core;
-pub mod macros;
 pub mod dimensions;
+pub mod macros;
 pub mod prefix;
 
 pub use constants::*;

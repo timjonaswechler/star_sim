@@ -30,7 +30,7 @@
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::marker::PhantomData;
-use std::ops::{Add, Sub, Mul, Div, Neg};
+use std::ops::{Add, Div, Mul, Neg, Sub};
 
 /// Represents physical dimensions using const generics for compile-time dimensional analysis.
 ///
@@ -40,7 +40,7 @@ use std::ops::{Add, Sub, Mul, Div, Neg};
 /// # Dimensions
 ///
 /// - `L`: Length (meters)
-/// - `M`: Mass (kilograms) 
+/// - `M`: Mass (kilograms)
 /// - `T`: Time (seconds)
 /// - `K`: Temperature (kelvin)
 /// - `I`: Electric Current (amperes)
@@ -52,19 +52,19 @@ use std::ops::{Add, Sub, Mul, Div, Neg};
 /// ```rust
 /// // Velocity has dimensions [Length¹ Time⁻¹]
 /// type VelocityDims = Dimensions<1, 0, -1, 0, 0, 0, 0>;
-/// 
+///
 /// // Force has dimensions [Length¹ Mass¹ Time⁻²]
 /// type ForceDims = Dimensions<1, 1, -2, 0, 0, 0, 0>;
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Dimensions<
-    const L: i8,  // Length
-    const M: i8,  // Mass
-    const T: i8,  // Time
-    const K: i8,  // Temperature
-    const I: i8,  // Current
-    const J: i8,  // Luminous Intensity
-    const N: i8,  // Amount of substance
+    const L: i8, // Length
+    const M: i8, // Mass
+    const T: i8, // Time
+    const K: i8, // Temperature
+    const I: i8, // Current
+    const J: i8, // Luminous Intensity
+    const N: i8, // Amount of substance
 >;
 
 /// A physical quantity with compile-time unit and dimensional type safety.
@@ -84,7 +84,7 @@ pub struct Dimensions<
 ///
 /// // Distance in astronomical units
 /// let distance: Distance<AstronomicalUnit> = Distance::new(1.5);
-/// 
+///
 /// // Mass in earth masses  
 /// let mass: Mass<EarthMass> = Mass::new(0.8);
 ///
@@ -103,7 +103,16 @@ pub struct Dimensions<
 /// let invalid = distance + mass; // Compile error!
 /// ```
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub struct Quantity<Unit, const L: i8, const M: i8, const T: i8, const K: i8, const I: i8, const J: i8, const N: i8> {
+pub struct Quantity<
+    Unit,
+    const L: i8,
+    const M: i8,
+    const T: i8,
+    const K: i8,
+    const I: i8,
+    const J: i8,
+    const N: i8,
+> {
     /// The numerical value of this quantity in the specified unit
     pub value: f64,
     /// Phantom data to track the unit type at compile time
@@ -198,9 +207,17 @@ pub trait UnitSymbol {
     fn symbol() -> &'static str;
 }
 
-impl<Unit, const L: i8, const M: i8, const T: i8, const K: i8, const I: i8, const J: i8, const N: i8> 
-    Quantity<Unit, L, M, T, K, I, J, N> {
-    
+impl<
+    Unit,
+    const L: i8,
+    const M: i8,
+    const T: i8,
+    const K: i8,
+    const I: i8,
+    const J: i8,
+    const N: i8,
+> Quantity<Unit, L, M, T, K, I, J, N>
+{
     /// Create a new quantity with the specified value and unit.
     ///
     /// # Parameters
@@ -227,7 +244,7 @@ impl<Unit, const L: i8, const M: i8, const T: i8, const K: i8, const I: i8, cons
             _dims: PhantomData,
         }
     }
-    
+
     /// Get the numerical value of this quantity in its current unit.
     ///
     /// # Returns
@@ -245,7 +262,7 @@ impl<Unit, const L: i8, const M: i8, const T: i8, const K: i8, const I: i8, cons
     pub fn value(&self) -> f64 {
         self.value
     }
-    
+
     /// Convert this quantity to a different unit of the same physical dimension.
     ///
     /// This method uses the hub-and-spoke conversion system: it converts the current
@@ -293,58 +310,112 @@ impl<Unit, const L: i8, const M: i8, const T: i8, const K: i8, const I: i8, cons
     }
 }
 
-impl<Unit, const L: i8, const M: i8, const T: i8, const K: i8, const I: i8, const J: i8, const N: i8> 
-    Default for Quantity<Unit, L, M, T, K, I, J, N> {
+impl<
+    Unit,
+    const L: i8,
+    const M: i8,
+    const T: i8,
+    const K: i8,
+    const I: i8,
+    const J: i8,
+    const N: i8,
+> Default for Quantity<Unit, L, M, T, K, I, J, N>
+{
     fn default() -> Self {
         Self::new(0.0)
     }
 }
 
 // Addition (same dimensions)
-impl<Unit, const L: i8, const M: i8, const T: i8, const K: i8, const I: i8, const J: i8, const N: i8> 
-    Add for Quantity<Unit, L, M, T, K, I, J, N> {
+impl<
+    Unit,
+    const L: i8,
+    const M: i8,
+    const T: i8,
+    const K: i8,
+    const I: i8,
+    const J: i8,
+    const N: i8,
+> Add for Quantity<Unit, L, M, T, K, I, J, N>
+{
     type Output = Self;
-    
+
     fn add(self, other: Self) -> Self {
         Self::new(self.value + other.value)
     }
 }
 
 // Subtraction (same dimensions)
-impl<Unit, const L: i8, const M: i8, const T: i8, const K: i8, const I: i8, const J: i8, const N: i8> 
-    Sub for Quantity<Unit, L, M, T, K, I, J, N> {
+impl<
+    Unit,
+    const L: i8,
+    const M: i8,
+    const T: i8,
+    const K: i8,
+    const I: i8,
+    const J: i8,
+    const N: i8,
+> Sub for Quantity<Unit, L, M, T, K, I, J, N>
+{
     type Output = Self;
-    
+
     fn sub(self, other: Self) -> Self {
         Self::new(self.value - other.value)
     }
 }
 
 // Multiplication with scalar
-impl<Unit, const L: i8, const M: i8, const T: i8, const K: i8, const I: i8, const J: i8, const N: i8> 
-    Mul<f64> for Quantity<Unit, L, M, T, K, I, J, N> {
+impl<
+    Unit,
+    const L: i8,
+    const M: i8,
+    const T: i8,
+    const K: i8,
+    const I: i8,
+    const J: i8,
+    const N: i8,
+> Mul<f64> for Quantity<Unit, L, M, T, K, I, J, N>
+{
     type Output = Self;
-    
+
     fn mul(self, scalar: f64) -> Self {
         Self::new(self.value * scalar)
     }
 }
 
 // Division by scalar
-impl<Unit, const L: i8, const M: i8, const T: i8, const K: i8, const I: i8, const J: i8, const N: i8> 
-    Div<f64> for Quantity<Unit, L, M, T, K, I, J, N> {
+impl<
+    Unit,
+    const L: i8,
+    const M: i8,
+    const T: i8,
+    const K: i8,
+    const I: i8,
+    const J: i8,
+    const N: i8,
+> Div<f64> for Quantity<Unit, L, M, T, K, I, J, N>
+{
     type Output = Self;
-    
+
     fn div(self, scalar: f64) -> Self {
         Self::new(self.value / scalar)
     }
 }
 
 // Negation
-impl<Unit, const L: i8, const M: i8, const T: i8, const K: i8, const I: i8, const J: i8, const N: i8> 
-    Neg for Quantity<Unit, L, M, T, K, I, J, N> {
+impl<
+    Unit,
+    const L: i8,
+    const M: i8,
+    const T: i8,
+    const K: i8,
+    const I: i8,
+    const J: i8,
+    const N: i8,
+> Neg for Quantity<Unit, L, M, T, K, I, J, N>
+{
     type Output = Self;
-    
+
     fn neg(self) -> Self {
         Self::new(-self.value)
     }
@@ -356,9 +427,22 @@ impl<Unit, const L: i8, const M: i8, const T: i8, const K: i8, const I: i8, cons
 
 // Helper function for multiplying quantities - returns result in SI units
 pub fn multiply_quantities<
-    Unit1, Unit2,
-    const L1: i8, const M1: i8, const T1: i8, const K1: i8, const I1: i8, const J1: i8, const N1: i8,
-    const L2: i8, const M2: i8, const T2: i8, const K2: i8, const I2: i8, const J2: i8, const N2: i8
+    Unit1,
+    Unit2,
+    const L1: i8,
+    const M1: i8,
+    const T1: i8,
+    const K1: i8,
+    const I1: i8,
+    const J1: i8,
+    const N1: i8,
+    const L2: i8,
+    const M2: i8,
+    const T2: i8,
+    const K2: i8,
+    const I2: i8,
+    const J2: i8,
+    const N2: i8,
 >(
     q1: Quantity<Unit1, L1, M1, T1, K1, I1, J1, N1>,
     q2: Quantity<Unit2, L2, M2, T2, K2, I2, J2, N2>,
@@ -372,9 +456,22 @@ where
 
 // Helper function for dividing quantities - returns result in SI units
 pub fn divide_quantities<
-    Unit1, Unit2,
-    const L1: i8, const M1: i8, const T1: i8, const K1: i8, const I1: i8, const J1: i8, const N1: i8,
-    const L2: i8, const M2: i8, const T2: i8, const K2: i8, const I2: i8, const J2: i8, const N2: i8
+    Unit1,
+    Unit2,
+    const L1: i8,
+    const M1: i8,
+    const T1: i8,
+    const K1: i8,
+    const I1: i8,
+    const J1: i8,
+    const N1: i8,
+    const L2: i8,
+    const M2: i8,
+    const T2: i8,
+    const K2: i8,
+    const I2: i8,
+    const J2: i8,
+    const N2: i8,
 >(
     q1: Quantity<Unit1, L1, M1, T1, K1, I1, J1, N1>,
     q2: Quantity<Unit2, L2, M2, T2, K2, I2, J2, N2>,
@@ -387,8 +484,16 @@ where
 }
 
 // Display implementation
-impl<Unit, const L: i8, const M: i8, const T: i8, const K: i8, const I: i8, const J: i8, const N: i8> 
-    fmt::Display for Quantity<Unit, L, M, T, K, I, J, N>
+impl<
+    Unit,
+    const L: i8,
+    const M: i8,
+    const T: i8,
+    const K: i8,
+    const I: i8,
+    const J: i8,
+    const N: i8,
+> fmt::Display for Quantity<Unit, L, M, T, K, I, J, N>
 where
     Unit: UnitSymbol,
 {

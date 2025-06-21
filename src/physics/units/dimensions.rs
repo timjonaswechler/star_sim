@@ -1,5 +1,5 @@
-use crate::physics::units_v2::constants::*;
-use crate::physics::units_v2::core::*;
+use crate::physics::units::constants::*;
+use crate::physics::units::core::*;
 use crate::{define_quantity, define_unit_dimension};
 
 // Define basic quantity types using dimensional analysis

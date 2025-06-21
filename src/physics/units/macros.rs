@@ -46,7 +46,7 @@
 ///         },
 ///         symbols: {
 ///             Meter = "m",
-///             Kilometer = "km", 
+///             Kilometer = "km",
 ///             AstronomicalUnit = "AU",
 ///         }
 ///     }
@@ -80,7 +80,7 @@ macro_rules! define_unit_dimension {
             #[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Default)]
             pub struct $unit;
         )+
-        
+
         // Implement UnitSymbol trait for each unit
         $(
             impl UnitSymbol for $symbol_unit {
@@ -89,7 +89,7 @@ macro_rules! define_unit_dimension {
                 }
             }
         )+
-        
+
         // Implement ToSI for each unit (convert to base SI unit)
         $(
             impl ToSI for $dim_name<$unit> {
@@ -98,7 +98,7 @@ macro_rules! define_unit_dimension {
                 }
             }
         )+
-        
+
         // Implement FromSI for each unit (convert from base SI unit)
         $(
             impl FromSI for $dim_name<$unit> {
@@ -107,10 +107,10 @@ macro_rules! define_unit_dimension {
                 }
             }
         )+
-        
+
         // Note: Prefixed unit implementations are automatically available
         // through the generic Prefixed<P, U> type and its ToSI/FromSI implementations
-        
+
         // Convenience constructors
         impl $dim_name<$base_unit> {
             $(

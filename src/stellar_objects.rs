@@ -1,5 +1,5 @@
 // Benötigte Typen aus dem neuen Einheitensystem importieren
-use crate::physics::units_v2::*;
+use crate::physics::units::*;
 
 use bevy::prelude::Component;
 use serde::{Deserialize, Serialize};

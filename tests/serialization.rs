@@ -1,5 +1,5 @@
 use ron;
-use star_sim::physics::units_v2::*;
+use star_sim::physics::units::*;
 
 macro_rules! unit_serialization_test {
     ($name:ident, $typ:ty, $value:expr) => {

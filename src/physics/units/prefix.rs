@@ -6,7 +6,7 @@
 //!
 //! ```rust
 //! use star_sim::physics::units_v2::*;
-//! 
+//!
 //! let distance = Distance::<Prefixed<Kilo, Meter>>::new(5.0); // 5 km
 //! let mass = Mass::<Prefixed<Mega, Gram>>::new(2.0);          // 2 Mg
 //! let time = Time::<Prefixed<Micro, Second>>::new(100.0);     // 100 μs
@@ -46,7 +46,7 @@
 //! | Zepto  | 10⁻²¹  | z      | zs      |
 //! | Yocto  | 10⁻²⁴  | y      | ys      |
 
-use crate::physics::units_v2::core::*;
+use crate::physics::units::core::*;
 use std::marker::PhantomData;
 
 /// Trait for metric prefixes.
@@ -56,7 +56,7 @@ use std::marker::PhantomData;
 pub trait Prefix {
     /// Multiplication factor to apply to the base unit value.
     const FACTOR: f64;
-    
+
     /// Short symbol for the prefix (e.g., "k" for Kilo).
     fn symbol() -> &'static str;
 }
@@ -84,7 +84,7 @@ where
     }
 }
 
-// Note: ToSI and FromSI implementations for Prefixed units need to be 
+// Note: ToSI and FromSI implementations for Prefixed units need to be
 // implemented in the specific dimension modules to avoid circular dependencies
 // and infinite recursion. The macro system will handle this automatically.
 
@@ -162,102 +162,142 @@ pub struct Yocto;
 
 impl Prefix for Yotta {
     const FACTOR: f64 = 1e24;
-    fn symbol() -> &'static str { "Y" }
+    fn symbol() -> &'static str {
+        "Y"
+    }
 }
 
 impl Prefix for Zetta {
     const FACTOR: f64 = 1e21;
-    fn symbol() -> &'static str { "Z" }
+    fn symbol() -> &'static str {
+        "Z"
+    }
 }
 
 impl Prefix for Exa {
     const FACTOR: f64 = 1e18;
-    fn symbol() -> &'static str { "E" }
+    fn symbol() -> &'static str {
+        "E"
+    }
 }
 
 impl Prefix for Peta {
     const FACTOR: f64 = 1e15;
-    fn symbol() -> &'static str { "P" }
+    fn symbol() -> &'static str {
+        "P"
+    }
 }
 
 impl Prefix for Tera {
     const FACTOR: f64 = 1e12;
-    fn symbol() -> &'static str { "T" }
+    fn symbol() -> &'static str {
+        "T"
+    }
 }
 
 impl Prefix for Giga {
     const FACTOR: f64 = 1e9;
-    fn symbol() -> &'static str { "G" }
+    fn symbol() -> &'static str {
+        "G"
+    }
 }
 
 impl Prefix for Mega {
     const FACTOR: f64 = 1e6;
-    fn symbol() -> &'static str { "M" }
+    fn symbol() -> &'static str {
+        "M"
+    }
 }
 
 impl Prefix for Kilo {
     const FACTOR: f64 = 1e3;
-    fn symbol() -> &'static str { "k" }
+    fn symbol() -> &'static str {
+        "k"
+    }
 }
 
 impl Prefix for Hecto {
     const FACTOR: f64 = 1e2;
-    fn symbol() -> &'static str { "h" }
+    fn symbol() -> &'static str {
+        "h"
+    }
 }
 
 impl Prefix for Deca {
     const FACTOR: f64 = 1e1;
-    fn symbol() -> &'static str { "da" }
+    fn symbol() -> &'static str {
+        "da"
+    }
 }
 
 impl Prefix for Deci {
     const FACTOR: f64 = 1e-1;
-    fn symbol() -> &'static str { "d" }
+    fn symbol() -> &'static str {
+        "d"
+    }
 }
 
 impl Prefix for Centi {
     const FACTOR: f64 = 1e-2;
-    fn symbol() -> &'static str { "c" }
+    fn symbol() -> &'static str {
+        "c"
+    }
 }
 
 impl Prefix for Milli {
     const FACTOR: f64 = 1e-3;
-    fn symbol() -> &'static str { "m" }
+    fn symbol() -> &'static str {
+        "m"
+    }
 }
 
 impl Prefix for Micro {
     const FACTOR: f64 = 1e-6;
-    fn symbol() -> &'static str { "μ" }
+    fn symbol() -> &'static str {
+        "μ"
+    }
 }
 
 impl Prefix for Nano {
     const FACTOR: f64 = 1e-9;
-    fn symbol() -> &'static str { "n" }
+    fn symbol() -> &'static str {
+        "n"
+    }
 }
 
 impl Prefix for Pico {
     const FACTOR: f64 = 1e-12;
-    fn symbol() -> &'static str { "p" }
+    fn symbol() -> &'static str {
+        "p"
+    }
 }
 
 impl Prefix for Femto {
     const FACTOR: f64 = 1e-15;
-    fn symbol() -> &'static str { "f" }
+    fn symbol() -> &'static str {
+        "f"
+    }
 }
 
 impl Prefix for Atto {
     const FACTOR: f64 = 1e-18;
-    fn symbol() -> &'static str { "a" }
+    fn symbol() -> &'static str {
+        "a"
+    }
 }
 
 impl Prefix for Zepto {
     const FACTOR: f64 = 1e-21;
-    fn symbol() -> &'static str { "z" }
+    fn symbol() -> &'static str {
+        "z"
+    }
 }
 
 impl Prefix for Yocto {
     const FACTOR: f64 = 1e-24;
-    fn symbol() -> &'static str { "y" }
+    fn symbol() -> &'static str {
+        "y"
+    }
 }
 
 // ================================================================================================
