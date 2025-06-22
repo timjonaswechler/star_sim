@@ -108,8 +108,21 @@ macro_rules! define_unit_dimension {
             }
         )+
 
-        // Note: Prefixed unit implementations are automatically available
-        // through the generic Prefixed<P, U> type and its ToSI/FromSI implementations
+        // Implement ToSI and FromSI for prefixed units of each defined unit
+        // This enables combinations like Distance<Prefixed<Kilo, AstronomicalUnit>>
+        $(
+            impl<P: crate::physics::units::prefix::Prefix> ToSI for $dim_name<crate::physics::units::prefix::Prefixed<P, $unit>> {
+                fn to_si(&self) -> f64 {
+                    self.value * P::FACTOR * $conversion
+                }
+            }
+
+            impl<P: crate::physics::units::prefix::Prefix> FromSI for $dim_name<crate::physics::units::prefix::Prefixed<P, $unit>> {
+                fn from_si(value: f64) -> Self {
+                    Self::new(value / (P::FACTOR * $conversion))
+                }
+            }
+        )+
 
         // Convenience constructors
         impl $dim_name<$base_unit> {

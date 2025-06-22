@@ -176,3 +176,66 @@ pub const CELSIUS_PER_FAHRENHEIT: f64 = 5.0 / 9.0;
 ///
 /// The additive offset: °C = (°F - 32) × 5/9.
 pub const FAHRENHEIT_OFFSET: f64 = 32.0;
+
+// ================================================================================================
+// GRAVITATIONAL CONSTANTS
+// ================================================================================================
+
+/// Standard gravitational parameter for the Sun (GM☉) in m³/s².
+///
+/// The product of the gravitational constant G and the solar mass M☉.
+/// This is the most precisely known astronomical constant and is fundamental
+/// for orbital mechanics calculations in the Solar System.
+pub const SOLAR_GRAVITATIONAL_PARAMETER: f64 = 1.32712442018e20;
+
+/// Standard gravitational parameter for Earth (GM⊕) in m³/s².
+///
+/// Used for calculating orbital mechanics around Earth and lunar dynamics.
+pub const EARTH_GRAVITATIONAL_PARAMETER: f64 = 3.986004418e14;
+
+/// Newton's gravitational constant G in m³/(kg⋅s²).
+///
+/// The universal gravitational constant. Note: This is one of the least precisely
+/// known fundamental constants.
+pub const GRAVITATIONAL_CONSTANT: f64 = 6.67430e-11;
+
+// ================================================================================================
+// SPECTRAL CONSTANTS
+// ================================================================================================
+
+/// Speed of light in vacuum (c) in m/s.
+///
+/// Exact value as defined in SI. Fundamental for all electromagnetic calculations.
+pub const SPEED_OF_LIGHT: f64 = 299_792_458.0;
+
+/// Planck constant (h) in J⋅s.
+///
+/// Fundamental constant of quantum mechanics, exact since 2019 SI redefinition.
+pub const PLANCK_CONSTANT: f64 = 6.62607015e-34;
+
+// ================================================================================================
+// MAGNETIC FIELD CONVERSIONS (to Tesla)
+// ================================================================================================
+
+/// Gauss to Tesla.
+///
+/// CGS unit of magnetic field strength, still commonly used in astrophysics.
+pub const TESLA_PER_GAUSS: f64 = 1e-4;
+
+// ================================================================================================
+// SPECIFIC ENERGY CONVERSIONS (to J/kg)
+// ================================================================================================
+
+/// Calorie per gram to Joules per kilogram.
+///
+/// Used for specific energy calculations.
+pub const JOULES_PER_KG_PER_CAL_PER_G: f64 = 4184.0;
+
+// ================================================================================================
+// SPECIFIC HEAT CONVERSIONS (to J/(kg⋅K))
+// ================================================================================================
+
+/// Calorie per gram per Kelvin to Joules per kilogram per Kelvin.
+///
+/// Used for specific heat capacity calculations.
+pub const JOULES_PER_KG_K_PER_CAL_PER_G_K: f64 = 4184.0;

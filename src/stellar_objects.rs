@@ -3,8 +3,6 @@ use crate::physics::units::*;
 
 use bevy::prelude::Component;
 use serde::{Deserialize, Serialize};
-use std::fs::File;
-use std::io::Write;
 
 //================================================================================
 // 1. Grundlegende Eigenschaften (als Komponenten, aber hier nur als Daten)
@@ -130,7 +128,7 @@ pub struct SerializableBody {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SerializableStellarSystem {
     pub name: String,
-    pub age: Time<Gigayear>, // Verwende Time<Gigayear> statt Age(f64)
+    pub age: Time<Prefixed<Giga, Year>>,
     pub roots: Vec<SerializableBody>,
 }
 
@@ -191,7 +189,7 @@ pub fn generate_teacup_system() -> SerializableStellarSystem {
 
     SerializableStellarSystem {
         name: "Teacup System".to_string(),
-        age: Time::<Gigayear>::new(6.0), // 6 Milliarden Jahre
+        age: Time::<Prefixed<Giga, Year>>::new(6.0), // 6 Milliarden Jahre
         roots: vec![star_a],
     }
 }
