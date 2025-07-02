@@ -5,7 +5,7 @@
 //! separate units like `Kilometer`, `Megameter`, `Gigameter`, etc., you can use:
 //!
 //! ```rust
-//! use star_sim::physics::units_v2::*;
+//! use star_sim::physics::units::*;
 //!
 //! let distance = Distance::<Prefixed<Kilo, Meter>>::new(5.0); // 5 km
 //! let mass = Mass::<Prefixed<Mega, Gram>>::new(2.0);          // 2 Mg

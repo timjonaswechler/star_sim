@@ -29,7 +29,7 @@
 /// # Examples
 ///
 /// ```rust
-/// use star_sim::physics::units_v2::*;
+/// use star_sim::physics::units::*;
 /// use star_sim::{define_unit_dimension, define_quantity};
 ///
 /// // First define the quantity type
@@ -149,7 +149,7 @@ macro_rules! define_unit_dimension {
 /// # Examples
 ///
 /// ```rust
-/// use star_sim::physics::units_v2::*;
+/// use star_sim::physics::units::*;
 /// use star_sim::define_quantity;
 ///
 /// // Define basic quantities

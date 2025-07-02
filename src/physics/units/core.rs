@@ -13,7 +13,7 @@
 //! # Examples
 //!
 //! ```rust
-//! use star_sim::physics::units_v2::*;
+//! use star_sim::physics::units::*;
 //!
 //! // Create quantities with specific units
 //! let distance = Distance::<AstronomicalUnit>::new(1.5);
@@ -80,7 +80,7 @@ pub struct Dimensions<
 /// # Examples
 ///
 /// ```rust
-/// use star_sim::physics::units_v2::*;
+/// use star_sim::physics::units::*;
 ///
 /// // Distance in astronomical units
 /// let distance: Distance<AstronomicalUnit> = Distance::new(1.5);
@@ -231,7 +231,7 @@ impl<
     /// # Examples
     ///
     /// ```rust
-    /// use star_sim::physics::units_v2::*;
+    /// use star_sim::physics::units::*;
     ///
     /// let distance = Distance::<AstronomicalUnit>::new(1.5);
     /// let mass = Mass::<SolarMass>::new(0.7);
@@ -254,7 +254,7 @@ impl<
     /// # Examples
     ///
     /// ```rust
-    /// use star_sim::physics::units_v2::*;
+    /// use star_sim::physics::units::*;
     ///
     /// let distance = Distance::<AstronomicalUnit>::new(1.5);
     /// assert_eq!(distance.value(), 1.5);
@@ -280,7 +280,7 @@ impl<
     /// # Examples
     ///
     /// ```rust
-    /// use star_sim::physics::units_v2::*;
+    /// use star_sim::physics::units::*;
     ///
     /// let distance_au = Distance::<AstronomicalUnit>::new(1.0);
     /// let distance_m = distance_au.convert_to::<Meter>();

@@ -59,7 +59,7 @@
 //! # Quick Start
 //!
 //! ```rust
-//! use star_sim::physics::units_v2::*;
+//! use star_sim::physics::units::*;
 //!
 //! // Create quantities with specific units
 //! let distance = Distance::<AstronomicalUnit>::new(1.5);
