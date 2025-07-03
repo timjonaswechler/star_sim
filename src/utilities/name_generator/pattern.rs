@@ -6,6 +6,8 @@
 
 use std::collections::HashMap;
 use rand::Rng;
+use rand::distributions::{WeightedIndex, Distribution};
+use super::phonetic_rules::PhoneticRules;
 
 #[derive(Debug, Clone)]
 pub enum Wrapper {
@@ -127,6 +129,10 @@ impl Pattern {
     pub fn generate(&self, rng: &mut impl Rng) -> String {
         self.root_node.generate(rng)
     }
+    
+    pub fn generate_with_context(&self, rng: &mut impl Rng, context: &mut String, rules: Option<&PhoneticRules>) -> String {
+        self.root_node.generate_with_context(rng, context, rules)
+    }
 
     pub fn parse(
         pattern_str: &str,
@@ -206,19 +212,40 @@ impl Pattern {
 
 impl GeneratorNode {
     pub fn generate(&self, rng: &mut impl Rng) -> String {
+        let mut context = String::new();
+        self.generate_with_context(rng, &mut context, None)
+    }
+    
+    pub fn generate_with_context(&self, rng: &mut impl Rng, context: &mut String, rules: Option<&PhoneticRules>) -> String {
         match self {
             GeneratorNode::Literal(s) => s.clone(),
-            GeneratorNode::Sequence(nodes) => nodes.iter().map(|node| node.generate(rng)).collect(),
+            GeneratorNode::Sequence(nodes) => {
+                let mut result = String::new();
+                for node in nodes {
+                    let part = node.generate_with_context(rng, context, rules);
+                    result.push_str(&part);
+                    context.push_str(&part);
+                }
+                result
+            }
             GeneratorNode::Random(nodes) => {
                 if nodes.is_empty() {
-                    "".to_string()
-                } else {
-                    let index = rng.gen_range(0..nodes.len());
-                    nodes[index].generate(rng)
+                    return "".to_string();
                 }
+                
+                // Use weighted selection if rules are provided
+                let chosen_node = if let Some(rules) = rules {
+                    self.weighted_choice(nodes, context, rules, rng)
+                } else {
+                    // Fallback to uniform random selection
+                    let index = rng.gen_range(0..nodes.len());
+                    &nodes[index]
+                };
+                
+                chosen_node.generate_with_context(rng, context, rules)
             }
             GeneratorNode::Capitalizer(node) => {
-                let s = node.generate(rng);
+                let s = node.generate_with_context(rng, context, rules);
                 if s.is_empty() {
                     return s;
                 }
@@ -228,11 +255,11 @@ impl GeneratorNode {
                 format!("{}{}", first.to_uppercase(), rest)
             }
             GeneratorNode::Reverser(node) => {
-                let s = node.generate(rng);
+                let s = node.generate_with_context(rng, context, rules);
                 s.chars().rev().collect::<String>()
             }
             GeneratorNode::Collapser(node) => {
-                let s = node.generate(rng);
+                let s = node.generate_with_context(rng, context, rules);
                 let mut out = String::with_capacity(s.len());
                 let mut count = 0;
                 let mut last_char = '\0';
@@ -256,6 +283,80 @@ impl GeneratorNode {
                     last_char = current_char;
                 }
                 out
+            }
+        }
+    }
+    
+    /// Perform weighted selection based on phonetic rules
+    fn weighted_choice<'a>(&self, nodes: &'a [GeneratorNode], context: &str, rules: &PhoneticRules, rng: &mut impl Rng) -> &'a GeneratorNode {
+        // Preview what each node would generate
+        let options: Vec<String> = nodes.iter()
+            .map(|node| node.preview_content())
+            .collect();
+        
+        // Calculate weights based on phonetic rules
+        let weights: Vec<f32> = options.iter()
+            .map(|option| rules.calculate_weight(context, option))
+            .collect();
+        
+        // Ensure we have at least one non-zero weight
+        let has_valid_weight = weights.iter().any(|&w| w > 0.0);
+        if !has_valid_weight {
+            // If all weights are zero, fall back to uniform selection
+            let index = rng.gen_range(0..nodes.len());
+            return &nodes[index];
+        }
+        
+        // Use weighted selection
+        match WeightedIndex::new(&weights) {
+            Ok(dist) => {
+                let index = dist.sample(rng);
+                &nodes[index]
+            }
+            Err(_) => {
+                // Fallback to uniform selection if weighted selection fails
+                let index = rng.gen_range(0..nodes.len());
+                &nodes[index]
+            }
+        }
+    }
+    
+    /// Preview the content this node would generate without actually generating it
+    fn preview_content(&self) -> String {
+        match self {
+            GeneratorNode::Literal(s) => s.clone(),
+            GeneratorNode::Sequence(nodes) => {
+                // For sequences, preview the first few characters
+                nodes.iter()
+                    .take(1) // Just take the first node for preview
+                    .map(|node| node.preview_content())
+                    .collect::<Vec<_>>()
+                    .join("")
+            }
+            GeneratorNode::Random(nodes) => {
+                // For random nodes, preview the first option
+                if nodes.is_empty() {
+                    "".to_string()
+                } else {
+                    nodes[0].preview_content()
+                }
+            }
+            GeneratorNode::Capitalizer(node) => {
+                let s = node.preview_content();
+                if s.is_empty() {
+                    return s;
+                }
+                let mut chars = s.chars();
+                let first = chars.next().unwrap();
+                let rest = chars.as_str().to_lowercase();
+                format!("{}{}", first.to_uppercase(), rest)
+            }
+            GeneratorNode::Reverser(node) => {
+                let s = node.preview_content();
+                s.chars().rev().collect::<String>()
+            }
+            GeneratorNode::Collapser(node) => {
+                node.preview_content() // Preview doesn't apply collapsing
             }
         }
     }

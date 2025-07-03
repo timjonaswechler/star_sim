@@ -3,27 +3,49 @@
 //! This module provides the fundamental building blocks for the macro-based name generation system,
 //! following the same pattern as the physics units system.
 
-use super::{Pattern, symbols::SYMBOL_MAP};
+use super::{Pattern, phonetic_rules::PhoneticRules};
+use super::symbols::SYMBOL_MAP;
+use std::collections::HashMap;
 use rand::Rng;
 
 /// Base trait for name pattern categories
 /// 
 /// All name generator categories must implement this trait to provide
-/// their specific naming patterns and generation logic.
+/// their specific naming patterns and generation logic. Categories can customize
+/// their sound profile through custom symbol maps and phonetic rules.
 pub trait NameCategory: Default {
     type Variant;
 
     /// Get the pattern string for this category variant
     fn pattern(&self) -> &'static str;
 
-    /// Get a parsed Pattern for this category variant
-    fn get_pattern(&self) -> Pattern {
-        Pattern::parse(self.pattern(), &SYMBOL_MAP, false).expect("Invalid pattern in category")
+    /// Get the symbol map for this category
+    /// 
+    /// Returns a reference to the symbol map that defines available sounds.
+    /// Default implementation uses the standard symbol map, but categories
+    /// can override this to provide specialized sound sets.
+    fn symbol_map(&self) -> &HashMap<&'static str, Vec<&'static str>> {
+        &SYMBOL_MAP
     }
 
-    /// Generate a name using this category's pattern
+    /// Get phonetic rules for this category
+    /// 
+    /// Returns phonetic rules that will be applied during name generation
+    /// to adjust probabilities based on context and sound compatibility.
+    /// Default implementation returns None (no special rules).
+    fn phonetic_rules(&self) -> Option<&PhoneticRules> {
+        None
+    }
+
+    /// Get a parsed Pattern for this category variant
+    fn get_pattern(&self) -> Pattern {
+        Pattern::parse(self.pattern(), self.symbol_map(), false).expect("Invalid pattern in category")
+    }
+
+    /// Generate a name using this category's pattern and rules
     fn generate(&self, rng: &mut impl Rng) -> String {
-        self.get_pattern().generate(rng)
+        let mut context = String::new();
+        self.get_pattern().generate_with_context(rng, &mut context, self.phonetic_rules())
     }
 }
 

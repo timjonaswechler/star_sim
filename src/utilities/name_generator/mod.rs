@@ -21,6 +21,8 @@
 
 // Public modules
 pub mod categories;
+pub mod phonetic_rules;
+pub mod symbol_types;
 mod core;
 mod macros;
 mod pattern;
@@ -30,4 +32,4 @@ mod symbols;
 pub use categories::*;
 pub use core::*;
 pub use pattern::Pattern;
-pub use symbols::SYMBOL_MAP;
+pub use symbols::{SYMBOL_MAP, DARK_SYMBOL_MAP, BRIGHT_SYMBOL_MAP, EXOTIC_SYMBOL_MAP};
