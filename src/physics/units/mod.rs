@@ -115,6 +115,8 @@ pub mod macros;
 pub mod operations;
 pub mod prefix;
 pub mod quantities;
+pub mod composition;
+pub mod modular;
 
 pub use constants::*;
 pub use core::*;
@@ -122,3 +124,5 @@ pub use dimensions::*;
 pub use operations::*;
 pub use prefix::*;
 pub use quantities::*;
+pub use composition::*;
+pub use modular::*;

@@ -421,9 +421,59 @@ impl<
     }
 }
 
-// For now, we'll skip automatic dimensional analysis via multiplication/division
-// This feature requires const generic arithmetic which is not yet stable in Rust
-// Instead, we'll provide explicit functions for common operations
+// ================================================================================================
+// AUTOMATIC DIMENSIONAL ANALYSIS VIA MULTIPLICATION/DIVISION
+// ================================================================================================
+
+// With const generic arithmetic now available, we can implement automatic dimensional analysis
+
+// NOTE: Automatic dimensional analysis via generic const arithmetic is not yet stable
+// We'll implement specific cases for common operations instead
+
+impl<Unit1, Unit2>
+    Mul<Quantity<Unit2, 1, 0, 0, 0, 0, 0, 0>>
+    for Quantity<Unit1, 1, 0, 0, 0, 0, 0, 0>
+where
+    Self: ToSI,
+    Quantity<Unit2, 1, 0, 0, 0, 0, 0, 0>: ToSI,
+{
+    type Output = Quantity<Unit1, 2, 0, 0, 0, 0, 0, 0>; // Area
+    
+    fn mul(self, rhs: Quantity<Unit2, 1, 0, 0, 0, 0, 0, 0>) -> Self::Output {
+        let result_si = self.to_si() * rhs.to_si();
+        Quantity::new(result_si)
+    }
+}
+
+impl<Unit1, Unit2>
+    Div<Quantity<Unit2, 0, 0, 1, 0, 0, 0, 0>>
+    for Quantity<Unit1, 1, 0, 0, 0, 0, 0, 0>
+where
+    Self: ToSI,
+    Quantity<Unit2, 0, 0, 1, 0, 0, 0, 0>: ToSI,
+{
+    type Output = Quantity<Unit1, 1, 0, -1, 0, 0, 0, 0>; // Velocity
+    
+    fn div(self, rhs: Quantity<Unit2, 0, 0, 1, 0, 0, 0, 0>) -> Self::Output {
+        let result_si = self.to_si() / rhs.to_si();
+        Quantity::new(result_si)
+    }
+}
+
+impl<Unit1, Unit2>
+    Div<Quantity<Unit2, 1, 0, 0, 0, 0, 0, 0>>
+    for Quantity<Unit1, 1, 0, 0, 0, 0, 0, 0>
+where
+    Self: ToSI,
+    Quantity<Unit2, 1, 0, 0, 0, 0, 0, 0>: ToSI,
+{
+    type Output = Quantity<Unit1, 0, 0, 0, 0, 0, 0, 0>; // Dimensionless
+    
+    fn div(self, rhs: Quantity<Unit2, 1, 0, 0, 0, 0, 0, 0>) -> Self::Output {
+        let result_si = self.to_si() / rhs.to_si();
+        Quantity::new(result_si)
+    }
+}
 
 // Helper function for multiplying quantities - returns result in SI units
 pub fn multiply_quantities<
