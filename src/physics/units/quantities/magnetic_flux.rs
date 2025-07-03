@@ -1,3 +1,4 @@
+#![allow(non_snake_case)]
 //! Magnetic flux units for electromagnetic phenomena in stellar systems.
 //!
 //! This module provides magnetic flux units for modeling magnetic field interactions,

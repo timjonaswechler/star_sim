@@ -77,7 +77,7 @@ macro_rules! define_unit_dimension {
     ) => {
         // Define unit marker structs
         $(
-            #[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Default)]
+            #[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Default,)]
             pub struct $unit;
         )+
 
@@ -183,4 +183,4 @@ macro_rules! define_quantity {
     };
 }
 
-// Removed problematic macro - will use direct function definitions instead
+// Removed problematic macro - the AutoConvert trait in core.rs provides a simpler solution

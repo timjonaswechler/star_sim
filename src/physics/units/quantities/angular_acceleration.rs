@@ -1,3 +1,4 @@
+#![allow(non_snake_case)]
 //! Angular acceleration units for rotational dynamics in stellar systems.
 //!
 //! This module provides angular acceleration units for modeling rotational changes

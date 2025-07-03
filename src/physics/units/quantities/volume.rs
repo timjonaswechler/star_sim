@@ -1,3 +1,4 @@
+#![allow(non_snake_case)]
 //! Volume units for three-dimensional measurements in stellar systems.
 //!
 //! This module provides volume units for calculating sizes, capacities,

@@ -1,3 +1,4 @@
+#![allow(non_snake_case)]
 //! Energy units for stellar physics and astrophysical calculations.
 //!
 //! This module provides energy units spanning from atomic scales to stellar energies,
@@ -57,9 +58,6 @@
 use crate::physics::units::{constants::*, core::*};
 use crate::{define_quantity, define_unit_dimension};
 
-/// Physical quantity representing energy with dimensional type safety.
-///
-/// Dimensional analysis: `[Length² Mass¹ Time⁻²]` - kinetic energy dimensions
 define_quantity!(Energy, 2, 1, -2, 0, 0, 0, 0); // Mass×Length²/Time²
 
 // Define Energy units

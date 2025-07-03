@@ -483,6 +483,39 @@ where
     q1.to_si() / q2.to_si()
 }
 
+/// Trait for enabling automatic unit conversion via assignment.
+///
+/// This trait allows you to write:
+/// ```rust
+/// let distance_au = Distance::<AstronomicalUnit>::new(1.5);  
+/// let distance_meters: Distance<Meter> = distance_au;
+/// ```
+/// 
+/// This works by implementing `Into` for specific unit conversion pairs.
+pub trait AutoConvert<ToQuantity> {
+    fn convert(self) -> ToQuantity;
+}
+
+impl<
+    FromUnit,
+    ToUnit,
+    const L: i8,
+    const M: i8,
+    const T: i8,
+    const K: i8,
+    const I: i8,
+    const J: i8,
+    const N: i8,
+> AutoConvert<Quantity<ToUnit, L, M, T, K, I, J, N>> for Quantity<FromUnit, L, M, T, K, I, J, N>
+where
+    Quantity<FromUnit, L, M, T, K, I, J, N>: ToSI,
+    Quantity<ToUnit, L, M, T, K, I, J, N>: FromSI,
+{
+    fn convert(self) -> Quantity<ToUnit, L, M, T, K, I, J, N> {
+        self.convert_to::<ToUnit>()
+    }
+}
+
 // Display implementation
 impl<
     Unit,

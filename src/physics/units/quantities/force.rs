@@ -1,3 +1,4 @@
+#![allow(non_snake_case)]
 //! Force units for gravitational and mechanical interactions in stellar systems.
 //!
 //! This module provides force units for calculating gravitational attractions,

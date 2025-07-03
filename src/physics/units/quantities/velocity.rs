@@ -1,3 +1,4 @@
+#![allow(non_snake_case)]
 //! Velocity units for orbital mechanics and stellar motion calculations.
 //!
 //! This module provides velocity units essential for modeling orbital dynamics,
@@ -24,7 +25,7 @@
 //! # Key Velocity Scales
 //!
 //! - **Earth orbital velocity**: ~29.8 km/s
-//! - **Solar escape velocity**: ~617.5 km/s  
+//! - **Solar escape velocity**: ~617.5 km/s
 //! - **Galactic orbital velocity**: ~220 km/s
 //! - **Speed of light**: ~299,792,458 m/s
 //!
@@ -65,9 +66,6 @@ use crate::physics::units::{
 };
 use crate::{define_quantity, define_unit_dimension};
 
-/// Physical quantity representing velocity with dimensional type safety.
-///
-/// Dimensional analysis: `[Length¹ Time⁻¹]` - velocity dimensions
 define_quantity!(Velocity, 1, 0, -1, 0, 0, 0, 0); // Length/Time
 
 // Define Velocity units (Length/Time)

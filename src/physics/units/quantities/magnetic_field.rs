@@ -1,3 +1,4 @@
+#![allow(non_snake_case)]
 //! Magnetic field units for electromagnetic phenomena in stellar systems.
 //!
 //! This module defines units for magnetic field strength and related electromagnetic

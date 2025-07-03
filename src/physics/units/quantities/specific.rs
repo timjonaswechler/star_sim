@@ -1,3 +1,4 @@
+#![allow(non_snake_case)]
 //! Specific units for thermodynamics and material properties in stellar systems.
 //!
 //! This module defines specific quantities (per unit mass) used in thermodynamics,
@@ -122,7 +123,7 @@ impl SpecificEnergy<JoulePerKilogram> {
     pub fn hydrogen_fusion_energy() -> Self {
         Self::new(6.3e14) // J/kg - approximate value for hydrogen to helium
     }
-    
+
     /// Gravitational binding energy per unit mass at stellar surface
     /// GM/R for typical stellar parameters
     pub fn stellar_binding_energy(gm: f64, radius: f64) -> Self {
@@ -136,7 +137,7 @@ impl SpecificHeatCapacity<JoulePerKilogramKelvin> {
         const GAS_CONSTANT: f64 = 8.314462618; // J/(mol⋅K)
         Self::new(1.5 * GAS_CONSTANT / molar_mass_kg)
     }
-    
+
     /// Specific heat capacity of an ideal diatomic gas (5/2 * R/M)
     pub fn ideal_diatomic_gas(molar_mass_kg: f64) -> Self {
         const GAS_CONSTANT: f64 = 8.314462618; // J/(mol⋅K)

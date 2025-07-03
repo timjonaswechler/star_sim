@@ -1,3 +1,4 @@
+#![allow(non_snake_case)]
 //! Angular velocity units for rotational motion in stellar systems.
 //!
 //! This module provides angular velocity units for modeling rotational properties

@@ -1,3 +1,4 @@
+#![allow(non_snake_case)]
 //! Gravitational units for celestial mechanics and orbital dynamics.
 //!
 //! This module defines units related to gravitational parameters (GM) and orbital mechanics,

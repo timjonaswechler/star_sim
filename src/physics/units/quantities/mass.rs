@@ -1,3 +1,4 @@
+#![allow(non_snake_case)]
 //! Mass units for stellar system calculations.
 //!
 //! This module provides mass units spanning from laboratory scales to stellar masses,
@@ -50,9 +51,6 @@
 use crate::physics::units::{constants::*, core::*, prefix::*};
 use crate::{define_quantity, define_unit_dimension};
 
-/// Physical quantity representing mass with dimensional type safety.
-///
-/// Dimensional analysis: `[Mass¹]` - pure mass dimension
 define_quantity!(Mass, 0, 1, 0, 0, 0, 0, 0);
 
 // Define Mass units with astronomical focus

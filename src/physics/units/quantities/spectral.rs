@@ -1,3 +1,4 @@
+#![allow(non_snake_case)]
 //! Spectral units for astrophysics and electromagnetic radiation analysis.
 //!
 //! This module defines units for wavelength, frequency, wavenumber, and related spectral quantities
@@ -103,7 +104,7 @@ impl Wavelength<WavelengthMeter> {
         SPEED_OF_LIGHT / self.to_si()
     }
 
-    /// Calculate photon energy from wavelength using E = hc/λ  
+    /// Calculate photon energy from wavelength using E = hc/λ
     pub fn to_photon_energy(&self) -> f64 {
         PLANCK_CONSTANT * SPEED_OF_LIGHT / self.to_si()
     }

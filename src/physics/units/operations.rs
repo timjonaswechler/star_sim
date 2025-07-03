@@ -4,7 +4,7 @@
 //! and return appropriately typed results. Includes automatic dimensional analysis for
 //! creating proper composite units with prefix support.
 
-use crate::physics::units::{constants::*, core::*, prefix::*, quantities::*};
+use crate::physics::units::constants::*;
 
 // ================================================================================================
 // ORBITAL MECHANICS OPERATIONS

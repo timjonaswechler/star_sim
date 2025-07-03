@@ -1,3 +1,4 @@
+#![allow(non_snake_case)]
 //! Power units for energy transfer rates in stellar systems.
 //!
 //! This module provides power units for modeling energy output, luminosity,

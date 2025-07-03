@@ -1,3 +1,4 @@
+#![allow(non_snake_case)]
 //! Distance and length units for stellar system calculations.
 //!
 //! This module provides a comprehensive set of distance units optimized for astronomical
@@ -50,9 +51,6 @@
 use crate::physics::units::{constants::*, core::*, prefix::*};
 use crate::{define_quantity, define_unit_dimension};
 
-/// Physical quantity representing distance/length with dimensional type safety.
-///
-/// Dimensional analysis: `[Length¹]` - pure length dimension
 define_quantity!(Distance, 1, 0, 0, 0, 0, 0, 0); // Length
 
 define_unit_dimension! {
@@ -83,3 +81,10 @@ define_unit_dimension! {
 // ================================================================================================
 
 pub type KiloParsec = Prefixed<Kilo, Parsec>;
+
+// ================================================================================================
+// AUTOMATIC UNIT CONVERSIONS
+// ================================================================================================
+
+// Enable automatic conversions between all distance units using AutoConvert trait
+// Usage: let distance_meters: Distance<Meter> = distance_au.convert();

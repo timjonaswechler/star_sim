@@ -15,8 +15,6 @@ fn main() {
 
     // Calculate orbital velocity around the Sun at 1 AU
     let au_distance = Distance::<AstronomicalUnit>::new(1.0);
-    let orbital_vel = orbital_velocity_si(SOLAR_GRAVITATIONAL_PARAMETER, au_distance.to_si());
-    println!("Orbital velocity at 1 AU: {:.0} m/s", orbital_vel);
     println!();
 
     // Spectral Units
@@ -75,8 +73,6 @@ fn main() {
     let thermal_energy = thermal_energy_per_particle_si(15_000_000.0);
     println!("Stellar core thermal energy: {:.2e} J", thermal_energy);
 
-    let lorentz_gamma = lorentz_factor_si(0.9 * SPEED_OF_LIGHT);
-    println!("Lorentz factor at 0.9c: {:.2}", lorentz_gamma);
     println!();
 
     println!("🎯 Extended unit system successfully integrated!");

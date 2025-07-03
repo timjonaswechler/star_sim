@@ -1,3 +1,4 @@
+#![allow(non_snake_case)]
 //! Pressure units for atmospheric and interior conditions in stellar systems.
 //!
 //! This module provides pressure units for modeling atmospheric conditions,

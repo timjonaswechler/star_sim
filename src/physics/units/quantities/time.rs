@@ -1,3 +1,4 @@
+#![allow(non_snake_case)]
 //! Time units for stellar system calculations and evolution modeling.
 //!
 //! This module provides time units spanning from seconds to astronomical timescales,
@@ -59,9 +60,6 @@
 use crate::physics::units::{constants::*, core::*};
 use crate::{define_quantity, define_unit_dimension};
 
-/// Physical quantity representing time with dimensional type safety.
-///
-/// Dimensional analysis: `[Time¹]` - pure time dimension
 define_quantity!(Time, 0, 0, 1, 0, 0, 0, 0); // Time
 
 // Define Time units with astronomical focus

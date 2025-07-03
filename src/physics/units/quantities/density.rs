@@ -1,3 +1,4 @@
+#![allow(non_snake_case)]
 //! Density units for material properties in stellar systems.
 //!
 //! This module provides density units essential for calculating mass distributions,

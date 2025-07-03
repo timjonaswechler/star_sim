@@ -1,3 +1,4 @@
+#![allow(non_snake_case)]
 //! Frequency units for periodic phenomena in stellar systems.
 //!
 //! This module provides frequency units for modeling periodic events,

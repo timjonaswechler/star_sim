@@ -1,3 +1,4 @@
+#![allow(non_snake_case)]
 //! Area units for surface calculations in stellar systems.
 //!
 //! This module provides area units for calculating surface areas, cross-sections,

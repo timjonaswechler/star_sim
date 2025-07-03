@@ -1,3 +1,4 @@
+#![allow(non_snake_case)]
 //! Momentum units for motion and collision dynamics in stellar systems.
 //!
 //! This module provides momentum units for modeling the motion of celestial bodies,

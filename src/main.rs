@@ -1,33 +1,39 @@
-use std::fs::File;
-use std::io::Write;
+use bevy::prelude::*;
+use bevy_inspector_egui::quick::WorldInspectorPlugin;
+use star_sim::astronomy::celestial_bodies::{
+    query_all_satellites, query_nested_hierarchy, query_rocky_satellites,
+    query_satellites_with_orbit, setup_system,
+};
+use star_sim::utilities::name_generator::*;
 
-use star_sim::stellar_objects::generate_teacup_system;
-
-// Dieser Code würde in einer Bevy-App laufen.
-// Der Einfachheit halber hier nur der Aufruf der Setup-Funktion.
 fn main() {
-    let teacup_system = generate_teacup_system();
+    let pattern_str = "<s!v|s~c>";
+    println!(
+        "Parse und generiere Namen für das Muster: '{}'",
+        pattern_str
+    );
 
-    let pretty_config = ron::ser::PrettyConfig::new()
-        .separate_tuple_members(true)
-        .enumerate_arrays(true);
+    let parse_result = Pattern::parse(pattern_str, &SYMBOL_MAP, true);
 
-    let ron_string = ron::ser::to_string_pretty(&teacup_system, pretty_config)
-        .expect("Fehler bei der Serialisierung zu RON.");
+    match parse_result {
+        Ok(pattern) => {
+            println!("\n--- Erfolgreich geparst! Generiere 10 Namen: ---");
 
-    let file_path = "teacup_system_typed.ron";
-    match File::create(file_path) {
-        Ok(mut file) => {
-            file.write_all(ron_string.as_bytes())
-                .expect("Fehler beim Schreiben in die Datei.");
-            println!("Sternensystem erfolgreich in '{}' gespeichert.", file_path);
-            println!("\n--- RON-Vorschau ---");
-            println!("{}", ron_string);
+            // Initialisiere den Zufallszahlengenerator.
+            let mut rng = rand::thread_rng();
+
+            // Generiere und drucke 10 Beispielnamen.
+            for i in 1..=10 {
+                let name = pattern.generate(&mut rng);
+                println!("{:2}. {}", i, name);
+            }
         }
-        Err(e) => {
-            eprintln!("Konnte Datei '{}' nicht erstellen: {}", file_path, e);
+        Err(error) => {
+            println!("\n--- Fehler beim Parsen! ---");
+            println!("Fehler: {}", error);
         }
     }
+
     match to_roman(8) {
         Ok(roman) => println!("Römische Zahl: {}", roman),
         Err(e) => eprintln!("Fehler bei der Umwandlung in römische Zahlen: {}", e),
@@ -40,6 +46,20 @@ fn main() {
             Err(e) => eprintln!("Fehler bei der Umwandlung in griechische Symbole: {}", e),
         }
     }
+    App::new()
+        .add_plugins(DefaultPlugins)
+        .add_plugins(WorldInspectorPlugin::new())
+        .add_systems(Startup, setup_system)
+        .add_systems(
+            Startup,
+            (
+                query_all_satellites,
+                query_rocky_satellites,
+                query_satellites_with_orbit,
+                query_nested_hierarchy,
+            ),
+        )
+        .run();
 }
 fn to_roman(mut num: u32) -> Result<String, &'static str> {
     // Römische Zahlen haben keine 0 und dieses Schema funktioniert üblicherweise nur bis 3999.

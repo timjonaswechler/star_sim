@@ -1,3 +1,4 @@
+#![allow(non_snake_case)]
 //! Electric current units for electromagnetic phenomena in stellar systems.
 //!
 //! This module provides electric current units essential for modeling stellar magnetic fields,
@@ -54,11 +55,8 @@
 
 use crate::define_quantity;
 use crate::define_unit_dimension;
-use crate::physics::units::{core::*, prefix::*};
+use crate::physics::units::core::*;
 
-/// Physical quantity representing electric current with dimensional type safety.
-///
-/// Dimensional analysis: `[Current¹]` - pure current dimension
 define_quantity!(Current, 0, 0, 0, 0, 1, 0, 0); // Current
 
 // Define Current units

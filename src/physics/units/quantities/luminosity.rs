@@ -1,3 +1,4 @@
+#![allow(non_snake_case)]
 //! Luminosity units for stellar brightness and energy output calculations.
 //!
 //! This module provides luminosity units essential for modeling stellar energy output,
@@ -66,11 +67,8 @@
 
 use crate::define_quantity;
 use crate::define_unit_dimension;
-use crate::physics::units::{constants::*, core::*, prefix::*};
+use crate::physics::units::{constants::*, core::*};
 
-/// Physical quantity representing luminosity (power output) with dimensional type safety.
-///
-/// Dimensional analysis: `[Length² Mass¹ Time⁻³]` - power/luminosity dimensions
 define_quantity!(Luminosity, 2, 1, -3, 0, 0, 0, 0); // ML²T⁻³
 
 // Define Luminosity units (reusing Power infrastructure)

@@ -1,3 +1,4 @@
+#![allow(non_snake_case)]
 //! Angular measurement units for orbital mechanics and stellar rotation.
 //!
 //! This module provides angular units essential for modeling orbital inclinations,
@@ -44,7 +45,7 @@
 //! let stellar_diameter = Angle::<Milliarcsecond>::new(0.5); // Angular diameter
 //!
 //! println!("Proxima parallax: {}", proxima_parallax); // "768.5 mas"
-//! println!("In degrees: {}", proxima_parallax.convert_to::<Degree>()); 
+//! println!("In degrees: {}", proxima_parallax.convert_to::<Degree>());
 //! ```
 //!
 //! # Conversion Hierarchy
@@ -56,9 +57,6 @@
 use crate::physics::units::{constants::*, core::*};
 use crate::{define_quantity, define_unit_dimension};
 
-/// Physical quantity representing angles with dimensional type safety.
-///
-/// Dimensional analysis: `[dimensionless]` - angles are dimensionless ratios
 define_quantity!(Angle, 0, 0, 0, 0, 0, 0, 0); // Dimensionless
 
 // Define Angle units (dimensionless but physically important)
