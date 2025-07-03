@@ -1,3 +1,4 @@
+#![allow(dead_code)] // todo: was tut das ?
 type Float = f32;
 use Float as FloatOps;
 impl DummyFloatExt for Float {}
@@ -109,11 +110,11 @@ pub enum TransformType3D {
 ///     for y in 0..HEIGHT {
 ///         // Domain warp can optionally be employed to transform the coordinates before sampling:
 ///         // let (x, y) = noise.domain_warp_2d(x as f32, y as f32);
-///         
+///
 ///         let negative_1_to_1 = noise.get_noise_2d(x as f32, y as f32);
 ///         // You may want to remap the -1..1 range data to the 0..1 range:
 ///         noise_data[x][y] = (neg_1_to_1 + 1.) / 2.;
-///         
+///
 ///         // (Uses of `as f32` above should become `as f64` if you're using FNL with the "f64" feature flag)
 ///     }
 /// }
@@ -405,7 +406,7 @@ impl Noise {
     // =================
     // Lookup table data
     // =================
-    
+
     #[rustfmt::skip]
     const GRADIENTS_2D: [f32; 256] = [
          0.130526192220052,  0.99144486137381,   0.38268343236509,   0.923879532511287,  0.608761429008721,  0.793353340291235,  0.793353340291235,  0.608761429008721,
@@ -540,11 +541,7 @@ impl Noise {
 
     #[inline(always)]
     fn fast_floor(f: Float) -> i32 {
-        if f >= 0. {
-            f as i32
-        } else {
-            f as i32 - 1
-        }
+        if f >= 0. { f as i32 } else { f as i32 - 1 }
     }
 
     #[inline(always)]
@@ -581,11 +578,7 @@ impl Noise {
     fn ping_pong(t: f32) -> f32 {
         let t = t - FloatOps::trunc(t * 0.5) * 2.;
 
-        if t < 1. {
-            t
-        } else {
-            2. - t
-        }
+        if t < 1. { t } else { 2. - t }
     }
 
     fn calculate_fractal_bounding(&mut self) {
