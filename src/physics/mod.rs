@@ -65,4 +65,6 @@ pub mod constants;
 pub mod mechanics;
 pub mod statics;
 pub mod thermodynamics;
-pub mod units;
+
+// Units are now provided by the external physics-units crate
+// pub mod units;

@@ -3803,6 +3803,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "physics-units"
+version = "0.1.0"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "pin-project"
 version = "1.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4537,6 +4544,7 @@ dependencies = [
  "lazy_static",
  "once_cell",
  "paste",
+ "physics-units",
  "rand",
  "rand_chacha",
  "ron",
