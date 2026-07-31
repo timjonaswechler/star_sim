@@ -3,3 +3,4 @@
 *.py
 combined_source.md
 *.diff
+/output/

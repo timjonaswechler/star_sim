@@ -1,0 +1,11 @@
+// Nearby-field M-dwarf v1 model based on Winters et al. (2019).
+// See docs/scientific_sources/stellar_multiplicity_model.md.
+(
+    observed_multiplicity_fraction: 0.268,
+    observed_companion_frequency: 0.324,
+    single_system_fraction: 0.732,
+    binary_system_fraction: 0.216,
+    triple_system_fraction: 0.048,
+    higher_order_system_fraction: 0.004,
+    representative_higher_order_members: 4,
+)

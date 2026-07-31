@@ -1,0 +1,30 @@
+// Prototype axisymmetric Milky Way number-density model.
+// See docs/scientific_sources/galactic_density_model.md for sources and caveats.
+(
+    solar_radius_pc: 8178.0,
+    thin_disk: (
+        local_stellar_number_density_per_pc3: 0.07102,
+        radial_scale_length_pc: 2600.0,
+        vertical_scale_height_pc: 300.0,
+    ),
+    thick_disk: (
+        local_stellar_number_density_per_pc3: 0.00852,
+        radial_scale_length_pc: 3600.0,
+        vertical_scale_height_pc: 900.0,
+    ),
+    halo: (
+        local_stellar_number_density_per_pc3: 0.000355,
+        flattening: 0.64,
+        power: 2.8,
+        core_radius_pc: 500.0,
+    ),
+    // McMillan (2017) mass-density shape. It is deliberately kept separate
+    // from the stellar number-density total above.
+    bulge_mass: (
+        central_mass_density_msun_per_pc3: 99.3,
+        power: 1.8,
+        scale_radius_pc: 75.0,
+        cutoff_radius_pc: 2100.0,
+        flattening: 0.5,
+    ),
+)
