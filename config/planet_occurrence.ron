@@ -1,0 +1,35 @@
+// Empirical, deliberately narrow planet-occurrence domains.
+// See docs/scientific_sources/planet_occurrence_model.md.
+(
+    model_version: EmpiricalOccurrenceV1,
+    fgk_small_planets: (
+        minimum_effective_temperature_k: 4700.0,
+        maximum_effective_temperature_k: 6500.0,
+        minimum_surface_gravity_log10_cgs: 3.9,
+        maximum_surface_gravity_log10_cgs: 5.0,
+        minimum_iron_abundance_feh: -0.4,
+        maximum_iron_abundance_feh: 0.4,
+        warm_super_earth_mean: 0.20,
+        warm_sub_neptune_solar_mean: 0.2828427,
+        warm_sub_neptune_metallicity_exponent: 0.3762874946,
+    ),
+    m_dwarf_small_planets: (
+        minimum_effective_temperature_k: 2661.0,
+        maximum_effective_temperature_k: 3999.0,
+        minimum_surface_gravity_log10_cgs: 3.0,
+        small_planet_mean: 2.5,
+    ),
+    giant_planets: (
+        minimum_host_mass_msun: 0.2,
+        maximum_host_mass_msun: 2.0,
+        minimum_iron_abundance_feh: -1.0,
+        maximum_iron_abundance_feh: 0.55,
+        normalization: 0.07,
+        host_mass_exponent: 1.0,
+        iron_abundance_exponent: 1.2,
+    ),
+    close_binary_suppression: (
+        maximum_semimajor_axis_au: 47.0,
+        occurrence_factor: 0.34,
+    ),
+)

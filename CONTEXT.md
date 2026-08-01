@@ -104,6 +104,10 @@ _Avoid_: Metallicity when referring to the complete composition
 A bounded volume around a galactic position for which stellar systems are requested or materialised.
 _Avoid_: Galaxy sector, scene
 
+**Stellar Catalog**:
+The coherent generated state of all stellar systems and stellar members inside the local 10-parsec region, including their shared population history and each member's present evolutionary outcome.
+_Avoid_: Birth-mass sample, parallel result lists
+
 ## Stellar systems
 
 **Initial Mass Function (IMF)**:
@@ -129,6 +133,14 @@ _Avoid_: Solar system, planet system
 **Planetary System**:
 The planets and smaller bodies gravitationally bound within a stellar system.
 _Avoid_: Stellar system
+
+**Planet Occurrence**:
+An empirically calibrated expectation or probability within a stated host-star, planet-size, and orbital-period domain.
+_Avoid_: Universal planet probability, complete planetary system
+
+**Planet Population Summary**:
+A deterministic draw of occurrence counts or host fractions in explicitly calibrated observational domains; it does not yet assign physical planets or orbits.
+_Avoid_: Planetary system, orbital architecture
 
 **Orbital Node**:
 A member of a hierarchical orbital arrangement that is either a physical body or a barycentre.

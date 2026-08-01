@@ -4,3 +4,4 @@
 combined_source.md
 *.diff
 /output/
+config/white_dwarf_cooling.local.ron

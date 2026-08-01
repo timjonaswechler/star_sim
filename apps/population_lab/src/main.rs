@@ -7,10 +7,12 @@ use plotters::{
 };
 use simulation_core::{
     EvolutionaryState, GalacticLocationSampler, GalacticPosition, GalacticSamplingVolume,
-    GalaxyModel, GeneratedStellarRegion, PopulationHistoryModel, PopulationHistorySampler,
-    StellarBirthMassModel, StellarBirthMassSampler, StellarChemistry, StellarEvolutionError,
-    StellarEvolutionEvaluator, StellarEvolutionModel, StellarEvolutionQualityFlag,
-    StellarEvolutionSnapshot, StellarPopulation, StellarPopulationHistory, StellarRegionGenerator,
+    GalaxyModel, GeneratedStellarCatalog, PlanetOccurrenceError, PlanetOccurrenceModel,
+    PopulationHistoryModel, PopulationHistorySampler, SmallPlanetOccurrence, StellarBirthMassModel,
+    StellarBirthMassSampler, StellarCatalogGenerator, StellarCatalogMember, StellarChemistry,
+    StellarEvolutionError, StellarEvolutionEvaluator, StellarEvolutionModel,
+    StellarEvolutionQualityFlag, StellarEvolutionSnapshot, StellarPopulation,
+    StellarPopulationHistory, WhiteDwarfCoolingModel,
 };
 use std::{
     env,
@@ -26,10 +28,6 @@ const GRID_WIDTH: usize = 360;
 const GRID_HEIGHT: usize = 180;
 const LOG_DENSITY_MIN: f64 = -4.0;
 const LOG_DENSITY_MAX: f64 = 1.5;
-
-struct EvolvedStellarMember {
-    result: Result<StellarEvolutionSnapshot, StellarEvolutionError>,
-}
 
 #[derive(Clone, Copy)]
 enum DensityField {
@@ -91,45 +89,37 @@ fn main() -> Result<(), Box<dyn Error>> {
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../config/stellar_evolution.ron");
     let evolution_model: StellarEvolutionModel =
         ron::de::from_reader(BufReader::new(File::open(&evolution_path)?))?;
-    let evolution_evaluator = StellarEvolutionEvaluator::new(evolution_model)?;
+    let evolution_evaluator = StellarEvolutionEvaluator::new(evolution_model.clone())?;
+    let planet_occurrence_path =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../config/planet_occurrence.ron");
+    let planet_occurrence_model: PlanetOccurrenceModel =
+        ron::de::from_reader(BufReader::new(File::open(&planet_occurrence_path)?))?;
     let sampler = GalacticLocationSampler::new(galaxy, GalacticSamplingVolume::default())?;
     let sampled = sampler.sample(seed);
     let selected = sampled.position;
-    let region = StellarRegionGenerator::new(birth_mass_model)?.generate(seed, sampled, 10.0)?;
-    let system_histories: Vec<_> = region
+    let cooling_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../config/white_dwarf_cooling.local.ron");
+    let catalog_generator = StellarCatalogGenerator::new(
+        birth_mass_model,
+        history_model,
+        evolution_model,
+        planet_occurrence_model,
+    )?;
+    let (catalog_generator, cooling_model_loaded) = if cooling_path.is_file() {
+        let cooling_model: WhiteDwarfCoolingModel =
+            ron::de::from_reader(BufReader::new(File::open(&cooling_path)?))?;
+        (
+            catalog_generator.with_white_dwarf_cooling(cooling_model)?,
+            true,
+        )
+    } else {
+        (catalog_generator, false)
+    };
+    let catalog = catalog_generator.generate(seed, sampled)?;
+    let evolved_members: Vec<_> = catalog
         .systems
         .iter()
-        .map(|system| {
-            let position = region.centre.with_local_offset(system.offset_pc);
-            (
-                system.population,
-                history_sampler.sample(seed, system.id, system.population, position),
-            )
-        })
-        .collect();
-    let evolved_members: Vec<_> = region
-        .systems
-        .iter()
-        .zip(&system_histories)
-        .flat_map(|(system, (_, history))| {
-            let binary_interaction_ignored = system.birth_masses.members.len() > 1;
-            let evaluator = &evolution_evaluator;
-            system.birth_masses.members.iter().map(move |member| {
-                let mut result = evaluator.evaluate(
-                    member.initial_mass_msun,
-                    history.age_gyr,
-                    history.chemistry,
-                );
-                if binary_interaction_ignored {
-                    if let Ok(snapshot) = &mut result {
-                        snapshot
-                            .quality_flags
-                            .push(StellarEvolutionQualityFlag::BinaryInteractionIgnored);
-                    }
-                }
-                EvolvedStellarMember { result }
-            })
-        })
+        .flat_map(|system| &system.members)
         .collect();
 
     let output_dir = "output/population_lab";
@@ -146,21 +136,30 @@ fn main() -> Result<(), Box<dyn Error>> {
     render_density_sections(&total_path, &galaxy, selected)?;
     render_population_components(&components_path, &galaxy, selected)?;
     render_density_profiles(&profiles_path, &galaxy, selected)?;
-    render_local_region(&region_path, &region)?;
+    render_local_region(&region_path, &catalog)?;
     render_population_history(
         &history_plot_path,
         history_sampler,
         seed,
         selected,
-        &system_histories,
+        &catalog,
     )?;
     render_radial_metallicity_gradient(&radial_metallicity_path, history_sampler, seed, selected)?;
     render_stellar_chemistry(&chemistry_plot_path, history_sampler, seed, selected)?;
-    render_stellar_birth_masses(&birth_mass_plot_path, &birth_mass_sampler, seed, &region)?;
+    render_stellar_birth_masses(&birth_mass_plot_path, &birth_mass_sampler, seed, &catalog)?;
     render_stellar_evolution(&evolution_plot_path, &evolved_members, &evolution_evaluator)?;
 
     let density = galaxy.stellar_number_density_at(selected);
     println!("Loaded {}", config_path.display());
+    println!("Loaded {}", planet_occurrence_path.display());
+    if cooling_model_loaded {
+        println!("Loaded {}", cooling_path.display());
+    } else {
+        println!(
+            "White-dwarf cooling grid not loaded (optional local file: {})",
+            cooling_path.display()
+        );
+    }
     println!("Wrote {total_path}");
     println!("Wrote {components_path}");
     println!("Wrote {profiles_path}");
@@ -189,18 +188,18 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
     println!(
         "10 pc region: expected {:.1} systems, generated {}",
-        region.expected_system_count,
-        region.systems.len()
+        catalog.expected_system_count,
+        catalog.systems.len()
     );
     println!(
         "Birth-mass model: expected {:.3} stellar members per system",
         birth_mass_sampler.expected_members_per_system()
     );
     for member_count in 1..=4 {
-        let count = region
+        let count = catalog
             .systems
             .iter()
-            .filter(|system| system.birth_masses.members.len() == member_count as usize)
+            .filter(|system| system.members.len() == member_count as usize)
             .count();
         println!("  {member_count}-star systems: {count}");
     }
@@ -211,13 +210,13 @@ fn main() -> Result<(), Box<dyn Error>> {
     for category in EvolutionOutcomeCategory::ALL {
         let count = evolved_members
             .iter()
-            .filter(|member| category.matches(&member.result))
+            .filter(|member| category.matches(&member.evolution))
             .count();
         println!("  {:<25} {count}", category.label());
     }
     let alpha_projected = evolved_members
         .iter()
-        .filter_map(|member| member.result.as_ref().ok())
+        .filter_map(|member| member.evolution.as_ref().ok())
         .filter(|snapshot| {
             snapshot
                 .quality_flags
@@ -227,7 +226,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     println!("  alpha-enhanced chemistry projected onto solar-scaled tracks: {alpha_projected}");
     let binary_ignored = evolved_members
         .iter()
-        .filter_map(|member| member.result.as_ref().ok())
+        .filter_map(|member| member.evolution.as_ref().ok())
         .filter(|snapshot| {
             snapshot
                 .quality_flags
@@ -235,11 +234,53 @@ fn main() -> Result<(), Box<dyn Error>> {
         })
         .count();
     println!("  independently evolved multiple-system members: {binary_ignored}");
+    let calibrated_small_planet_hosts = evolved_members
+        .iter()
+        .filter(|member| member.planet_population.small_planets.is_ok())
+        .count();
+    let drawn_small_planets: u32 = evolved_members
+        .iter()
+        .filter_map(|member| member.planet_population.small_planets.as_ref().ok())
+        .map(|occurrence| match occurrence {
+            SmallPlanetOccurrence::FgkWarm {
+                warm_super_earth_count,
+                warm_sub_neptune_count,
+            } => warm_super_earth_count + warm_sub_neptune_count,
+            SmallPlanetOccurrence::MDwarfAggregate { small_planet_count } => *small_planet_count,
+        })
+        .sum();
+    let calibrated_giant_planet_hosts = evolved_members
+        .iter()
+        .filter(|member| member.planet_population.giant_planets.is_ok())
+        .count();
+    let drawn_giant_hosts = evolved_members
+        .iter()
+        .filter_map(|member| member.planet_population.giant_planets.as_ref().ok())
+        .filter(|occurrence| occurrence.has_at_least_one_cps_giant)
+        .count();
+    let unknown_multiplicity = evolved_members
+        .iter()
+        .filter(|member| {
+            matches!(
+                member.planet_population.small_planets,
+                Err(PlanetOccurrenceError::MultiplicitySeparationRequired)
+            )
+        })
+        .count();
+    println!("Planet occurrence summaries:");
+    println!(
+        "  calibrated small-planet hosts: {calibrated_small_planet_hosts}, drawn planets in calibrated domains: {drawn_small_planets}"
+    );
+    println!(
+        "  calibrated giant-planet hosts: {calibrated_giant_planet_hosts}, hosts with a CPS-domain giant: {drawn_giant_hosts}"
+    );
+    println!("  members awaiting companion separation: {unknown_multiplicity}");
     for population in StellarPopulation::ALL {
-        let matching: Vec<_> = system_histories
+        let matching: Vec<_> = catalog
+            .systems
             .iter()
-            .filter(|(system_population, _)| *system_population == population)
-            .map(|(_, history)| *history)
+            .filter(|system| system.population == population)
+            .map(|system| system.history)
             .collect();
         if !matching.is_empty() {
             let mean_age =
@@ -357,7 +398,7 @@ impl EvolutionOutcomeCategory {
 
 fn render_stellar_evolution(
     path: &str,
-    members: &[EvolvedStellarMember],
+    members: &[&StellarCatalogMember],
     evaluator: &StellarEvolutionEvaluator,
 ) -> Result<(), Box<dyn Error>> {
     let root = BitMapBackend::new(path, (1800, 650)).into_drawing_area();
@@ -366,7 +407,7 @@ fn render_stellar_evolution(
 
     let supported: Vec<_> = members
         .iter()
-        .filter_map(|member| member.result.as_ref().ok())
+        .filter_map(|member| member.evolution.as_ref().ok())
         .collect();
     let mut hr = ChartBuilder::on(&panels[0])
         .caption(
@@ -409,15 +450,25 @@ fn render_stellar_evolution(
         EvolutionaryState::AdvancedBurningTrackEnd,
         EvolutionaryState::WolfRayet,
         EvolutionaryState::PostAsymptoticGiantBranch,
+        EvolutionaryState::WhiteDwarf,
     ]
     .into_iter()
-    .filter(|state| supported.iter().any(|snapshot| snapshot.state == *state))
-    {
+    .filter(|state| {
+        supported.iter().any(|snapshot| {
+            snapshot.state == *state
+                && snapshot.effective_temperature_k.is_some()
+                && snapshot.luminosity_lsun.is_some()
+        })
+    }) {
         let color = evolution_state_color(state);
         hr.draw_series(
             supported
                 .iter()
-                .filter(|snapshot| snapshot.state == state)
+                .filter(|snapshot| {
+                    snapshot.state == state
+                        && snapshot.effective_temperature_k.is_some()
+                        && snapshot.luminosity_lsun.is_some()
+                })
                 .map(|snapshot| {
                     Circle::new(
                         (
@@ -472,7 +523,7 @@ fn render_stellar_evolution(
         .map(|category| {
             members
                 .iter()
-                .filter(|member| category.matches(&member.result))
+                .filter(|member| category.matches(&member.evolution))
                 .count()
         })
         .max()
@@ -520,7 +571,7 @@ fn render_stellar_evolution(
     for (index, category) in EvolutionOutcomeCategory::ALL.into_iter().enumerate() {
         let count = members
             .iter()
-            .filter(|member| category.matches(&member.result))
+            .filter(|member| category.matches(&member.evolution))
             .count();
         let color = match category {
             EvolutionOutcomeCategory::PreMainSequence => {
@@ -586,7 +637,7 @@ fn render_population_history(
     sampler: PopulationHistorySampler,
     seed: u64,
     position: GalacticPosition,
-    region_histories: &[(StellarPopulation, StellarPopulationHistory)],
+    catalog: &GeneratedStellarCatalog,
 ) -> Result<(), Box<dyn Error>> {
     let mut reference = Vec::with_capacity(9_000);
     for (population_index, population) in StellarPopulation::ALL.into_iter().enumerate() {
@@ -630,7 +681,8 @@ fn render_population_history(
             .legend(move |(x, y)| Circle::new((x + 10, y), 4, color.filled()));
     }
     scatter
-        .draw_series(region_histories.iter().map(|(_, history)| {
+        .draw_series(catalog.systems.iter().map(|system| {
+            let history = system.history;
             Cross::new(
                 (history.age_gyr, history.chemistry.iron_abundance_feh),
                 6,
@@ -922,7 +974,7 @@ fn render_stellar_birth_masses(
     path: &str,
     sampler: &StellarBirthMassSampler,
     seed: u64,
-    region: &GeneratedStellarRegion,
+    region: &GeneratedStellarCatalog,
 ) -> Result<(), Box<dyn Error>> {
     const SAMPLE_COUNT: u64 = 5_000;
     const MASS_BINS: usize = 48;
@@ -1047,7 +1099,7 @@ fn render_stellar_birth_masses(
             )
         });
     imf_chart.draw_series(region.systems.iter().map(|system| {
-        let mass = system.birth_masses.members[0].initial_mass_msun.log10();
+        let mass = system.members[0].birth.initial_mass_msun.log10();
         PathElement::new(
             vec![(mass, 0.0), (mass, mass_distribution_maximum * 0.09)],
             WHITE.mix(0.65).stroke_width(2),
@@ -1105,7 +1157,7 @@ fn render_stellar_birth_masses(
     Ok(())
 }
 
-fn render_local_region(path: &str, region: &GeneratedStellarRegion) -> Result<(), Box<dyn Error>> {
+fn render_local_region(path: &str, region: &GeneratedStellarCatalog) -> Result<(), Box<dyn Error>> {
     let root = BitMapBackend::new(path, (1800, 650)).into_drawing_area();
     root.fill(&RGBColor(12, 16, 28))?;
     let panels = root.split_evenly((1, 3));
@@ -1142,7 +1194,7 @@ fn render_region_projection<F>(
     title: &str,
     x_label: &str,
     y_label: &str,
-    region: &GeneratedStellarRegion,
+    region: &GeneratedStellarCatalog,
     project: F,
 ) -> Result<(), Box<dyn Error>>
 where
@@ -1172,7 +1224,7 @@ where
                 region
                     .systems
                     .iter()
-                    .filter(|system| system.birth_masses.members.len() == member_count as usize)
+                    .filter(|system| system.members.len() == member_count as usize)
                     .map(|system| {
                         Circle::new(
                             project(system.offset_pc),

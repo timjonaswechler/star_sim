@@ -717,6 +717,222 @@ pub struct StellarEvolutionModel {
     pub tracks: Vec<StellarEvolutionTrack>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum WhiteDwarfCoolingModelVersion {
+    MontrealBedard2020ThickHydrogenV1,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct WhiteDwarfCoolingPoint {
+    pub cooling_age_gyr: f64,
+    pub luminosity_lsun: f64,
+    pub radius_rsun: f64,
+    pub effective_temperature_k: f64,
+    pub surface_gravity_log10_cgs: f64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct WhiteDwarfCoolingSequence {
+    pub mass_msun: f64,
+    pub points: Vec<WhiteDwarfCoolingPoint>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct WhiteDwarfCoolingModel {
+    pub model_version: WhiteDwarfCoolingModelVersion,
+    pub sequences: Vec<WhiteDwarfCoolingSequence>,
+}
+
+#[derive(Debug, Clone, PartialEq, Error)]
+pub enum WhiteDwarfCoolingError {
+    #[error("white-dwarf cooling model contains invalid sequences")]
+    InvalidModel,
+    #[error("white-dwarf cooling input `{field}` is invalid")]
+    InvalidInput { field: &'static str },
+    #[error("white-dwarf mass {mass_msun:.4} Msun requires a non-C/O core model")]
+    UnsupportedCoreComposition { mass_msun: f64 },
+    #[error(
+        "white-dwarf mass {mass_msun:.4} Msun is outside the loaded cooling grid {minimum_mass_msun:.4}..={maximum_mass_msun:.4} Msun"
+    )]
+    OutsideMassGrid {
+        mass_msun: f64,
+        minimum_mass_msun: f64,
+        maximum_mass_msun: f64,
+    },
+    #[error("cooling age {cooling_age_gyr:.6} Gyr is not covered at mass {mass_msun:.4} Msun")]
+    OutsideAgeGrid {
+        mass_msun: f64,
+        cooling_age_gyr: f64,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct WhiteDwarfCoolingSnapshot {
+    pub model_version: WhiteDwarfCoolingModelVersion,
+    pub cooling_age_gyr: f64,
+    pub luminosity_lsun: f64,
+    pub radius_rsun: f64,
+    pub effective_temperature_k: f64,
+    pub surface_gravity_log10_cgs: f64,
+    pub young_cooling_zero_point_uncertain: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct WhiteDwarfCoolingEvaluator {
+    model: WhiteDwarfCoolingModel,
+    masses: Vec<f64>,
+}
+
+impl WhiteDwarfCoolingEvaluator {
+    pub fn new(model: WhiteDwarfCoolingModel) -> Result<Self, WhiteDwarfCoolingError> {
+        let masses: Vec<_> = model
+            .sequences
+            .iter()
+            .map(|sequence| sequence.mass_msun)
+            .collect();
+        let valid = masses.len() >= 2
+            && masses
+                .windows(2)
+                .all(|pair| pair[0].is_finite() && pair[0] < pair[1])
+            && masses.last().is_some_and(|mass| mass.is_finite())
+            && model.sequences.iter().all(|sequence| {
+                sequence.points.len() >= 2
+                    && sequence.points[0].cooling_age_gyr == 0.0
+                    && sequence.points.windows(2).all(|pair| {
+                        pair[0].cooling_age_gyr >= 0.0
+                            && pair[0].cooling_age_gyr < pair[1].cooling_age_gyr
+                    })
+                    && sequence.points.iter().all(valid_white_dwarf_cooling_point)
+            });
+        if !valid {
+            return Err(WhiteDwarfCoolingError::InvalidModel);
+        }
+        Ok(Self { model, masses })
+    }
+
+    pub fn evaluate(
+        &self,
+        mass_msun: f64,
+        cooling_age_gyr: f64,
+    ) -> Result<WhiteDwarfCoolingSnapshot, WhiteDwarfCoolingError> {
+        if !mass_msun.is_finite() || mass_msun <= 0.0 {
+            return Err(WhiteDwarfCoolingError::InvalidInput { field: "mass_msun" });
+        }
+        if !cooling_age_gyr.is_finite() || cooling_age_gyr < 0.0 {
+            return Err(WhiteDwarfCoolingError::InvalidInput {
+                field: "cooling_age_gyr",
+            });
+        }
+        if !(0.45..=1.10).contains(&mass_msun) {
+            return Err(WhiteDwarfCoolingError::UnsupportedCoreComposition { mass_msun });
+        }
+        let (mass_low, mass_high, mass_fraction) = bracket_grid(&self.masses, mass_msun)
+            .ok_or_else(|| WhiteDwarfCoolingError::OutsideMassGrid {
+                mass_msun,
+                minimum_mass_msun: self.masses[0],
+                maximum_mass_msun: *self.masses.last().expect("validated cooling grid"),
+            })?;
+        let low = interpolate_white_dwarf_sequence(
+            self.model
+                .sequences
+                .iter()
+                .find(|sequence| sequence.mass_msun == mass_low)
+                .expect("validated cooling mass"),
+            cooling_age_gyr,
+        )?;
+        let high = interpolate_white_dwarf_sequence(
+            self.model
+                .sequences
+                .iter()
+                .find(|sequence| sequence.mass_msun == mass_high)
+                .expect("validated cooling mass"),
+            cooling_age_gyr,
+        )?;
+        Ok(WhiteDwarfCoolingSnapshot {
+            model_version: self.model.model_version,
+            cooling_age_gyr,
+            luminosity_lsun: log_lerp(low.luminosity_lsun, high.luminosity_lsun, mass_fraction),
+            radius_rsun: log_lerp(low.radius_rsun, high.radius_rsun, mass_fraction),
+            effective_temperature_k: log_lerp(
+                low.effective_temperature_k,
+                high.effective_temperature_k,
+                mass_fraction,
+            ),
+            surface_gravity_log10_cgs: lerp(
+                low.surface_gravity_log10_cgs,
+                high.surface_gravity_log10_cgs,
+                mass_fraction,
+            ),
+            young_cooling_zero_point_uncertain: cooling_age_gyr <= 1.0e-4,
+        })
+    }
+}
+
+fn valid_white_dwarf_cooling_point(point: &WhiteDwarfCoolingPoint) -> bool {
+    point.cooling_age_gyr.is_finite()
+        && point.cooling_age_gyr >= 0.0
+        && point.luminosity_lsun.is_finite()
+        && point.luminosity_lsun > 0.0
+        && point.radius_rsun.is_finite()
+        && point.radius_rsun > 0.0
+        && point.effective_temperature_k.is_finite()
+        && point.effective_temperature_k > 0.0
+        && point.surface_gravity_log10_cgs.is_finite()
+}
+
+fn interpolate_white_dwarf_sequence(
+    sequence: &WhiteDwarfCoolingSequence,
+    cooling_age_gyr: f64,
+) -> Result<WhiteDwarfCoolingPoint, WhiteDwarfCoolingError> {
+    let last_age = sequence
+        .points
+        .last()
+        .expect("validated sequence")
+        .cooling_age_gyr;
+    if cooling_age_gyr > last_age {
+        return Err(WhiteDwarfCoolingError::OutsideAgeGrid {
+            mass_msun: sequence.mass_msun,
+            cooling_age_gyr,
+        });
+    }
+    let upper_index = sequence
+        .points
+        .partition_point(|point| point.cooling_age_gyr < cooling_age_gyr);
+    if upper_index == 0 {
+        return Ok(sequence.points[0]);
+    }
+    if upper_index == sequence.points.len() {
+        return Ok(*sequence.points.last().expect("validated sequence"));
+    }
+    let lower = sequence.points[upper_index - 1];
+    let upper = sequence.points[upper_index];
+    let fraction = if lower.cooling_age_gyr == 0.0 {
+        cooling_age_gyr / upper.cooling_age_gyr
+    } else {
+        (cooling_age_gyr.log10() - lower.cooling_age_gyr.log10())
+            / (upper.cooling_age_gyr.log10() - lower.cooling_age_gyr.log10())
+    };
+    Ok(WhiteDwarfCoolingPoint {
+        cooling_age_gyr,
+        luminosity_lsun: log_lerp(lower.luminosity_lsun, upper.luminosity_lsun, fraction),
+        radius_rsun: log_lerp(lower.radius_rsun, upper.radius_rsun, fraction),
+        effective_temperature_k: log_lerp(
+            lower.effective_temperature_k,
+            upper.effective_temperature_k,
+            fraction,
+        ),
+        surface_gravity_log10_cgs: lerp(
+            lower.surface_gravity_log10_cgs,
+            upper.surface_gravity_log10_cgs,
+            fraction,
+        ),
+    })
+}
+
+fn log_lerp(lower: f64, upper: f64, fraction: f64) -> f64 {
+    10_f64.powf(lerp(lower.log10(), upper.log10(), fraction))
+}
+
 impl Default for StellarEvolutionModel {
     fn default() -> Self {
         // Compact exact-node fixture. The application loads the larger reduced grid from RON.
@@ -863,6 +1079,9 @@ pub enum StellarEvolutionQualityFlag {
     AlphaProjectedToSolarScaled,
     BinaryInteractionIgnored,
     WhiteDwarfCoolingNotBundled,
+    WhiteDwarfCoolingOutsideModelCoverage,
+    MontrealCoolingHybridModel,
+    YoungWhiteDwarfCoolingZeroPointUncertain,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -881,6 +1100,7 @@ pub struct StellarEvolutionSnapshot {
     pub white_dwarf_handoff_age_gyr: Option<f64>,
     pub cooling_age_gyr: Option<f64>,
     pub remnant_mass_msun: Option<f64>,
+    pub white_dwarf_cooling_model_version: Option<WhiteDwarfCoolingModelVersion>,
     pub current_mass_msun: f64,
     pub luminosity_lsun: Option<f64>,
     pub radius_rsun: Option<f64>,
@@ -953,6 +1173,7 @@ pub struct StellarEvolutionEvaluator {
     model: StellarEvolutionModel,
     masses: Vec<f64>,
     metallicities: Vec<f64>,
+    white_dwarf_cooling: Option<WhiteDwarfCoolingEvaluator>,
 }
 
 impl StellarEvolutionEvaluator {
@@ -987,7 +1208,16 @@ impl StellarEvolutionEvaluator {
             model,
             masses,
             metallicities,
+            white_dwarf_cooling: None,
         })
+    }
+
+    pub fn with_white_dwarf_cooling(
+        mut self,
+        model: WhiteDwarfCoolingModel,
+    ) -> Result<Self, WhiteDwarfCoolingError> {
+        self.white_dwarf_cooling = Some(WhiteDwarfCoolingEvaluator::new(model)?);
+        Ok(self)
     }
 
     pub fn evaluate(
@@ -1086,7 +1316,7 @@ impl StellarEvolutionEvaluator {
                 if chemistry.alpha_enhancement_alpha_fe.abs() > 1e-12 {
                     quality_flags.push(StellarEvolutionQualityFlag::AlphaProjectedToSolarScaled);
                 }
-                return Ok(StellarEvolutionSnapshot {
+                let mut snapshot = StellarEvolutionSnapshot {
                     model_version: self.model.model_version,
                     initial_mass_msun,
                     age_gyr,
@@ -1101,13 +1331,16 @@ impl StellarEvolutionEvaluator {
                     white_dwarf_handoff_age_gyr: Some(handoff.age_gyr),
                     cooling_age_gyr: Some(age_gyr - handoff.age_gyr),
                     remnant_mass_msun: Some(handoff.current_mass_msun),
+                    white_dwarf_cooling_model_version: None,
                     current_mass_msun: handoff.current_mass_msun,
                     luminosity_lsun: None,
                     radius_rsun: None,
                     effective_temperature_k: None,
                     surface_gravity_log10_cgs: None,
                     quality_flags,
-                });
+                };
+                self.populate_white_dwarf_cooling(&mut snapshot);
+                return Ok(snapshot);
             }
             if tracks
                 .iter()
@@ -1206,7 +1439,7 @@ impl StellarEvolutionEvaluator {
         let has_photospheric_observables = state != EvolutionaryState::WhiteDwarf;
         let current_mass_msun = remnant_mass_msun.unwrap_or(evaluated.current_mass_msun);
 
-        Ok(StellarEvolutionSnapshot {
+        let mut snapshot = StellarEvolutionSnapshot {
             model_version: self.model.model_version,
             initial_mass_msun,
             age_gyr,
@@ -1221,6 +1454,7 @@ impl StellarEvolutionEvaluator {
             white_dwarf_handoff_age_gyr,
             cooling_age_gyr,
             remnant_mass_msun,
+            white_dwarf_cooling_model_version: None,
             current_mass_msun,
             luminosity_lsun: has_photospheric_observables
                 .then(|| 10_f64.powf(evaluated.log10_luminosity_lsun)),
@@ -1231,7 +1465,47 @@ impl StellarEvolutionEvaluator {
             surface_gravity_log10_cgs: has_photospheric_observables
                 .then_some(evaluated.surface_gravity_log10_cgs),
             quality_flags,
-        })
+        };
+        self.populate_white_dwarf_cooling(&mut snapshot);
+        Ok(snapshot)
+    }
+
+    fn populate_white_dwarf_cooling(&self, snapshot: &mut StellarEvolutionSnapshot) {
+        if snapshot.state != EvolutionaryState::WhiteDwarf {
+            return;
+        }
+        let Some(evaluator) = &self.white_dwarf_cooling else {
+            return;
+        };
+        let result = evaluator.evaluate(
+            snapshot.current_mass_msun,
+            snapshot
+                .cooling_age_gyr
+                .expect("white dwarf has a cooling age"),
+        );
+        match result {
+            Ok(cooling) => {
+                snapshot.luminosity_lsun = Some(cooling.luminosity_lsun);
+                snapshot.radius_rsun = Some(cooling.radius_rsun);
+                snapshot.effective_temperature_k = Some(cooling.effective_temperature_k);
+                snapshot.surface_gravity_log10_cgs = Some(cooling.surface_gravity_log10_cgs);
+                snapshot.white_dwarf_cooling_model_version = Some(cooling.model_version);
+                snapshot.quality_flags.retain(|flag| {
+                    *flag != StellarEvolutionQualityFlag::WhiteDwarfCoolingNotBundled
+                });
+                snapshot
+                    .quality_flags
+                    .push(StellarEvolutionQualityFlag::MontrealCoolingHybridModel);
+                if cooling.young_cooling_zero_point_uncertain {
+                    snapshot.quality_flags.push(
+                        StellarEvolutionQualityFlag::YoungWhiteDwarfCoolingZeroPointUncertain,
+                    );
+                }
+            }
+            Err(_) => snapshot
+                .quality_flags
+                .push(StellarEvolutionQualityFlag::WhiteDwarfCoolingOutsideModelCoverage),
+        }
     }
 }
 
@@ -1753,6 +2027,418 @@ fn stable_member_id(system_id: u64, rank: u8) -> u64 {
     )
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PlanetOccurrenceModelVersion {
+    EmpiricalOccurrenceV1,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct FgkSmallPlanetOccurrenceModel {
+    pub minimum_effective_temperature_k: f64,
+    pub maximum_effective_temperature_k: f64,
+    pub minimum_surface_gravity_log10_cgs: f64,
+    pub maximum_surface_gravity_log10_cgs: f64,
+    pub minimum_iron_abundance_feh: f64,
+    pub maximum_iron_abundance_feh: f64,
+    pub warm_super_earth_mean: f64,
+    pub warm_sub_neptune_solar_mean: f64,
+    pub warm_sub_neptune_metallicity_exponent: f64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct MDwarfSmallPlanetOccurrenceModel {
+    pub minimum_effective_temperature_k: f64,
+    pub maximum_effective_temperature_k: f64,
+    pub minimum_surface_gravity_log10_cgs: f64,
+    pub small_planet_mean: f64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct GiantPlanetOccurrenceModel {
+    pub minimum_host_mass_msun: f64,
+    pub maximum_host_mass_msun: f64,
+    pub minimum_iron_abundance_feh: f64,
+    pub maximum_iron_abundance_feh: f64,
+    pub normalization: f64,
+    pub host_mass_exponent: f64,
+    pub iron_abundance_exponent: f64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct CloseBinaryPlanetSuppressionModel {
+    pub maximum_semimajor_axis_au: f64,
+    pub occurrence_factor: f64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct PlanetOccurrenceModel {
+    pub model_version: PlanetOccurrenceModelVersion,
+    pub fgk_small_planets: FgkSmallPlanetOccurrenceModel,
+    pub m_dwarf_small_planets: MDwarfSmallPlanetOccurrenceModel,
+    pub giant_planets: GiantPlanetOccurrenceModel,
+    pub close_binary_suppression: CloseBinaryPlanetSuppressionModel,
+}
+
+impl Default for PlanetOccurrenceModel {
+    fn default() -> Self {
+        Self {
+            model_version: PlanetOccurrenceModelVersion::EmpiricalOccurrenceV1,
+            fgk_small_planets: FgkSmallPlanetOccurrenceModel {
+                minimum_effective_temperature_k: 4_700.0,
+                maximum_effective_temperature_k: 6_500.0,
+                minimum_surface_gravity_log10_cgs: 3.9,
+                maximum_surface_gravity_log10_cgs: 5.0,
+                minimum_iron_abundance_feh: -0.4,
+                maximum_iron_abundance_feh: 0.4,
+                warm_super_earth_mean: 0.20,
+                warm_sub_neptune_solar_mean: 0.282_842_7,
+                warm_sub_neptune_metallicity_exponent: 0.376_287_494_6,
+            },
+            m_dwarf_small_planets: MDwarfSmallPlanetOccurrenceModel {
+                minimum_effective_temperature_k: 2_661.0,
+                maximum_effective_temperature_k: 3_999.0,
+                minimum_surface_gravity_log10_cgs: 3.0,
+                small_planet_mean: 2.5,
+            },
+            giant_planets: GiantPlanetOccurrenceModel {
+                minimum_host_mass_msun: 0.2,
+                maximum_host_mass_msun: 2.0,
+                minimum_iron_abundance_feh: -1.0,
+                maximum_iron_abundance_feh: 0.55,
+                normalization: 0.07,
+                host_mass_exponent: 1.0,
+                iron_abundance_exponent: 1.2,
+            },
+            close_binary_suppression: CloseBinaryPlanetSuppressionModel {
+                maximum_semimajor_axis_au: 47.0,
+                occurrence_factor: 0.34,
+            },
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum StellarMultiplicityEnvironment {
+    Single,
+    KnownWide,
+    KnownCompanionSeparation { semimajor_axis_au: f64 },
+    SeparationUnknown,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum SmallPlanetOccurrence {
+    FgkWarm {
+        warm_super_earth_count: u32,
+        warm_sub_neptune_count: u32,
+    },
+    MDwarfAggregate {
+        small_planet_count: u32,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct GiantPlanetOccurrence {
+    pub has_at_least_one_cps_giant: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Error)]
+pub enum PlanetOccurrenceError {
+    #[error("planet occurrence model is invalid")]
+    InvalidModel,
+    #[error("stellar evolution is unavailable for this host")]
+    MissingStellarEvolution,
+    #[error("planet occurrence is unsupported for evolutionary state {state:?}")]
+    UnsupportedEvolutionaryState { state: EvolutionaryState },
+    #[error("stellar observable `{field}` is required by the occurrence calibration")]
+    MissingStellarObservable { field: &'static str },
+    #[error("host is outside the selected occurrence calibration")]
+    OutsideHostCalibration,
+    #[error("host [Fe/H] is outside the selected occurrence calibration")]
+    OutsideMetallicityCalibration,
+    #[error("stellar companion separation is required for planet occurrence")]
+    MultiplicitySeparationRequired,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PlanetOccurrenceQualityFlag {
+    PoissonIndependenceApproximation,
+    HostAgeDependenceNotModeled,
+    MultiplicitySuppressionExtrapolated,
+    PlanetPropertiesNotGenerated,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct PlanetPopulationSummary {
+    pub model_version: PlanetOccurrenceModelVersion,
+    pub small_planets: Result<SmallPlanetOccurrence, PlanetOccurrenceError>,
+    pub giant_planets: Result<GiantPlanetOccurrence, PlanetOccurrenceError>,
+    pub quality_flags: Vec<PlanetOccurrenceQualityFlag>,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct PlanetOccurrenceSampler {
+    model: PlanetOccurrenceModel,
+}
+
+impl PlanetOccurrenceSampler {
+    pub fn new(model: PlanetOccurrenceModel) -> Result<Self, PlanetOccurrenceError> {
+        if !valid_planet_occurrence_model(model) {
+            return Err(PlanetOccurrenceError::InvalidModel);
+        }
+        Ok(Self { model })
+    }
+
+    pub fn sample(
+        &self,
+        seed: u64,
+        system_id: u64,
+        member_id: u64,
+        history: StellarPopulationHistory,
+        evolution: &Result<StellarEvolutionSnapshot, StellarEvolutionError>,
+        multiplicity: StellarMultiplicityEnvironment,
+    ) -> PlanetPopulationSummary {
+        let mut quality_flags = vec![
+            PlanetOccurrenceQualityFlag::HostAgeDependenceNotModeled,
+            PlanetOccurrenceQualityFlag::PlanetPropertiesNotGenerated,
+        ];
+        let factor = match multiplicity {
+            StellarMultiplicityEnvironment::Single | StellarMultiplicityEnvironment::KnownWide => {
+                Ok(1.0)
+            }
+            StellarMultiplicityEnvironment::KnownCompanionSeparation { semimajor_axis_au }
+                if semimajor_axis_au.is_finite()
+                    && semimajor_axis_au >= 0.0
+                    && semimajor_axis_au
+                        < self
+                            .model
+                            .close_binary_suppression
+                            .maximum_semimajor_axis_au =>
+            {
+                quality_flags
+                    .push(PlanetOccurrenceQualityFlag::MultiplicitySuppressionExtrapolated);
+                Ok(self.model.close_binary_suppression.occurrence_factor)
+            }
+            StellarMultiplicityEnvironment::KnownCompanionSeparation { semimajor_axis_au }
+                if semimajor_axis_au.is_finite() && semimajor_axis_au >= 0.0 =>
+            {
+                Ok(1.0)
+            }
+            StellarMultiplicityEnvironment::KnownCompanionSeparation { .. }
+            | StellarMultiplicityEnvironment::SeparationUnknown => {
+                Err(PlanetOccurrenceError::MultiplicitySeparationRequired)
+            }
+        };
+        let (small_planets, giant_planets) = match factor {
+            Err(error) => (Err(error.clone()), Err(error)),
+            Ok(factor) => {
+                let Ok(snapshot) = evolution else {
+                    return PlanetPopulationSummary {
+                        model_version: self.model.model_version,
+                        small_planets: Err(PlanetOccurrenceError::MissingStellarEvolution),
+                        giant_planets: Err(PlanetOccurrenceError::MissingStellarEvolution),
+                        quality_flags,
+                    };
+                };
+                if snapshot.state != EvolutionaryState::MainSequence {
+                    let error = PlanetOccurrenceError::UnsupportedEvolutionaryState {
+                        state: snapshot.state,
+                    };
+                    (Err(error.clone()), Err(error))
+                } else {
+                    (
+                        self.sample_small_planets(
+                            seed, system_id, member_id, history, snapshot, factor,
+                        ),
+                        self.sample_giant_planets(
+                            seed, system_id, member_id, history, snapshot, factor,
+                        ),
+                    )
+                }
+            }
+        };
+        if small_planets.is_ok() {
+            quality_flags.push(PlanetOccurrenceQualityFlag::PoissonIndependenceApproximation);
+        }
+        PlanetPopulationSummary {
+            model_version: self.model.model_version,
+            small_planets,
+            giant_planets,
+            quality_flags,
+        }
+    }
+
+    fn sample_small_planets(
+        &self,
+        seed: u64,
+        system_id: u64,
+        member_id: u64,
+        history: StellarPopulationHistory,
+        snapshot: &StellarEvolutionSnapshot,
+        factor: f64,
+    ) -> Result<SmallPlanetOccurrence, PlanetOccurrenceError> {
+        let temperature = snapshot.effective_temperature_k.ok_or(
+            PlanetOccurrenceError::MissingStellarObservable {
+                field: "effective_temperature_k",
+            },
+        )?;
+        let gravity = snapshot.surface_gravity_log10_cgs.ok_or(
+            PlanetOccurrenceError::MissingStellarObservable {
+                field: "surface_gravity_log10_cgs",
+            },
+        )?;
+        let m = self.model.m_dwarf_small_planets;
+        if (m.minimum_effective_temperature_k..=m.maximum_effective_temperature_k)
+            .contains(&temperature)
+            && gravity > m.minimum_surface_gravity_log10_cgs
+        {
+            return Ok(SmallPlanetOccurrence::MDwarfAggregate {
+                small_planet_count: sample_poisson_count(
+                    m.small_planet_mean * factor,
+                    &mut domain_rng(
+                        seed,
+                        b"planet_occurrence/m_dwarf_small/v1",
+                        Some(stable_planet_host_id(system_id, member_id)),
+                    ),
+                ),
+            });
+        }
+        let fgk = self.model.fgk_small_planets;
+        if !(fgk.minimum_effective_temperature_k..=fgk.maximum_effective_temperature_k)
+            .contains(&temperature)
+            || !(fgk.minimum_surface_gravity_log10_cgs..=fgk.maximum_surface_gravity_log10_cgs)
+                .contains(&gravity)
+        {
+            return Err(PlanetOccurrenceError::OutsideHostCalibration);
+        }
+        let iron = history.chemistry.iron_abundance_feh;
+        if !(fgk.minimum_iron_abundance_feh..=fgk.maximum_iron_abundance_feh).contains(&iron) {
+            return Err(PlanetOccurrenceError::OutsideMetallicityCalibration);
+        }
+        let super_earth_mean = fgk.warm_super_earth_mean * factor;
+        let sub_neptune_mean = fgk.warm_sub_neptune_solar_mean
+            * 10_f64.powf(fgk.warm_sub_neptune_metallicity_exponent * iron)
+            * factor;
+        Ok(SmallPlanetOccurrence::FgkWarm {
+            warm_super_earth_count: sample_poisson_count(
+                super_earth_mean,
+                &mut domain_rng(
+                    seed,
+                    b"planet_occurrence/fgk_super_earth/v1",
+                    Some(stable_planet_host_id(system_id, member_id)),
+                ),
+            ),
+            warm_sub_neptune_count: sample_poisson_count(
+                sub_neptune_mean,
+                &mut domain_rng(
+                    seed,
+                    b"planet_occurrence/fgk_sub_neptune/v1",
+                    Some(stable_planet_host_id(system_id, member_id)),
+                ),
+            ),
+        })
+    }
+
+    fn sample_giant_planets(
+        &self,
+        seed: u64,
+        system_id: u64,
+        member_id: u64,
+        history: StellarPopulationHistory,
+        snapshot: &StellarEvolutionSnapshot,
+        factor: f64,
+    ) -> Result<GiantPlanetOccurrence, PlanetOccurrenceError> {
+        let giant = self.model.giant_planets;
+        if !(giant.minimum_host_mass_msun..=giant.maximum_host_mass_msun)
+            .contains(&snapshot.current_mass_msun)
+        {
+            return Err(PlanetOccurrenceError::OutsideHostCalibration);
+        }
+        let iron = history.chemistry.iron_abundance_feh;
+        if !(giant.minimum_iron_abundance_feh..=giant.maximum_iron_abundance_feh).contains(&iron) {
+            return Err(PlanetOccurrenceError::OutsideMetallicityCalibration);
+        }
+        let probability = giant.normalization
+            * snapshot.current_mass_msun.powf(giant.host_mass_exponent)
+            * 10_f64.powf(giant.iron_abundance_exponent * iron)
+            * factor;
+        if !(0.0..=1.0).contains(&probability) {
+            return Err(PlanetOccurrenceError::OutsideHostCalibration);
+        }
+        let mut rng = domain_rng(
+            seed,
+            b"planet_occurrence/cps_giant/v1",
+            Some(stable_planet_host_id(system_id, member_id)),
+        );
+        Ok(GiantPlanetOccurrence {
+            has_at_least_one_cps_giant: rng.gen_bool(probability),
+        })
+    }
+}
+
+fn sample_poisson_count(mean: f64, rng: &mut ChaCha8Rng) -> u32 {
+    Poisson::new(mean)
+        .expect("validated positive occurrence mean")
+        .sample(rng) as u32
+}
+
+fn stable_planet_host_id(system_id: u64, member_id: u64) -> u64 {
+    let mut input = Vec::with_capacity(56);
+    input.extend_from_slice(b"star_sim/planet_occurrence_host/v1");
+    input.extend_from_slice(&system_id.to_le_bytes());
+    input.extend_from_slice(&member_id.to_le_bytes());
+    let hash = blake3::hash(&input);
+    u64::from_le_bytes(
+        hash.as_bytes()[..8]
+            .try_into()
+            .expect("eight-byte hash prefix"),
+    )
+}
+
+fn valid_planet_occurrence_model(model: PlanetOccurrenceModel) -> bool {
+    let fgk = model.fgk_small_planets;
+    let m = model.m_dwarf_small_planets;
+    let giant = model.giant_planets;
+    let close = model.close_binary_suppression;
+    [
+        fgk.minimum_effective_temperature_k,
+        fgk.maximum_effective_temperature_k,
+        fgk.minimum_surface_gravity_log10_cgs,
+        fgk.maximum_surface_gravity_log10_cgs,
+        fgk.minimum_iron_abundance_feh,
+        fgk.maximum_iron_abundance_feh,
+        fgk.warm_super_earth_mean,
+        fgk.warm_sub_neptune_solar_mean,
+        fgk.warm_sub_neptune_metallicity_exponent,
+        m.minimum_effective_temperature_k,
+        m.maximum_effective_temperature_k,
+        m.minimum_surface_gravity_log10_cgs,
+        m.small_planet_mean,
+        giant.minimum_host_mass_msun,
+        giant.maximum_host_mass_msun,
+        giant.minimum_iron_abundance_feh,
+        giant.maximum_iron_abundance_feh,
+        giant.normalization,
+        giant.host_mass_exponent,
+        giant.iron_abundance_exponent,
+        close.maximum_semimajor_axis_au,
+        close.occurrence_factor,
+    ]
+    .into_iter()
+    .all(f64::is_finite)
+        && fgk.minimum_effective_temperature_k < fgk.maximum_effective_temperature_k
+        && fgk.minimum_surface_gravity_log10_cgs < fgk.maximum_surface_gravity_log10_cgs
+        && fgk.minimum_iron_abundance_feh < fgk.maximum_iron_abundance_feh
+        && fgk.warm_super_earth_mean > 0.0
+        && fgk.warm_sub_neptune_solar_mean > 0.0
+        && m.minimum_effective_temperature_k < m.maximum_effective_temperature_k
+        && m.small_planet_mean > 0.0
+        && giant.minimum_host_mass_msun < giant.maximum_host_mass_msun
+        && giant.minimum_iron_abundance_feh < giant.maximum_iron_abundance_feh
+        && giant.normalization > 0.0
+        && close.maximum_semimajor_axis_au > 0.0
+        && (0.0..=1.0).contains(&close.occurrence_factor)
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct GeneratedStellarSystem {
     pub id: u64,
@@ -1768,6 +2454,151 @@ pub struct GeneratedStellarRegion {
     pub radius_pc: f64,
     pub expected_system_count: f64,
     pub systems: Vec<GeneratedStellarSystem>,
+}
+
+/// The intentionally fixed spatial extent of the materialised local catalog.
+pub const LOCAL_STELLAR_REGION_RADIUS_PC: f64 = 10.0;
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct StellarCatalogMember {
+    pub birth: StellarBirthMember,
+    /// A present-day snapshot or an explicit statement that the bundled model does not cover it.
+    pub evolution: Result<StellarEvolutionSnapshot, StellarEvolutionError>,
+    pub planet_population: PlanetPopulationSummary,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct StellarCatalogSystem {
+    pub id: u64,
+    /// Cartesian offset from the catalog centre, in parsecs.
+    pub offset_pc: [f64; 3],
+    pub population: StellarPopulation,
+    /// Formation age and chemistry shared by all coeval members of the system.
+    pub history: StellarPopulationHistory,
+    pub members: Vec<StellarCatalogMember>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct GeneratedStellarCatalog {
+    pub centre: GalacticPosition,
+    pub radius_pc: f64,
+    pub expected_system_count: f64,
+    pub systems: Vec<StellarCatalogSystem>,
+}
+
+#[derive(Debug, Error)]
+pub enum StellarCatalogModelError {
+    #[error(transparent)]
+    InvalidBirthMassModel(#[from] StellarBirthMassError),
+    #[error(transparent)]
+    InvalidPopulationHistoryModel(#[from] PopulationHistoryError),
+    #[error(transparent)]
+    InvalidEvolutionModel(#[from] StellarEvolutionError),
+    #[error(transparent)]
+    InvalidPlanetOccurrenceModel(#[from] PlanetOccurrenceError),
+}
+
+/// Generates one coherent present-day stellar catalog for the local 10-parsec sphere.
+#[derive(Debug, Clone)]
+pub struct StellarCatalogGenerator {
+    region_generator: StellarRegionGenerator,
+    history_sampler: PopulationHistorySampler,
+    evolution_evaluator: StellarEvolutionEvaluator,
+    planet_occurrence_sampler: PlanetOccurrenceSampler,
+}
+
+impl StellarCatalogGenerator {
+    pub fn new(
+        birth_mass_model: StellarBirthMassModel,
+        population_history_model: PopulationHistoryModel,
+        evolution_model: StellarEvolutionModel,
+        planet_occurrence_model: PlanetOccurrenceModel,
+    ) -> Result<Self, StellarCatalogModelError> {
+        Ok(Self {
+            region_generator: StellarRegionGenerator::new(birth_mass_model)?,
+            history_sampler: PopulationHistorySampler::new(population_history_model)?,
+            evolution_evaluator: StellarEvolutionEvaluator::new(evolution_model)?,
+            planet_occurrence_sampler: PlanetOccurrenceSampler::new(planet_occurrence_model)?,
+        })
+    }
+
+    pub fn with_white_dwarf_cooling(
+        mut self,
+        model: WhiteDwarfCoolingModel,
+    ) -> Result<Self, WhiteDwarfCoolingError> {
+        self.evolution_evaluator = self.evolution_evaluator.with_white_dwarf_cooling(model)?;
+        Ok(self)
+    }
+
+    pub fn generate(
+        &self,
+        seed: u64,
+        location: SampledGalacticLocation,
+    ) -> Result<GeneratedStellarCatalog, StellarRegionError> {
+        let region =
+            self.region_generator
+                .generate(seed, location, LOCAL_STELLAR_REGION_RADIUS_PC)?;
+        let systems = region
+            .systems
+            .into_iter()
+            .map(|system| {
+                let position = region.centre.with_local_offset(system.offset_pc);
+                let history =
+                    self.history_sampler
+                        .sample(seed, system.id, system.population, position);
+                let multiple_system = system.birth_masses.members.len() > 1;
+                let multiplicity = if multiple_system {
+                    StellarMultiplicityEnvironment::SeparationUnknown
+                } else {
+                    StellarMultiplicityEnvironment::Single
+                };
+                let members = system
+                    .birth_masses
+                    .members
+                    .into_iter()
+                    .map(|birth| {
+                        let mut evolution = self.evolution_evaluator.evaluate(
+                            birth.initial_mass_msun,
+                            history.age_gyr,
+                            history.chemistry,
+                        );
+                        if multiple_system && let Ok(snapshot) = &mut evolution {
+                            snapshot
+                                .quality_flags
+                                .push(StellarEvolutionQualityFlag::BinaryInteractionIgnored);
+                        }
+                        let planet_population = self.planet_occurrence_sampler.sample(
+                            seed,
+                            system.id,
+                            birth.id,
+                            history,
+                            &evolution,
+                            multiplicity,
+                        );
+                        StellarCatalogMember {
+                            birth,
+                            evolution,
+                            planet_population,
+                        }
+                    })
+                    .collect();
+                StellarCatalogSystem {
+                    id: system.id,
+                    offset_pc: system.offset_pc,
+                    population: system.population,
+                    history,
+                    members,
+                }
+            })
+            .collect();
+
+        Ok(GeneratedStellarCatalog {
+            centre: region.centre,
+            radius_pc: region.radius_pc,
+            expected_system_count: region.expected_system_count,
+            systems,
+        })
+    }
 }
 
 #[derive(Debug, Error)]
@@ -2348,6 +3179,78 @@ mod tests {
     }
 
     #[test]
+    fn stellar_catalog_is_a_reproducible_coherent_ten_parsec_region() {
+        let location = SampledGalacticLocation {
+            position: GalacticPosition {
+                radius_pc: 8_178.0,
+                azimuth_rad: 0.0,
+                height_pc: 0.0,
+            },
+            sampled_population: StellarPopulation::ThinDisk,
+            local_density: PopulationDensity {
+                thin_disk: 0.14,
+                thick_disk: 0.01,
+                halo: 0.0,
+            },
+        };
+        let evolution_model: StellarEvolutionModel =
+            ron::from_str(include_str!("../../../config/stellar_evolution.ron")).unwrap();
+        let generator = StellarCatalogGenerator::new(
+            test_birth_mass_model([0.6, 0.3, 0.1, 0.0]),
+            test_population_history_model(),
+            evolution_model,
+            PlanetOccurrenceModel::default(),
+        )
+        .unwrap();
+
+        let first = generator.generate(42, location).unwrap();
+        let repeated = generator.generate(42, location).unwrap();
+
+        assert_eq!(first, repeated);
+        assert_eq!(first.radius_pc, LOCAL_STELLAR_REGION_RADIUS_PC);
+        assert!(!first.systems.is_empty());
+        assert!(
+            first
+                .systems
+                .iter()
+                .flat_map(|system| &system.members)
+                .any(|member| member.planet_population.small_planets.is_ok()
+                    || member.planet_population.giant_planets.is_ok())
+        );
+        for system in &first.systems {
+            assert!(!system.members.is_empty());
+            assert!(system.members.iter().all(|member| {
+                member.evolution.as_ref().map_or(true, |snapshot| {
+                    snapshot.initial_mass_msun == member.birth.initial_mass_msun
+                        && snapshot.age_gyr == system.history.age_gyr
+                })
+            }));
+            assert!(
+                system
+                    .members
+                    .iter()
+                    .all(|member| member.planet_population.model_version
+                        == PlanetOccurrenceModelVersion::EmpiricalOccurrenceV1)
+            );
+            if system.members.len() > 1 {
+                assert!(
+                    system
+                        .members
+                        .iter()
+                        .filter_map(|member| member.evolution.as_ref().ok())
+                        .all(|snapshot| snapshot
+                            .quality_flags
+                            .contains(&StellarEvolutionQualityFlag::BinaryInteractionIgnored))
+                );
+                assert!(system.members.iter().all(|member| matches!(
+                    member.planet_population.small_planets,
+                    Err(PlanetOccurrenceError::MultiplicitySeparationRequired)
+                )));
+            }
+        }
+    }
+
+    #[test]
     fn generated_system_multiplicities_follow_the_configured_distribution() {
         let generator =
             StellarRegionGenerator::new(test_birth_mass_model([0.732, 0.216, 0.048, 0.004]))
@@ -2788,6 +3691,72 @@ mod tests {
         assert!(snapshot.cooling_age_gyr.unwrap() > 0.5);
         assert!(snapshot.luminosity_lsun.is_none());
         assert!(snapshot.effective_temperature_k.is_none());
+    }
+
+    #[test]
+    fn montreal_backend_populates_white_dwarf_photospheric_observables() {
+        let point =
+            |cooling_age_gyr, luminosity_lsun, radius_rsun, effective_temperature_k, logg| {
+                WhiteDwarfCoolingPoint {
+                    cooling_age_gyr,
+                    luminosity_lsun,
+                    radius_rsun,
+                    effective_temperature_k,
+                    surface_gravity_log10_cgs: logg,
+                }
+            };
+        let cooling_model = WhiteDwarfCoolingModel {
+            model_version: WhiteDwarfCoolingModelVersion::MontrealBedard2020ThickHydrogenV1,
+            sequences: vec![
+                WhiteDwarfCoolingSequence {
+                    mass_msun: 0.5,
+                    points: vec![
+                        point(0.0, 50.0, 0.020, 90_000.0, 7.4),
+                        point(1.0, 0.001, 0.014, 5_000.0, 7.9),
+                    ],
+                },
+                WhiteDwarfCoolingSequence {
+                    mass_msun: 0.6,
+                    points: vec![
+                        point(0.0, 56.25, 0.018, 100_000.0, 7.6),
+                        point(1.0, 0.0008, 0.012, 4_800.0, 8.1),
+                    ],
+                },
+            ],
+        };
+        let model: StellarEvolutionModel =
+            ron::from_str(include_str!("../../../config/stellar_evolution.ron")).unwrap();
+        let evaluator = StellarEvolutionEvaluator::new(model)
+            .unwrap()
+            .with_white_dwarf_cooling(cooling_model)
+            .unwrap();
+
+        let snapshot = evaluator
+            .evaluate(1.0, 12.0, solar_test_chemistry())
+            .unwrap();
+
+        assert_eq!(snapshot.state, EvolutionaryState::WhiteDwarf);
+        assert_eq!(
+            snapshot.white_dwarf_cooling_model_version,
+            Some(WhiteDwarfCoolingModelVersion::MontrealBedard2020ThickHydrogenV1)
+        );
+        assert!(snapshot.luminosity_lsun.is_some_and(|value| value > 0.0));
+        assert!(snapshot.radius_rsun.is_some_and(|value| value > 0.0));
+        assert!(
+            snapshot
+                .effective_temperature_k
+                .is_some_and(|value| value > 0.0)
+        );
+        assert!(
+            !snapshot
+                .quality_flags
+                .contains(&StellarEvolutionQualityFlag::WhiteDwarfCoolingNotBundled)
+        );
+        assert!(
+            snapshot
+                .quality_flags
+                .contains(&StellarEvolutionQualityFlag::MontrealCoolingHybridModel)
+        );
     }
 
     #[test]
