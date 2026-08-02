@@ -131,8 +131,52 @@ A gravitationally bound system containing at least one star and possibly additio
 _Avoid_: Solar system, planet system
 
 **Planetary System**:
-The planets and smaller bodies gravitationally bound within a stellar system.
+The planets, dwarf planets, natural satellites, rings, and small-body populations gravitationally bound within a stellar system. A planetary system may be circumstellar or circumbinary and is not necessarily a complete inventory of every individual body.
 _Avoid_: Stellar system
+
+**Planetary Architecture**:
+The present-day orbital organization of planets and population-level small-body reservoirs around one or more stellar hosts.
+_Avoid_: Planet occurrence, formation history
+
+**Planet**:
+A non-stellar body represented as an individual member of a planetary architecture and dynamically associated with one or more stellar hosts.
+_Avoid_: Planet candidate, planetesimal
+
+**Natural Satellite**:
+A non-stellar body orbiting a planet or dwarf planet rather than directly orbiting the stellar host hierarchy.
+_Avoid_: Stellar companion, ring particle
+
+**Ring System**:
+A circumplanetary population of solid particles represented as a collective structure rather than as individually materialised bodies.
+_Avoid_: Debris disk, asteroid belt
+
+**Dwarf Planet**:
+A near-round non-stellar body that does not dynamically dominate its circumstellar orbital neighbourhood. It may be materialised as a notable member of a planetesimal reservoir.
+_Avoid_: Small planet, arbitrary large asteroid
+
+**Planetesimal Reservoir**:
+A statistical population of smaller solid bodies sharing a formation and orbital domain; it is not an enumeration of every asteroid or comet.
+_Avoid_: Planet list, debris disk
+
+**Asteroid Belt**:
+A circumstellar planetesimal reservoir dominated by relatively rocky bodies in a bounded orbital band.
+_Avoid_: Individual asteroid, ring system
+
+**Outer Planetesimal Belt**:
+A cold circumstellar reservoir analogous in role, but not necessarily identical, to the Solar System's Kuiper belt.
+_Avoid_: Universal Kuiper belt, comet cloud
+
+**Comet Reservoir**:
+A cold planetesimal population capable of supplying bodies onto comet-like orbits; its members need not be materialised individually.
+_Avoid_: Debris disk, asteroid belt
+
+**Trojan Population**:
+A co-orbital small-body population associated with a particular massive body's orbit near dynamically stable libration regions.
+_Avoid_: Independent belt, moon system
+
+**Debris Disk**:
+An observable circumstellar dust population replenished by collisions in an underlying small-body reservoir; it is not interchangeable with the unseen reservoir itself.
+_Avoid_: Protoplanetary disk, asteroid inventory
 
 **Planet Occurrence**:
 An empirically calibrated expectation or probability within a stated host-star, planet-size, and orbital-period domain.
@@ -142,6 +186,22 @@ _Avoid_: Universal planet probability, complete planetary system
 A deterministic draw of occurrence counts or host fractions in explicitly calibrated observational domains; it does not yet assign physical planets or orbits.
 _Avoid_: Planetary system, orbital architecture
 
+**Explicit Planet Candidate**:
+A deterministic realization of one occurrence channel with sampled observable properties and an orbit scale, before dynamical acceptance.
+_Avoid_: Confirmed planet, complete planetary system
+
+**Accepted Explicit Planet**:
+An explicit planet candidate that lies inside every stability constraint evaluated by the current model.
+_Avoid_: Permanently stable planet, observed planet
+
+**Rejected Planet Candidate**:
+An explicit planet candidate retained as provenance after failing a modeled coverage or stability condition; it is not a member of the accepted planetary system.
+_Avoid_: Destroyed planet, resampling request
+
+**Unresolved Planet Population**:
+A positive occurrence result whose source domain does not determine enough properties to materialise individual planets without inventing a distribution.
+_Avoid_: Empty planetary system, unsupported host
+
 **Orbital Node**:
 A member of a hierarchical orbital arrangement that is either a physical body or a barycentre.
 _Avoid_: Satellite, child entity
@@ -149,3 +209,27 @@ _Avoid_: Satellite, child entity
 **Barycentre**:
 The shared centre of mass about which two or more members of an orbital arrangement move.
 _Avoid_: Central body, root object
+
+**Stellar Orbital Hierarchy**:
+A nested arrangement of stellar members and barycentres connected by relative stellar orbits.
+_Avoid_: Flat companion list, instantaneous scene positions
+
+**Relative Stellar Orbit**:
+The orbit of two child bodies or child barycentres relative to one another; its semimajor axis is not either child's barycentric radius.
+_Avoid_: Instantaneous separation, projected separation
+
+**Nearest Companion Scale**:
+The smallest relative-orbit semimajor axis encountered from a stellar member through its orbital hierarchy.
+_Avoid_: Current distance, projected angular separation
+
+**Orbital Contact Radius**:
+A finite-body radius used only to reject relative-orbit candidates whose periastron would make two stellar members overlap. It may come from a narrower proxy than the full stellar-evolution model and must carry that provenance.
+_Avoid_: Evolution snapshot, observed stellar radius
+
+**Circumstellar S-Type Stability Zone**:
+The range of planet orbits centred on one stellar member that remains dynamically viable against its limiting stellar companion under a stated stability model. Its outer boundary is a critical semimajor axis, not a planet's generated orbit.
+_Avoid_: Habitable zone, Hill sphere, guaranteed long-term stability
+
+**Limiting Stellar Companion**:
+The physical star or sibling barycentre whose relative orbit sets the smallest modeled outer boundary of a member's circumstellar stability zone.
+_Avoid_: Nearest current position, planetary host

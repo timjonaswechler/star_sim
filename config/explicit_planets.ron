@@ -1,0 +1,63 @@
+// Explicit present-day candidates inside observational occurrence domains.
+// See docs/scientific_sources/planetary_body_architecture.md.
+(
+    model_version: ObservationalDomainsV1,
+    warm_super_earth: (
+        minimum_radius_rearth: 1.0,
+        maximum_radius_rearth: 1.7,
+        minimum_period_days: 10.0,
+        maximum_period_days: 100.0,
+    ),
+    warm_sub_neptune: (
+        minimum_radius_rearth: 1.7,
+        maximum_radius_rearth: 4.0,
+        minimum_period_days: 10.0,
+        maximum_period_days: 100.0,
+    ),
+    // Dressing & Charbonneau (2015), Table 4, revised-radius point estimates.
+    // Upper-limit-only cells are omitted; remaining weights are normalized
+    // conditionally to the already drawn 1-4 R_earth, P<200 d aggregate count.
+    m_dwarf_occurrence_cells: [
+        (minimum_radius_rearth: 1.0, maximum_radius_rearth: 1.5, minimum_period_days: 0.5, maximum_period_days: 1.7, occurrence_weight_percent: 1.95),
+        (minimum_radius_rearth: 1.0, maximum_radius_rearth: 1.5, minimum_period_days: 1.7, maximum_period_days: 5.5, occurrence_weight_percent: 9.94),
+        (minimum_radius_rearth: 1.0, maximum_radius_rearth: 1.5, minimum_period_days: 18.2, maximum_period_days: 60.3, occurrence_weight_percent: 26.85),
+        (minimum_radius_rearth: 1.0, maximum_radius_rearth: 1.5, minimum_period_days: 60.3, maximum_period_days: 200.0, occurrence_weight_percent: 28.85),
+        (minimum_radius_rearth: 1.5, maximum_radius_rearth: 2.0, minimum_period_days: 0.5, maximum_period_days: 1.7, occurrence_weight_percent: 0.41),
+        (minimum_radius_rearth: 1.5, maximum_radius_rearth: 2.0, minimum_period_days: 1.7, maximum_period_days: 5.5, occurrence_weight_percent: 4.15),
+        (minimum_radius_rearth: 1.5, maximum_radius_rearth: 2.0, minimum_period_days: 18.2, maximum_period_days: 60.3, occurrence_weight_percent: 24.59),
+        (minimum_radius_rearth: 1.5, maximum_radius_rearth: 2.0, minimum_period_days: 60.3, maximum_period_days: 200.0, occurrence_weight_percent: 19.98),
+        (minimum_radius_rearth: 2.0, maximum_radius_rearth: 2.5, minimum_period_days: 1.7, maximum_period_days: 5.5, occurrence_weight_percent: 2.72),
+        (minimum_radius_rearth: 2.0, maximum_radius_rearth: 2.5, minimum_period_days: 5.5, maximum_period_days: 18.2, occurrence_weight_percent: 18.73),
+        (minimum_radius_rearth: 2.0, maximum_radius_rearth: 2.5, minimum_period_days: 18.2, maximum_period_days: 60.3, occurrence_weight_percent: 27.58),
+        (minimum_radius_rearth: 2.0, maximum_radius_rearth: 2.5, minimum_period_days: 60.3, maximum_period_days: 200.0, occurrence_weight_percent: 18.08),
+        (minimum_radius_rearth: 2.5, maximum_radius_rearth: 3.0, minimum_period_days: 1.7, maximum_period_days: 5.5, occurrence_weight_percent: 1.59),
+        (minimum_radius_rearth: 2.5, maximum_radius_rearth: 3.0, minimum_period_days: 5.5, maximum_period_days: 18.2, occurrence_weight_percent: 8.29),
+        (minimum_radius_rearth: 2.5, maximum_radius_rearth: 3.0, minimum_period_days: 18.2, maximum_period_days: 60.3, occurrence_weight_percent: 14.51),
+        (minimum_radius_rearth: 2.5, maximum_radius_rearth: 3.0, minimum_period_days: 60.3, maximum_period_days: 200.0, occurrence_weight_percent: 8.61),
+        (minimum_radius_rearth: 3.0, maximum_radius_rearth: 3.5, minimum_period_days: 1.7, maximum_period_days: 5.5, occurrence_weight_percent: 0.65),
+        (minimum_radius_rearth: 3.0, maximum_radius_rearth: 3.5, minimum_period_days: 5.5, maximum_period_days: 18.2, occurrence_weight_percent: 3.25),
+        (minimum_radius_rearth: 3.0, maximum_radius_rearth: 3.5, minimum_period_days: 18.2, maximum_period_days: 60.3, occurrence_weight_percent: 3.37),
+        (minimum_radius_rearth: 3.0, maximum_radius_rearth: 3.5, minimum_period_days: 60.3, maximum_period_days: 200.0, occurrence_weight_percent: 1.97),
+        (minimum_radius_rearth: 3.5, maximum_radius_rearth: 4.0, minimum_period_days: 1.7, maximum_period_days: 5.5, occurrence_weight_percent: 0.38),
+        (minimum_radius_rearth: 3.5, maximum_radius_rearth: 4.0, minimum_period_days: 5.5, maximum_period_days: 18.2, occurrence_weight_percent: 1.05),
+        (minimum_radius_rearth: 3.5, maximum_radius_rearth: 4.0, minimum_period_days: 18.2, maximum_period_days: 60.3, occurrence_weight_percent: 0.56),
+    ],
+    // Dressing & Charbonneau (2015), Table 4, revised-radius point estimates
+    // for 0.5-1.0 R_earth. The 18.2-200 d cells have no point estimate and
+    // remain outside model coverage rather than being interpreted as zero.
+    m_dwarf_sub_earth_occurrence_cells: [
+        (minimum_radius_rearth: 0.5, maximum_radius_rearth: 1.0, minimum_period_days: 0.5, maximum_period_days: 1.7, occurrence_weight_percent: 1.38),
+        (minimum_radius_rearth: 0.5, maximum_radius_rearth: 1.0, minimum_period_days: 1.7, maximum_period_days: 5.5, occurrence_weight_percent: 8.42),
+        (minimum_radius_rearth: 0.5, maximum_radius_rearth: 1.0, minimum_period_days: 5.5, maximum_period_days: 18.2, occurrence_weight_percent: 20.59),
+    ],
+    doppler_giant: (
+        minimum_host_effective_temperature_k: 4700.0,
+        maximum_host_effective_temperature_k: 6500.0,
+        minimum_mass_mjup: 0.3,
+        maximum_mass_mjup: 10.0,
+        mass_log_density_exponent: -0.31,
+        minimum_period_days: 2.0,
+        maximum_period_days: 2000.0,
+        period_log_density_exponent: 0.26,
+    ),
+)

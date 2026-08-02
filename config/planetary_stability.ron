@@ -1,0 +1,18 @@
+// Empirical S-type critical semimajor axis from Holman & Wiegert (1999).
+// See docs/scientific_sources/planetary_stability_zones.md.
+(
+    model_version: HolmanWiegertSTypeV1,
+    s_type: (
+        constant: 0.464,
+        mass_ratio_coefficient: -0.380,
+        eccentricity_coefficient: -0.631,
+        mass_ratio_eccentricity_coefficient: 0.586,
+        eccentricity_squared_coefficient: 0.150,
+        mass_ratio_eccentricity_squared_coefficient: -0.198,
+        minimum_mass_ratio: 0.1,
+        maximum_mass_ratio: 0.9,
+        minimum_binary_eccentricity: 0.0,
+        maximum_binary_eccentricity: 0.8,
+        fit_residual_lower_factor: 0.89,
+    ),
+)

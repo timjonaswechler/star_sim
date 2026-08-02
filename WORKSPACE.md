@@ -23,7 +23,7 @@ cargo run -p population_lab -- --seed 42
 cargo run -p bevy_viewer
 ```
 
-`population_lab` reads the versioned scientific inputs from `config/`, including the reduced MIST stellar-evolution grid and the empirical planet-occurrence model. Its generated catalog always covers the local 10-parsec sphere. It writes `output/population_lab/stellar-evolution.png` with the present-day HR plane, a solar-composition reference track, initial-to-current mass comparison, and explicit coverage outcomes.
+`population_lab` reads the versioned scientific inputs from `config/`, including the reduced MIST stellar-evolution grid, the static stellar-orbital hierarchy model, the empirical S-type planetary-stability model, the empirical planet-occurrence model, and the explicit-planet realization model. Its generated catalog always covers the local 10-parsec sphere. It writes `output/population_lab/stellar-evolution.png` for stellar evolution, `output/population_lab/stellar-orbital-hierarchy.png` for companion scales and hierarchy coverage, `output/population_lab/planetary-stability-zones.png` for circumstellar critical semimajor axes, and `output/population_lab/explicit-planets.png` for accepted and rejected explicit candidates.
 
 The official Montréal cooling sequences are not redistributed because their download page does not state a redistribution licence. Run `tools/fetch_montreal_cooling.sh` once to generate the ignored local file `config/white_dwarf_cooling.local.ron`; `population_lab` loads it automatically.
 

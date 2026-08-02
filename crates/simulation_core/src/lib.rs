@@ -2028,6 +2028,1150 @@ fn stable_member_id(system_id: u64, rank: u8) -> u64 {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum StellarOrbitalHierarchyModelVersion {
+    StaticFieldHierarchyV1,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct MDwarfOrbitalScaleModel {
+    pub minimum_primary_mass_msun: f64,
+    pub source_minimum_primary_mass_msun: f64,
+    pub source_maximum_primary_mass_msun: f64,
+    pub maximum_primary_mass_msun: f64,
+    pub log10_semimajor_axis_au_mean: f64,
+    pub log10_semimajor_axis_au_standard_deviation: f64,
+    pub maximum_semimajor_axis_au: f64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct SolarTypeOrbitalScaleModel {
+    pub minimum_primary_mass_msun: f64,
+    pub maximum_primary_mass_msun: f64,
+    pub source_anchor_minimum_primary_mass_msun: f64,
+    pub source_anchor_maximum_primary_mass_msun: f64,
+    pub log10_period_days_mean: f64,
+    pub log10_period_days_standard_deviation: f64,
+    pub minimum_log10_period_days: f64,
+    pub maximum_log10_period_days: f64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct StellarEccentricityModel {
+    pub circularization_period_days: f64,
+    pub absolute_maximum: f64,
+    pub m_dwarf_uses_solar_proxy: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct QuadrupleTopologyModel {
+    pub probability_two_plus_two: f64,
+    pub probability_three_plus_one: f64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct HierarchicalStabilityModel {
+    pub mardling_aarseth_coefficient: f64,
+    pub mutual_inclination_rad: f64,
+    pub maximum_sampling_attempts: u16,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct LowMassContactRadiusProxyModel {
+    pub minimum_mass_msun: f64,
+    pub maximum_mass_msun_exclusive: f64,
+    pub minimum_age_gyr: f64,
+    pub old_field_age_gyr: f64,
+    pub young_field_radius_rsun: f64,
+    pub old_field_radius_rsun: f64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct StellarOrbitalHierarchyModel {
+    pub model_version: StellarOrbitalHierarchyModelVersion,
+    pub m_dwarf_scale: MDwarfOrbitalScaleModel,
+    pub solar_type_scale: SolarTypeOrbitalScaleModel,
+    pub eccentricity: StellarEccentricityModel,
+    pub quadruple_topology: QuadrupleTopologyModel,
+    pub stability: HierarchicalStabilityModel,
+    pub low_mass_contact_radius_proxy: LowMassContactRadiusProxyModel,
+}
+
+impl Default for StellarOrbitalHierarchyModel {
+    fn default() -> Self {
+        Self {
+            model_version: StellarOrbitalHierarchyModelVersion::StaticFieldHierarchyV1,
+            m_dwarf_scale: MDwarfOrbitalScaleModel {
+                minimum_primary_mass_msun: 0.08,
+                source_minimum_primary_mass_msun: 0.20,
+                source_maximum_primary_mass_msun: 0.67,
+                maximum_primary_mass_msun: 0.70,
+                log10_semimajor_axis_au_mean: 1.68,
+                log10_semimajor_axis_au_standard_deviation: 0.97,
+                maximum_semimajor_axis_au: 10_000.0,
+            },
+            solar_type_scale: SolarTypeOrbitalScaleModel {
+                minimum_primary_mass_msun: 0.70,
+                maximum_primary_mass_msun: 1.30,
+                source_anchor_minimum_primary_mass_msun: 0.80,
+                source_anchor_maximum_primary_mass_msun: 1.20,
+                log10_period_days_mean: 5.03,
+                log10_period_days_standard_deviation: 2.28,
+                minimum_log10_period_days: -0.3,
+                maximum_log10_period_days: 10.0,
+            },
+            eccentricity: StellarEccentricityModel {
+                circularization_period_days: 12.0,
+                absolute_maximum: 0.99,
+                m_dwarf_uses_solar_proxy: true,
+            },
+            quadruple_topology: QuadrupleTopologyModel {
+                probability_two_plus_two: 0.74,
+                probability_three_plus_one: 0.26,
+            },
+            stability: HierarchicalStabilityModel {
+                mardling_aarseth_coefficient: 2.8,
+                mutual_inclination_rad: 0.0,
+                maximum_sampling_attempts: 128,
+            },
+            low_mass_contact_radius_proxy: LowMassContactRadiusProxyModel {
+                minimum_mass_msun: 0.08,
+                maximum_mass_msun_exclusive: 0.10,
+                minimum_age_gyr: 0.10,
+                old_field_age_gyr: 1.0,
+                young_field_radius_rsun: 0.20,
+                old_field_radius_rsun: 0.15,
+            },
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum QuadrupleTopology {
+    TwoPlusTwo,
+    ThreePlusOne,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct RelativeStellarOrbit {
+    pub semimajor_axis_au: f64,
+    pub period_days: f64,
+    pub eccentricity: f64,
+    pub combined_mass_msun: f64,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum StellarOrbitNode {
+    Member {
+        member_id: u64,
+        mass_msun: f64,
+    },
+    RelativeOrbit {
+        orbit: RelativeStellarOrbit,
+        left: Box<StellarOrbitNode>,
+        right: Box<StellarOrbitNode>,
+    },
+}
+
+impl StellarOrbitNode {
+    fn mass_msun(&self) -> f64 {
+        match self {
+            Self::Member { mass_msun, .. } => *mass_msun,
+            Self::RelativeOrbit { orbit, .. } => orbit.combined_mass_msun,
+        }
+    }
+
+    fn contains_member(&self, candidate_id: u64) -> bool {
+        match self {
+            Self::Member { member_id, .. } => *member_id == candidate_id,
+            Self::RelativeOrbit { left, right, .. } => {
+                left.contains_member(candidate_id) || right.contains_member(candidate_id)
+            }
+        }
+    }
+
+    fn member_mass_msun(&self, candidate_id: u64) -> Option<f64> {
+        match self {
+            Self::Member {
+                member_id,
+                mass_msun,
+            } => (*member_id == candidate_id).then_some(*mass_msun),
+            Self::RelativeOrbit { left, right, .. } => left
+                .member_mass_msun(candidate_id)
+                .or_else(|| right.member_mass_msun(candidate_id)),
+        }
+    }
+
+    fn collect_member_ids(&self, output: &mut Vec<u64>) {
+        match self {
+            Self::Member { member_id, .. } => output.push(*member_id),
+            Self::RelativeOrbit { left, right, .. } => {
+                left.collect_member_ids(output);
+                right.collect_member_ids(output);
+            }
+        }
+    }
+
+    fn collect_relative_orbits(&self, output: &mut Vec<RelativeStellarOrbit>) {
+        if let Self::RelativeOrbit { orbit, left, right } = self {
+            output.push(*orbit);
+            left.collect_relative_orbits(output);
+            right.collect_relative_orbits(output);
+        }
+    }
+
+    fn nearest_companion_scale(&self, member_id: u64) -> Option<f64> {
+        match self {
+            Self::Member {
+                member_id: candidate,
+                ..
+            } => (*candidate == member_id).then_some(f64::INFINITY),
+            Self::RelativeOrbit { orbit, left, right } => {
+                let child = if left.contains_member(member_id) {
+                    left
+                } else if right.contains_member(member_id) {
+                    right
+                } else {
+                    return None;
+                };
+                Some(
+                    child
+                        .nearest_companion_scale(member_id)
+                        .unwrap_or(f64::INFINITY)
+                        .min(orbit.semimajor_axis_au),
+                )
+            }
+        }
+    }
+
+    fn direct_parent_companion(&self, member_id: u64) -> Option<DirectParentCompanion> {
+        let Self::RelativeOrbit { orbit, left, right } = self else {
+            return None;
+        };
+        if matches!(left.as_ref(), Self::Member { member_id: id, .. } if *id == member_id) {
+            return Some(DirectParentCompanion {
+                orbit: *orbit,
+                companion_mass_msun: right.mass_msun(),
+                companion_is_subtree: !matches!(right.as_ref(), Self::Member { .. }),
+            });
+        }
+        if matches!(right.as_ref(), Self::Member { member_id: id, .. } if *id == member_id) {
+            return Some(DirectParentCompanion {
+                orbit: *orbit,
+                companion_mass_msun: left.mass_msun(),
+                companion_is_subtree: !matches!(left.as_ref(), Self::Member { .. }),
+            });
+        }
+        if left.contains_member(member_id) {
+            left.direct_parent_companion(member_id)
+        } else if right.contains_member(member_id) {
+            right.direct_parent_companion(member_id)
+        } else {
+            None
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct DirectParentCompanion {
+    orbit: RelativeStellarOrbit,
+    companion_mass_msun: f64,
+    companion_is_subtree: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StellarOrbitalHierarchyQualityFlag {
+    MSeparationShapeDecoupledFromMassRatio,
+    LowMassExtrapolation,
+    HighMassExtrapolation,
+    SolarPeriodShapeProxy,
+    SolarEccentricityProxyForMDwarf,
+    TopologyMassExtrapolation,
+    HierarchyPairingEngineered,
+    IndependentOrbitScaleDraws,
+    CoplanarProgradeStabilityScreen,
+    LowMassContactRadiusProxy,
+    SolarCompositionRadiusProxy,
+    HydrogenBurningBoundaryAmbiguous,
+    BirthMassUsedAsDynamicalMass,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct StellarOrbitalHierarchy {
+    pub model_version: StellarOrbitalHierarchyModelVersion,
+    pub root: StellarOrbitNode,
+    pub quadruple_topology: Option<QuadrupleTopology>,
+    pub quality_flags: Vec<StellarOrbitalHierarchyQualityFlag>,
+}
+
+impl StellarOrbitalHierarchy {
+    pub fn member_ids(&self) -> Vec<u64> {
+        let mut ids = Vec::new();
+        self.root.collect_member_ids(&mut ids);
+        ids
+    }
+
+    pub fn nearest_companion_semimajor_axis_au(&self, member_id: u64) -> Option<f64> {
+        self.root
+            .nearest_companion_scale(member_id)
+            .filter(|value| value.is_finite())
+    }
+
+    pub fn relative_orbits(&self) -> Vec<RelativeStellarOrbit> {
+        let mut orbits = Vec::new();
+        self.root.collect_relative_orbits(&mut orbits);
+        orbits
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Error)]
+pub enum StellarOrbitalHierarchyError {
+    #[error("stellar-orbital hierarchy model is invalid")]
+    InvalidModel,
+    #[error("stellar system contains an unsupported number of members")]
+    UnsupportedMemberCount,
+    #[error("stellar evolution is unavailable for an orbital member")]
+    MissingStellarEvolution,
+    #[error("orbital evolution is not modeled for state {state:?}")]
+    OrbitalEvolutionNotModeled { state: EvolutionaryState },
+    #[error("stellar radius is unavailable for contact rejection")]
+    MissingStellarRadius,
+    #[error("primary mass {primary_mass_msun:.4} Msun is outside orbital-scale calibration")]
+    OutsideOrbitalScaleCalibration { primary_mass_msun: f64 },
+    #[error("no calibrated eccentricity model is available")]
+    OutsideEccentricityCalibration,
+    #[error("stable hierarchy sampling exhausted its deterministic attempt limit")]
+    StableHierarchySamplingExhausted,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum StellarOrbitMemberProvenance {
+    EvolutionSnapshot,
+    LowMassContactRadiusProxy {
+        solar_composition_proxy: bool,
+        hydrogen_burning_boundary_ambiguous: bool,
+    },
+}
+
+#[derive(Debug, Clone, Copy)]
+struct StellarOrbitMemberInput {
+    id: u64,
+    role: StellarMemberRole,
+    mass_msun: f64,
+    radius_rsun: f64,
+    provenance: StellarOrbitMemberProvenance,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct OrbitSamplingContext {
+    seed: u64,
+    system_id: u64,
+    attempt: u16,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum OrbitalScaleRegime {
+    MDwarf,
+    SolarType,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct StellarOrbitalHierarchySampler {
+    model: StellarOrbitalHierarchyModel,
+}
+
+impl StellarOrbitalHierarchySampler {
+    pub fn new(model: StellarOrbitalHierarchyModel) -> Result<Self, StellarOrbitalHierarchyError> {
+        if !valid_stellar_orbital_hierarchy_model(model) {
+            return Err(StellarOrbitalHierarchyError::InvalidModel);
+        }
+        Ok(Self { model })
+    }
+
+    fn generate(
+        &self,
+        seed: u64,
+        system_id: u64,
+        members: &[StellarOrbitMemberInput],
+    ) -> Result<StellarOrbitalHierarchy, StellarOrbitalHierarchyError> {
+        if members.is_empty() || members.len() > 4 {
+            return Err(StellarOrbitalHierarchyError::UnsupportedMemberCount);
+        }
+        if members.len() == 1 {
+            return Ok(StellarOrbitalHierarchy {
+                model_version: self.model.model_version,
+                root: member_orbit_node(members[0]),
+                quadruple_topology: None,
+                quality_flags: Vec::new(),
+            });
+        }
+        let primary = members
+            .iter()
+            .find(|member| member.role == StellarMemberRole::Primary)
+            .ok_or(StellarOrbitalHierarchyError::InvalidModel)?;
+        let (regime, mut quality_flags) = self.scale_regime(primary.mass_msun)?;
+        for member in members {
+            if let StellarOrbitMemberProvenance::LowMassContactRadiusProxy {
+                solar_composition_proxy,
+                hydrogen_burning_boundary_ambiguous,
+            } = member.provenance
+            {
+                push_unique_quality_flag(
+                    &mut quality_flags,
+                    StellarOrbitalHierarchyQualityFlag::LowMassContactRadiusProxy,
+                );
+                push_unique_quality_flag(
+                    &mut quality_flags,
+                    StellarOrbitalHierarchyQualityFlag::BirthMassUsedAsDynamicalMass,
+                );
+                if solar_composition_proxy {
+                    push_unique_quality_flag(
+                        &mut quality_flags,
+                        StellarOrbitalHierarchyQualityFlag::SolarCompositionRadiusProxy,
+                    );
+                }
+                if hydrogen_burning_boundary_ambiguous {
+                    push_unique_quality_flag(
+                        &mut quality_flags,
+                        StellarOrbitalHierarchyQualityFlag::HydrogenBurningBoundaryAmbiguous,
+                    );
+                }
+            }
+        }
+        if regime == OrbitalScaleRegime::MDwarf {
+            if !self.model.eccentricity.m_dwarf_uses_solar_proxy {
+                return Err(StellarOrbitalHierarchyError::OutsideEccentricityCalibration);
+            }
+            quality_flags.push(StellarOrbitalHierarchyQualityFlag::SolarEccentricityProxyForMDwarf);
+        }
+        if members.len() >= 3 {
+            quality_flags.extend([
+                StellarOrbitalHierarchyQualityFlag::HierarchyPairingEngineered,
+                StellarOrbitalHierarchyQualityFlag::IndependentOrbitScaleDraws,
+                StellarOrbitalHierarchyQualityFlag::CoplanarProgradeStabilityScreen,
+            ]);
+        }
+
+        let topology = (members.len() == 4).then(|| {
+            let draw = domain_rng(
+                seed,
+                b"stellar_orbit/quadruple_topology/v1",
+                Some(system_id),
+            )
+            .gen_range(0.0..1.0);
+            if draw < self.model.quadruple_topology.probability_two_plus_two {
+                QuadrupleTopology::TwoPlusTwo
+            } else {
+                QuadrupleTopology::ThreePlusOne
+            }
+        });
+        if members.len() == 4 && regime != OrbitalScaleRegime::SolarType {
+            quality_flags.push(StellarOrbitalHierarchyQualityFlag::TopologyMassExtrapolation);
+        }
+
+        for attempt in 0..self.model.stability.maximum_sampling_attempts {
+            if let Some(root) =
+                self.sample_candidate(seed, system_id, attempt, members, regime, topology)
+            {
+                return Ok(StellarOrbitalHierarchy {
+                    model_version: self.model.model_version,
+                    root,
+                    quadruple_topology: topology,
+                    quality_flags,
+                });
+            }
+        }
+        Err(StellarOrbitalHierarchyError::StableHierarchySamplingExhausted)
+    }
+
+    fn scale_regime(
+        &self,
+        primary_mass_msun: f64,
+    ) -> Result<
+        (OrbitalScaleRegime, Vec<StellarOrbitalHierarchyQualityFlag>),
+        StellarOrbitalHierarchyError,
+    > {
+        let m = self.model.m_dwarf_scale;
+        if (m.minimum_primary_mass_msun..m.maximum_primary_mass_msun).contains(&primary_mass_msun) {
+            let mut flags =
+                vec![StellarOrbitalHierarchyQualityFlag::MSeparationShapeDecoupledFromMassRatio];
+            if primary_mass_msun < m.source_minimum_primary_mass_msun {
+                flags.push(StellarOrbitalHierarchyQualityFlag::LowMassExtrapolation);
+            }
+            if primary_mass_msun > m.source_maximum_primary_mass_msun {
+                flags.push(StellarOrbitalHierarchyQualityFlag::HighMassExtrapolation);
+            }
+            return Ok((OrbitalScaleRegime::MDwarf, flags));
+        }
+        let solar = self.model.solar_type_scale;
+        if (solar.minimum_primary_mass_msun..=solar.maximum_primary_mass_msun)
+            .contains(&primary_mass_msun)
+        {
+            let mut flags = Vec::new();
+            if !(solar.source_anchor_minimum_primary_mass_msun
+                ..=solar.source_anchor_maximum_primary_mass_msun)
+                .contains(&primary_mass_msun)
+            {
+                flags.push(StellarOrbitalHierarchyQualityFlag::SolarPeriodShapeProxy);
+            }
+            return Ok((OrbitalScaleRegime::SolarType, flags));
+        }
+        Err(StellarOrbitalHierarchyError::OutsideOrbitalScaleCalibration { primary_mass_msun })
+    }
+
+    fn sample_candidate(
+        &self,
+        seed: u64,
+        system_id: u64,
+        attempt: u16,
+        members: &[StellarOrbitMemberInput],
+        regime: OrbitalScaleRegime,
+        topology: Option<QuadrupleTopology>,
+    ) -> Option<StellarOrbitNode> {
+        let context = OrbitSamplingContext {
+            seed,
+            system_id,
+            attempt,
+        };
+        let required_orbits = members.len() - 1;
+        let mut scales: Vec<_> = (0..required_orbits)
+            .map(|slot| self.sample_orbital_scale(seed, system_id, attempt, slot as u8, regime))
+            .collect::<Option<_>>()?;
+        scales.sort_by(f64::total_cmp);
+
+        match (members.len(), topology) {
+            (2, _) => {
+                let pair_mass = members[0].mass_msun + members[1].mass_msun;
+                self.make_leaf_orbit(
+                    context,
+                    0,
+                    members[0],
+                    members[1],
+                    resolve_semimajor_axis_au(scales[0], pair_mass, regime),
+                )
+            }
+            (3, _) => {
+                let inner_mass = members[0].mass_msun + members[1].mass_msun;
+                let total_mass = inner_mass + members[2].mass_msun;
+                let inner = self.make_leaf_orbit(
+                    context,
+                    0,
+                    members[0],
+                    members[1],
+                    resolve_semimajor_axis_au(scales[0], inner_mass, regime),
+                )?;
+                let outer = self.make_relative_orbit(
+                    context,
+                    1,
+                    inner,
+                    member_orbit_node(members[2]),
+                    resolve_semimajor_axis_au(scales[1], total_mass, regime),
+                );
+                self.nested_pair_is_stable(&outer).then_some(outer)
+            }
+            (4, Some(QuadrupleTopology::ThreePlusOne)) => {
+                let inner_mass = members[0].mass_msun + members[1].mass_msun;
+                let middle_mass = inner_mass + members[2].mass_msun;
+                let total_mass = middle_mass + members[3].mass_msun;
+                let inner = self.make_leaf_orbit(
+                    context,
+                    0,
+                    members[0],
+                    members[1],
+                    resolve_semimajor_axis_au(scales[0], inner_mass, regime),
+                )?;
+                let middle = self.make_relative_orbit(
+                    context,
+                    1,
+                    inner,
+                    member_orbit_node(members[2]),
+                    resolve_semimajor_axis_au(scales[1], middle_mass, regime),
+                );
+                if !self.nested_pair_is_stable(&middle) {
+                    return None;
+                }
+                let outer = self.make_relative_orbit(
+                    context,
+                    2,
+                    middle,
+                    member_orbit_node(members[3]),
+                    resolve_semimajor_axis_au(scales[2], total_mass, regime),
+                );
+                self.nested_pair_is_stable(&outer).then_some(outer)
+            }
+            (4, Some(QuadrupleTopology::TwoPlusTwo)) => {
+                let left_mass = members[0].mass_msun + members[1].mass_msun;
+                let right_mass = members[2].mass_msun + members[3].mass_msun;
+                let left = self.make_leaf_orbit(
+                    context,
+                    0,
+                    members[0],
+                    members[1],
+                    resolve_semimajor_axis_au(scales[0], left_mass, regime),
+                )?;
+                let right = self.make_leaf_orbit(
+                    context,
+                    1,
+                    members[2],
+                    members[3],
+                    resolve_semimajor_axis_au(scales[1], right_mass, regime),
+                )?;
+                let outer = self.make_relative_orbit(
+                    context,
+                    2,
+                    left,
+                    right,
+                    resolve_semimajor_axis_au(scales[2], left_mass + right_mass, regime),
+                );
+                self.two_plus_two_is_stable(&outer).then_some(outer)
+            }
+            _ => None,
+        }
+    }
+
+    fn sample_orbital_scale(
+        &self,
+        seed: u64,
+        system_id: u64,
+        attempt: u16,
+        slot: u8,
+        regime: OrbitalScaleRegime,
+    ) -> Option<f64> {
+        let entity = stable_orbit_draw_id(system_id, attempt, slot);
+        let mut rng = domain_rng(seed, b"stellar_orbit/scale/v1", Some(entity));
+        match regime {
+            OrbitalScaleRegime::MDwarf => {
+                let model = self.model.m_dwarf_scale;
+                let normal = Normal::new(
+                    model.log10_semimajor_axis_au_mean,
+                    model.log10_semimajor_axis_au_standard_deviation,
+                )
+                .expect("validated orbital scale");
+                let semimajor_axis_au = 10_f64.powf(normal.sample(&mut rng));
+                (semimajor_axis_au > 0.0 && semimajor_axis_au <= model.maximum_semimajor_axis_au)
+                    .then_some(semimajor_axis_au)
+            }
+            OrbitalScaleRegime::SolarType => {
+                let model = self.model.solar_type_scale;
+                let normal = Normal::new(
+                    model.log10_period_days_mean,
+                    model.log10_period_days_standard_deviation,
+                )
+                .expect("validated orbital scale");
+                let log_period = normal.sample(&mut rng);
+                (model.minimum_log10_period_days..model.maximum_log10_period_days)
+                    .contains(&log_period)
+                    .then(|| 10_f64.powf(log_period))
+            }
+        }
+    }
+
+    fn make_leaf_orbit(
+        &self,
+        context: OrbitSamplingContext,
+        slot: u8,
+        left: StellarOrbitMemberInput,
+        right: StellarOrbitMemberInput,
+        semimajor_axis_au: f64,
+    ) -> Option<StellarOrbitNode> {
+        let orbit = self.sample_orbit(
+            context.seed,
+            context.system_id,
+            context.attempt,
+            slot,
+            semimajor_axis_au,
+            left.mass_msun + right.mass_msun,
+        );
+        let minimum_separation_au = (left.radius_rsun + right.radius_rsun) * 0.004_650_467_3;
+        (orbit.semimajor_axis_au * (1.0 - orbit.eccentricity) > minimum_separation_au).then(|| {
+            StellarOrbitNode::RelativeOrbit {
+                orbit,
+                left: Box::new(member_orbit_node(left)),
+                right: Box::new(member_orbit_node(right)),
+            }
+        })
+    }
+
+    fn make_relative_orbit(
+        &self,
+        context: OrbitSamplingContext,
+        slot: u8,
+        left: StellarOrbitNode,
+        right: StellarOrbitNode,
+        semimajor_axis_au: f64,
+    ) -> StellarOrbitNode {
+        let combined_mass_msun = left.mass_msun() + right.mass_msun();
+        StellarOrbitNode::RelativeOrbit {
+            orbit: self.sample_orbit(
+                context.seed,
+                context.system_id,
+                context.attempt,
+                slot,
+                semimajor_axis_au,
+                combined_mass_msun,
+            ),
+            left: Box::new(left),
+            right: Box::new(right),
+        }
+    }
+
+    fn sample_orbit(
+        &self,
+        seed: u64,
+        system_id: u64,
+        attempt: u16,
+        slot: u8,
+        semimajor_axis_au: f64,
+        combined_mass_msun: f64,
+    ) -> RelativeStellarOrbit {
+        let period_days = period_days_from_semimajor_axis(semimajor_axis_au, combined_mass_msun);
+        let eccentricity = if period_days <= self.model.eccentricity.circularization_period_days {
+            0.0
+        } else {
+            let period_envelope = 1.0 - (period_days / 2.0).powf(-2.0 / 3.0);
+            let maximum = self
+                .model
+                .eccentricity
+                .absolute_maximum
+                .min(period_envelope);
+            domain_rng(
+                seed,
+                b"stellar_orbit/eccentricity/v1",
+                Some(stable_orbit_draw_id(system_id, attempt, slot)),
+            )
+            .gen_range(0.0..maximum)
+        };
+        RelativeStellarOrbit {
+            semimajor_axis_au,
+            period_days,
+            eccentricity,
+            combined_mass_msun,
+        }
+    }
+
+    fn nested_pair_is_stable(&self, node: &StellarOrbitNode) -> bool {
+        let StellarOrbitNode::RelativeOrbit {
+            orbit: outer,
+            left,
+            right,
+        } = node
+        else {
+            return false;
+        };
+        let (inner, outer_child_mass) = match (&**left, &**right) {
+            (StellarOrbitNode::RelativeOrbit { orbit, .. }, other) => (orbit, other.mass_msun()),
+            (other, StellarOrbitNode::RelativeOrbit { orbit, .. }) => (orbit, other.mass_msun()),
+            _ => return true,
+        };
+        self.passes_stability(inner, outer, outer_child_mass / inner.combined_mass_msun)
+    }
+
+    fn two_plus_two_is_stable(&self, node: &StellarOrbitNode) -> bool {
+        let StellarOrbitNode::RelativeOrbit {
+            orbit: outer,
+            left,
+            right,
+        } = node
+        else {
+            return false;
+        };
+        let (
+            StellarOrbitNode::RelativeOrbit {
+                orbit: left_inner, ..
+            },
+            StellarOrbitNode::RelativeOrbit {
+                orbit: right_inner, ..
+            },
+        ) = (&**left, &**right)
+        else {
+            return false;
+        };
+        self.passes_stability(
+            left_inner,
+            outer,
+            right_inner.combined_mass_msun / left_inner.combined_mass_msun,
+        ) && self.passes_stability(
+            right_inner,
+            outer,
+            left_inner.combined_mass_msun / right_inner.combined_mass_msun,
+        )
+    }
+
+    fn passes_stability(
+        &self,
+        inner: &RelativeStellarOrbit,
+        outer: &RelativeStellarOrbit,
+        outer_mass_ratio: f64,
+    ) -> bool {
+        let model = self.model.stability;
+        let critical_ratio = model.mardling_aarseth_coefficient
+            * (1.0 + outer_mass_ratio).powf(2.0 / 5.0)
+            * (1.0 + outer.eccentricity).powf(2.0 / 5.0)
+            / (1.0 - outer.eccentricity).powf(6.0 / 5.0)
+            * (1.0 - 0.3 * model.mutual_inclination_rad / std::f64::consts::PI);
+        outer.semimajor_axis_au / inner.semimajor_axis_au > critical_ratio
+    }
+}
+
+fn member_orbit_node(member: StellarOrbitMemberInput) -> StellarOrbitNode {
+    StellarOrbitNode::Member {
+        member_id: member.id,
+        mass_msun: member.mass_msun,
+    }
+}
+
+fn push_unique_quality_flag(
+    flags: &mut Vec<StellarOrbitalHierarchyQualityFlag>,
+    flag: StellarOrbitalHierarchyQualityFlag,
+) {
+    if !flags.contains(&flag) {
+        flags.push(flag);
+    }
+}
+
+fn semimajor_axis_from_period_days(period_days: f64, combined_mass_msun: f64) -> f64 {
+    (combined_mass_msun * (period_days / 365.25).powi(2)).cbrt()
+}
+
+fn resolve_semimajor_axis_au(
+    sampled_scale: f64,
+    combined_mass_msun: f64,
+    regime: OrbitalScaleRegime,
+) -> f64 {
+    match regime {
+        OrbitalScaleRegime::MDwarf => sampled_scale,
+        OrbitalScaleRegime::SolarType => {
+            semimajor_axis_from_period_days(sampled_scale, combined_mass_msun)
+        }
+    }
+}
+
+fn period_days_from_semimajor_axis(semimajor_axis_au: f64, combined_mass_msun: f64) -> f64 {
+    365.25 * (semimajor_axis_au.powi(3) / combined_mass_msun).sqrt()
+}
+
+fn stable_orbit_draw_id(system_id: u64, attempt: u16, slot: u8) -> u64 {
+    let mut input = Vec::with_capacity(56);
+    input.extend_from_slice(b"star_sim/stellar_orbit_draw/v1");
+    input.extend_from_slice(&system_id.to_le_bytes());
+    input.extend_from_slice(&attempt.to_le_bytes());
+    input.push(slot);
+    let hash = blake3::hash(&input);
+    u64::from_le_bytes(
+        hash.as_bytes()[..8]
+            .try_into()
+            .expect("eight-byte hash prefix"),
+    )
+}
+
+fn valid_stellar_orbital_hierarchy_model(model: StellarOrbitalHierarchyModel) -> bool {
+    let m = model.m_dwarf_scale;
+    let solar = model.solar_type_scale;
+    let eccentricity = model.eccentricity;
+    let topology = model.quadruple_topology;
+    let stability = model.stability;
+    let contact_proxy = model.low_mass_contact_radius_proxy;
+    [
+        m.minimum_primary_mass_msun,
+        m.source_minimum_primary_mass_msun,
+        m.source_maximum_primary_mass_msun,
+        m.maximum_primary_mass_msun,
+        m.log10_semimajor_axis_au_mean,
+        m.log10_semimajor_axis_au_standard_deviation,
+        m.maximum_semimajor_axis_au,
+        solar.minimum_primary_mass_msun,
+        solar.maximum_primary_mass_msun,
+        solar.source_anchor_minimum_primary_mass_msun,
+        solar.source_anchor_maximum_primary_mass_msun,
+        solar.log10_period_days_mean,
+        solar.log10_period_days_standard_deviation,
+        solar.minimum_log10_period_days,
+        solar.maximum_log10_period_days,
+        eccentricity.circularization_period_days,
+        eccentricity.absolute_maximum,
+        topology.probability_two_plus_two,
+        topology.probability_three_plus_one,
+        stability.mardling_aarseth_coefficient,
+        stability.mutual_inclination_rad,
+        contact_proxy.minimum_mass_msun,
+        contact_proxy.maximum_mass_msun_exclusive,
+        contact_proxy.minimum_age_gyr,
+        contact_proxy.old_field_age_gyr,
+        contact_proxy.young_field_radius_rsun,
+        contact_proxy.old_field_radius_rsun,
+    ]
+    .into_iter()
+    .all(f64::is_finite)
+        && m.minimum_primary_mass_msun > 0.0
+        && m.minimum_primary_mass_msun < m.source_minimum_primary_mass_msun
+        && m.source_minimum_primary_mass_msun < m.source_maximum_primary_mass_msun
+        && m.source_maximum_primary_mass_msun < m.maximum_primary_mass_msun
+        && m.log10_semimajor_axis_au_standard_deviation > 0.0
+        && m.maximum_semimajor_axis_au > 0.0
+        && solar.minimum_primary_mass_msun == m.maximum_primary_mass_msun
+        && solar.minimum_primary_mass_msun < solar.source_anchor_minimum_primary_mass_msun
+        && solar.source_anchor_minimum_primary_mass_msun
+            <= solar.source_anchor_maximum_primary_mass_msun
+        && solar.source_anchor_maximum_primary_mass_msun <= solar.maximum_primary_mass_msun
+        && solar.log10_period_days_standard_deviation > 0.0
+        && solar.minimum_log10_period_days < solar.maximum_log10_period_days
+        && eccentricity.circularization_period_days > 0.0
+        && (0.0..1.0).contains(&eccentricity.absolute_maximum)
+        && topology.probability_two_plus_two >= 0.0
+        && topology.probability_three_plus_one >= 0.0
+        && ((topology.probability_two_plus_two + topology.probability_three_plus_one) - 1.0).abs()
+            < 1e-9
+        && stability.mardling_aarseth_coefficient > 0.0
+        && (0.0..=std::f64::consts::PI).contains(&stability.mutual_inclination_rad)
+        && stability.maximum_sampling_attempts > 0
+        && contact_proxy.minimum_mass_msun > 0.0
+        && contact_proxy.minimum_mass_msun < contact_proxy.maximum_mass_msun_exclusive
+        && contact_proxy.minimum_age_gyr >= 0.0
+        && contact_proxy.minimum_age_gyr < contact_proxy.old_field_age_gyr
+        && contact_proxy.young_field_radius_rsun > 0.0
+        && contact_proxy.old_field_radius_rsun > 0.0
+        && contact_proxy.old_field_radius_rsun <= contact_proxy.young_field_radius_rsun
+}
+
+fn low_mass_contact_radius_input(
+    model: LowMassContactRadiusProxyModel,
+    birth: &StellarBirthMember,
+    history: StellarPopulationHistory,
+    error: &StellarEvolutionError,
+) -> Option<StellarOrbitMemberInput> {
+    if !matches!(error, StellarEvolutionError::OutsideMassGrid { .. })
+        || !(model.minimum_mass_msun..model.maximum_mass_msun_exclusive)
+            .contains(&birth.initial_mass_msun)
+        || history.age_gyr < model.minimum_age_gyr
+    {
+        return None;
+    }
+    let radius_rsun = if history.age_gyr >= model.old_field_age_gyr {
+        model.old_field_radius_rsun
+    } else {
+        model.young_field_radius_rsun
+    };
+    Some(StellarOrbitMemberInput {
+        id: birth.id,
+        role: birth.role,
+        mass_msun: birth.initial_mass_msun,
+        radius_rsun,
+        provenance: StellarOrbitMemberProvenance::LowMassContactRadiusProxy {
+            solar_composition_proxy: history.chemistry.global_metallicity_mh.abs() > 1e-12,
+            hydrogen_burning_boundary_ambiguous: birth.initial_mass_msun <= model.minimum_mass_msun,
+        },
+    })
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PlanetaryStabilityModelVersion {
+    HolmanWiegertSTypeV1,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct HolmanWiegertSTypeModel {
+    pub constant: f64,
+    pub mass_ratio_coefficient: f64,
+    pub eccentricity_coefficient: f64,
+    pub mass_ratio_eccentricity_coefficient: f64,
+    pub eccentricity_squared_coefficient: f64,
+    pub mass_ratio_eccentricity_squared_coefficient: f64,
+    pub minimum_mass_ratio: f64,
+    pub maximum_mass_ratio: f64,
+    pub minimum_binary_eccentricity: f64,
+    pub maximum_binary_eccentricity: f64,
+    pub fit_residual_lower_factor: f64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct PlanetaryStabilityModel {
+    pub model_version: PlanetaryStabilityModelVersion,
+    pub s_type: HolmanWiegertSTypeModel,
+}
+
+impl Default for PlanetaryStabilityModel {
+    fn default() -> Self {
+        Self {
+            model_version: PlanetaryStabilityModelVersion::HolmanWiegertSTypeV1,
+            s_type: HolmanWiegertSTypeModel {
+                constant: 0.464,
+                mass_ratio_coefficient: -0.380,
+                eccentricity_coefficient: -0.631,
+                mass_ratio_eccentricity_coefficient: 0.586,
+                eccentricity_squared_coefficient: 0.150,
+                mass_ratio_eccentricity_squared_coefficient: -0.198,
+                minimum_mass_ratio: 0.1,
+                maximum_mass_ratio: 0.9,
+                minimum_binary_eccentricity: 0.0,
+                maximum_binary_eccentricity: 0.8,
+                fit_residual_lower_factor: 0.89,
+            },
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CircumstellarStabilityQualityFlag {
+    MasslessTestParticleApproximation,
+    CircularCoplanarProgradePlanetAssumption,
+    TenThousandBinaryPeriodIntegration,
+    SiblingSubtreePointMassApproximation,
+    HierarchicalMultipleNearestEdgeOnly,
+    ApproximateAdditionalPerturbersNotIntegrated,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum CircumstellarSTypeStabilityZone {
+    UnboundedByStellarCompanion {
+        model_version: PlanetaryStabilityModelVersion,
+        host_member_id: u64,
+    },
+    CompanionLimited {
+        model_version: PlanetaryStabilityModelVersion,
+        host_member_id: u64,
+        nominal_outer_critical_semimajor_axis_au: f64,
+        fit_residual_lower_semimajor_axis_au: f64,
+        limiting_relative_orbit: RelativeStellarOrbit,
+        limiting_companion_mass_msun: f64,
+        companion_mass_fraction: f64,
+        quality_flags: Vec<CircumstellarStabilityQualityFlag>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Error)]
+pub enum PlanetaryStabilityError {
+    #[error("planetary-stability model is invalid")]
+    InvalidModel,
+    #[error("stellar orbital hierarchy is unavailable")]
+    MissingStellarHierarchy,
+    #[error("stellar member is missing from its orbital hierarchy")]
+    MissingStellarMember,
+    #[error("companion mass fraction {mass_fraction:.4} is outside S-type calibration")]
+    OutsideMassRatioCalibration { mass_fraction: f64 },
+    #[error("stellar eccentricity {eccentricity:.4} is outside S-type calibration")]
+    OutsideEccentricityCalibration { eccentricity: f64 },
+    #[error("the fitted S-type critical semimajor axis is not positive")]
+    NonPositiveCriticalSemimajorAxis,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct PlanetaryStabilityEvaluator {
+    model: PlanetaryStabilityModel,
+}
+
+impl PlanetaryStabilityEvaluator {
+    fn new(model: PlanetaryStabilityModel) -> Result<Self, PlanetaryStabilityError> {
+        if !valid_planetary_stability_model(model) {
+            return Err(PlanetaryStabilityError::InvalidModel);
+        }
+        Ok(Self { model })
+    }
+
+    fn evaluate(
+        &self,
+        member_id: u64,
+        system_member_count: usize,
+        hierarchy: &Result<StellarOrbitalHierarchy, StellarOrbitalHierarchyError>,
+    ) -> Result<CircumstellarSTypeStabilityZone, PlanetaryStabilityError> {
+        let hierarchy = hierarchy
+            .as_ref()
+            .map_err(|_| PlanetaryStabilityError::MissingStellarHierarchy)?;
+        let host_mass_msun = hierarchy
+            .root
+            .member_mass_msun(member_id)
+            .ok_or(PlanetaryStabilityError::MissingStellarMember)?;
+        let Some(companion) = hierarchy.root.direct_parent_companion(member_id) else {
+            return (system_member_count == 1)
+                .then_some(
+                    CircumstellarSTypeStabilityZone::UnboundedByStellarCompanion {
+                        model_version: self.model.model_version,
+                        host_member_id: member_id,
+                    },
+                )
+                .ok_or(PlanetaryStabilityError::MissingStellarMember);
+        };
+        let mass_fraction =
+            companion.companion_mass_msun / (host_mass_msun + companion.companion_mass_msun);
+        let model = self.model.s_type;
+        if !(model.minimum_mass_ratio..=model.maximum_mass_ratio).contains(&mass_fraction) {
+            return Err(PlanetaryStabilityError::OutsideMassRatioCalibration { mass_fraction });
+        }
+        let eccentricity = companion.orbit.eccentricity;
+        if !(model.minimum_binary_eccentricity..=model.maximum_binary_eccentricity)
+            .contains(&eccentricity)
+        {
+            return Err(PlanetaryStabilityError::OutsideEccentricityCalibration { eccentricity });
+        }
+        let eccentricity_squared = eccentricity * eccentricity;
+        let critical_fraction = model.constant
+            + model.mass_ratio_coefficient * mass_fraction
+            + model.eccentricity_coefficient * eccentricity
+            + model.mass_ratio_eccentricity_coefficient * mass_fraction * eccentricity
+            + model.eccentricity_squared_coefficient * eccentricity_squared
+            + model.mass_ratio_eccentricity_squared_coefficient
+                * mass_fraction
+                * eccentricity_squared;
+        let nominal_outer_critical_semimajor_axis_au =
+            critical_fraction * companion.orbit.semimajor_axis_au;
+        if !nominal_outer_critical_semimajor_axis_au.is_finite()
+            || nominal_outer_critical_semimajor_axis_au <= 0.0
+        {
+            return Err(PlanetaryStabilityError::NonPositiveCriticalSemimajorAxis);
+        }
+        let mut quality_flags = vec![
+            CircumstellarStabilityQualityFlag::MasslessTestParticleApproximation,
+            CircumstellarStabilityQualityFlag::CircularCoplanarProgradePlanetAssumption,
+            CircumstellarStabilityQualityFlag::TenThousandBinaryPeriodIntegration,
+        ];
+        if companion.companion_is_subtree {
+            quality_flags
+                .push(CircumstellarStabilityQualityFlag::SiblingSubtreePointMassApproximation);
+        }
+        if system_member_count >= 3 {
+            quality_flags.extend([
+                CircumstellarStabilityQualityFlag::HierarchicalMultipleNearestEdgeOnly,
+                CircumstellarStabilityQualityFlag::ApproximateAdditionalPerturbersNotIntegrated,
+            ]);
+        }
+        Ok(CircumstellarSTypeStabilityZone::CompanionLimited {
+            model_version: self.model.model_version,
+            host_member_id: member_id,
+            nominal_outer_critical_semimajor_axis_au,
+            fit_residual_lower_semimajor_axis_au: nominal_outer_critical_semimajor_axis_au
+                * model.fit_residual_lower_factor,
+            limiting_relative_orbit: companion.orbit,
+            limiting_companion_mass_msun: companion.companion_mass_msun,
+            companion_mass_fraction: mass_fraction,
+            quality_flags,
+        })
+    }
+}
+
+fn valid_planetary_stability_model(model: PlanetaryStabilityModel) -> bool {
+    let s = model.s_type;
+    [
+        s.constant,
+        s.mass_ratio_coefficient,
+        s.eccentricity_coefficient,
+        s.mass_ratio_eccentricity_coefficient,
+        s.eccentricity_squared_coefficient,
+        s.mass_ratio_eccentricity_squared_coefficient,
+        s.minimum_mass_ratio,
+        s.maximum_mass_ratio,
+        s.minimum_binary_eccentricity,
+        s.maximum_binary_eccentricity,
+        s.fit_residual_lower_factor,
+    ]
+    .into_iter()
+    .all(f64::is_finite)
+        && (0.0..1.0).contains(&s.minimum_mass_ratio)
+        && (s.minimum_mass_ratio..=1.0).contains(&s.maximum_mass_ratio)
+        && s.minimum_binary_eccentricity >= 0.0
+        && s.minimum_binary_eccentricity < s.maximum_binary_eccentricity
+        && s.maximum_binary_eccentricity < 1.0
+        && (0.0..=1.0).contains(&s.fit_residual_lower_factor)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PlanetOccurrenceModelVersion {
     EmpiricalOccurrenceV1,
 }
@@ -2051,6 +3195,7 @@ pub struct MDwarfSmallPlanetOccurrenceModel {
     pub maximum_effective_temperature_k: f64,
     pub minimum_surface_gravity_log10_cgs: f64,
     pub small_planet_mean: f64,
+    pub sub_earth_mean: f64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -2099,6 +3244,7 @@ impl Default for PlanetOccurrenceModel {
                 maximum_effective_temperature_k: 3_999.0,
                 minimum_surface_gravity_log10_cgs: 3.0,
                 small_planet_mean: 2.5,
+                sub_earth_mean: 0.3039,
             },
             giant_planets: GiantPlanetOccurrenceModel {
                 minimum_host_mass_msun: 0.2,
@@ -2133,6 +3279,7 @@ pub enum SmallPlanetOccurrence {
     },
     MDwarfAggregate {
         small_planet_count: u32,
+        sub_earth_count: u32,
     },
 }
 
@@ -2300,6 +3447,14 @@ impl PlanetOccurrenceSampler {
                         Some(stable_planet_host_id(system_id, member_id)),
                     ),
                 ),
+                sub_earth_count: sample_poisson_count(
+                    m.sub_earth_mean * factor,
+                    &mut domain_rng(
+                        seed,
+                        b"planet_occurrence/m_dwarf_sub_earth/v1",
+                        Some(stable_planet_host_id(system_id, member_id)),
+                    ),
+                ),
             });
         }
         let fgk = self.model.fgk_small_planets;
@@ -2394,6 +3549,710 @@ fn stable_planet_host_id(system_id: u64, member_id: u64) -> u64 {
     )
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ExplicitPlanetModelVersion {
+    ObservationalDomainsV1,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct ExplicitSmallPlanetBin {
+    pub minimum_radius_rearth: f64,
+    pub maximum_radius_rearth: f64,
+    pub minimum_period_days: f64,
+    pub maximum_period_days: f64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct ExplicitDopplerGiantModel {
+    pub minimum_host_effective_temperature_k: f64,
+    pub maximum_host_effective_temperature_k: f64,
+    pub minimum_mass_mjup: f64,
+    pub maximum_mass_mjup: f64,
+    pub mass_log_density_exponent: f64,
+    pub minimum_period_days: f64,
+    pub maximum_period_days: f64,
+    pub period_log_density_exponent: f64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct ExplicitPlanetOccurrenceCell {
+    pub minimum_radius_rearth: f64,
+    pub maximum_radius_rearth: f64,
+    pub minimum_period_days: f64,
+    pub maximum_period_days: f64,
+    pub occurrence_weight_percent: f64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ExplicitPlanetModel {
+    pub model_version: ExplicitPlanetModelVersion,
+    pub warm_super_earth: ExplicitSmallPlanetBin,
+    pub warm_sub_neptune: ExplicitSmallPlanetBin,
+    pub m_dwarf_occurrence_cells: Vec<ExplicitPlanetOccurrenceCell>,
+    pub m_dwarf_sub_earth_occurrence_cells: Vec<ExplicitPlanetOccurrenceCell>,
+    pub doppler_giant: ExplicitDopplerGiantModel,
+}
+
+impl Default for ExplicitPlanetModel {
+    fn default() -> Self {
+        Self {
+            model_version: ExplicitPlanetModelVersion::ObservationalDomainsV1,
+            warm_super_earth: ExplicitSmallPlanetBin {
+                minimum_radius_rearth: 1.0,
+                maximum_radius_rearth: 1.7,
+                minimum_period_days: 10.0,
+                maximum_period_days: 100.0,
+            },
+            warm_sub_neptune: ExplicitSmallPlanetBin {
+                minimum_radius_rearth: 1.7,
+                maximum_radius_rearth: 4.0,
+                minimum_period_days: 10.0,
+                maximum_period_days: 100.0,
+            },
+            m_dwarf_occurrence_cells: default_m_dwarf_occurrence_cells(),
+            m_dwarf_sub_earth_occurrence_cells: default_m_dwarf_sub_earth_occurrence_cells(),
+            doppler_giant: ExplicitDopplerGiantModel {
+                minimum_host_effective_temperature_k: 4_700.0,
+                maximum_host_effective_temperature_k: 6_500.0,
+                minimum_mass_mjup: 0.3,
+                maximum_mass_mjup: 10.0,
+                mass_log_density_exponent: -0.31,
+                minimum_period_days: 2.0,
+                maximum_period_days: 2_000.0,
+                period_log_density_exponent: 0.26,
+            },
+        }
+    }
+}
+
+fn default_m_dwarf_sub_earth_occurrence_cells() -> Vec<ExplicitPlanetOccurrenceCell> {
+    [(0.5, 1.7, 1.38), (1.7, 5.5, 8.42), (5.5, 18.2, 20.59)]
+        .into_iter()
+        .map(
+            |(minimum_period_days, maximum_period_days, occurrence_weight_percent)| {
+                ExplicitPlanetOccurrenceCell {
+                    minimum_radius_rearth: 0.5,
+                    maximum_radius_rearth: 1.0,
+                    minimum_period_days,
+                    maximum_period_days,
+                    occurrence_weight_percent,
+                }
+            },
+        )
+        .collect()
+}
+
+fn default_m_dwarf_occurrence_cells() -> Vec<ExplicitPlanetOccurrenceCell> {
+    let radius_bins = [
+        (1.0, 1.5, [1.95, 9.94, 0.0, 26.85, 28.85]),
+        (1.5, 2.0, [0.41, 4.15, 0.0, 24.59, 19.98]),
+        (2.0, 2.5, [0.0, 2.72, 18.73, 27.58, 18.08]),
+        (2.5, 3.0, [0.0, 1.59, 8.29, 14.51, 8.61]),
+        (3.0, 3.5, [0.0, 0.65, 3.25, 3.37, 1.97]),
+        (3.5, 4.0, [0.0, 0.38, 1.05, 0.56, 0.0]),
+    ];
+    let period_bins = [
+        (0.5, 1.7),
+        (1.7, 5.5),
+        (5.5, 18.2),
+        (18.2, 60.3),
+        (60.3, 200.0),
+    ];
+    radius_bins
+        .into_iter()
+        .flat_map(|(minimum_radius_rearth, maximum_radius_rearth, weights)| {
+            period_bins.into_iter().zip(weights).filter_map(
+                move |((minimum_period_days, maximum_period_days), occurrence_weight_percent)| {
+                    (occurrence_weight_percent > 0.0).then_some(ExplicitPlanetOccurrenceCell {
+                        minimum_radius_rearth,
+                        maximum_radius_rearth,
+                        minimum_period_days,
+                        maximum_period_days,
+                        occurrence_weight_percent,
+                    })
+                },
+            )
+        })
+        .collect()
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExplicitPlanetSourceChannel {
+    FgkWarmSuperEarth,
+    FgkWarmSubNeptune,
+    MDwarfSmallPlanet,
+    FgkDopplerGiant,
+    MDwarfSubEarth,
+}
+
+impl ExplicitPlanetSourceChannel {
+    fn stable_tag(self) -> u8 {
+        match self {
+            Self::FgkWarmSuperEarth => 0,
+            Self::FgkWarmSubNeptune => 1,
+            Self::MDwarfSmallPlanet => 2,
+            Self::FgkDopplerGiant => 3,
+            Self::MDwarfSubEarth => 4,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum ExplicitPlanetProperties {
+    TransitRadius { radius_rearth: f64 },
+    DopplerMinimumMass { minimum_mass_mjup: f64 },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExplicitPlanetQualityFlag {
+    WithinBinLogUniformApproximation,
+    FgkHostTemperatureProxy,
+    DopplerMinimumMassIsMassTimesSinInclination,
+    OneGiantFromAtLeastOneOccurrenceGate,
+    PlanetInteractionsNotModeled,
+    MDwarfOccurrenceGridRenormalizedToAggregateCount,
+    MDwarfSubEarthOccurrenceLimitedToMeasuredCells,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ExplicitPlanetCandidate {
+    pub id: u64,
+    pub host_member_id: u64,
+    pub source_channel: ExplicitPlanetSourceChannel,
+    pub properties: ExplicitPlanetProperties,
+    pub period_days: f64,
+    pub semimajor_axis_au: f64,
+    pub quality_flags: Vec<ExplicitPlanetQualityFlag>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum RejectedPlanetCandidateReason {
+    OutsideCircumstellarStabilityZone {
+        semimajor_axis_au: f64,
+        conservative_outer_limit_au: f64,
+    },
+    StabilityZoneUnavailable(PlanetaryStabilityError),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct RejectedPlanetCandidate {
+    pub candidate: ExplicitPlanetCandidate,
+    pub reason: RejectedPlanetCandidateReason,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UnresolvedPlanetPopulation {
+    MDwarfSmallPlanets { count: u32 },
+    GiantPlanetPropertiesUnavailable,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct PlanetarySystemRealization {
+    pub model_version: ExplicitPlanetModelVersion,
+    pub host_member_id: u64,
+    pub accepted_planets: Vec<ExplicitPlanetCandidate>,
+    pub rejected_candidates: Vec<RejectedPlanetCandidate>,
+    pub unresolved_populations: Vec<UnresolvedPlanetPopulation>,
+}
+
+#[derive(Debug, Clone, PartialEq, Error)]
+pub enum ExplicitPlanetModelError {
+    #[error("explicit-planet model is invalid")]
+    InvalidModel,
+}
+
+#[derive(Debug, Clone)]
+struct ExplicitPlanetGenerator {
+    model: ExplicitPlanetModel,
+}
+
+impl ExplicitPlanetGenerator {
+    fn new(model: ExplicitPlanetModel) -> Result<Self, ExplicitPlanetModelError> {
+        if !valid_explicit_planet_model(&model) {
+            return Err(ExplicitPlanetModelError::InvalidModel);
+        }
+        Ok(Self { model })
+    }
+
+    fn generate(
+        &self,
+        seed: u64,
+        system_id: u64,
+        host_member_id: u64,
+        evolution: &Result<StellarEvolutionSnapshot, StellarEvolutionError>,
+        occurrence: &PlanetPopulationSummary,
+        stability_zone: &Result<CircumstellarSTypeStabilityZone, PlanetaryStabilityError>,
+    ) -> PlanetarySystemRealization {
+        let mut candidates = Vec::new();
+        let mut unresolved_populations = Vec::new();
+        if let Ok(small_planets) = &occurrence.small_planets {
+            match small_planets {
+                SmallPlanetOccurrence::FgkWarm {
+                    warm_super_earth_count,
+                    warm_sub_neptune_count,
+                } => {
+                    self.generate_small_candidates(
+                        seed,
+                        system_id,
+                        host_member_id,
+                        *warm_super_earth_count,
+                        ExplicitPlanetSourceChannel::FgkWarmSuperEarth,
+                        self.model.warm_super_earth,
+                        evolution,
+                        &mut candidates,
+                    );
+                    self.generate_small_candidates(
+                        seed,
+                        system_id,
+                        host_member_id,
+                        *warm_sub_neptune_count,
+                        ExplicitPlanetSourceChannel::FgkWarmSubNeptune,
+                        self.model.warm_sub_neptune,
+                        evolution,
+                        &mut candidates,
+                    );
+                }
+                SmallPlanetOccurrence::MDwarfAggregate {
+                    small_planet_count,
+                    sub_earth_count,
+                } => {
+                    self.generate_m_dwarf_candidates(
+                        seed,
+                        system_id,
+                        host_member_id,
+                        *small_planet_count,
+                        evolution,
+                        &mut candidates,
+                    );
+                    self.generate_m_dwarf_sub_earth_candidates(
+                        seed,
+                        system_id,
+                        host_member_id,
+                        *sub_earth_count,
+                        evolution,
+                        &mut candidates,
+                    );
+                }
+            }
+        }
+        if occurrence
+            .giant_planets
+            .as_ref()
+            .is_ok_and(|giant| giant.has_at_least_one_cps_giant)
+        {
+            if let Ok(snapshot) = evolution
+                && snapshot.effective_temperature_k.is_some_and(|temperature| {
+                    (self
+                        .model
+                        .doppler_giant
+                        .minimum_host_effective_temperature_k
+                        ..=self
+                            .model
+                            .doppler_giant
+                            .maximum_host_effective_temperature_k)
+                        .contains(&temperature)
+                })
+            {
+                candidates.push(self.generate_giant_candidate(
+                    seed,
+                    system_id,
+                    host_member_id,
+                    snapshot.current_mass_msun,
+                ));
+            } else {
+                unresolved_populations
+                    .push(UnresolvedPlanetPopulation::GiantPlanetPropertiesUnavailable);
+            }
+        }
+        let mut accepted_planets = Vec::new();
+        let mut rejected_candidates = Vec::new();
+        for candidate in candidates {
+            match candidate_acceptance(&candidate, stability_zone) {
+                Ok(()) => accepted_planets.push(candidate),
+                Err(reason) => {
+                    rejected_candidates.push(RejectedPlanetCandidate { candidate, reason })
+                }
+            }
+        }
+        accepted_planets.sort_by(|left, right| left.period_days.total_cmp(&right.period_days));
+        PlanetarySystemRealization {
+            model_version: self.model.model_version,
+            host_member_id,
+            accepted_planets,
+            rejected_candidates,
+            unresolved_populations,
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn generate_small_candidates(
+        &self,
+        seed: u64,
+        system_id: u64,
+        host_member_id: u64,
+        count: u32,
+        channel: ExplicitPlanetSourceChannel,
+        bin: ExplicitSmallPlanetBin,
+        evolution: &Result<StellarEvolutionSnapshot, StellarEvolutionError>,
+        output: &mut Vec<ExplicitPlanetCandidate>,
+    ) {
+        let Ok(snapshot) = evolution else {
+            return;
+        };
+        for index in 0..count {
+            let id = stable_explicit_planet_id(system_id, host_member_id, channel, index);
+            let radius_rearth = sample_log_uniform_for_entity(
+                seed,
+                b"explicit_planet/small_radius/v1",
+                id,
+                bin.minimum_radius_rearth,
+                bin.maximum_radius_rearth,
+            );
+            let period_days = sample_log_uniform_for_entity(
+                seed,
+                b"explicit_planet/small_period/v1",
+                id,
+                bin.minimum_period_days,
+                bin.maximum_period_days,
+            );
+            output.push(ExplicitPlanetCandidate {
+                id,
+                host_member_id,
+                source_channel: channel,
+                properties: ExplicitPlanetProperties::TransitRadius { radius_rearth },
+                period_days,
+                semimajor_axis_au: semimajor_axis_from_period_days(
+                    period_days,
+                    snapshot.current_mass_msun,
+                ),
+                quality_flags: vec![
+                    ExplicitPlanetQualityFlag::WithinBinLogUniformApproximation,
+                    ExplicitPlanetQualityFlag::PlanetInteractionsNotModeled,
+                ],
+            });
+        }
+    }
+
+    fn generate_giant_candidate(
+        &self,
+        seed: u64,
+        system_id: u64,
+        host_member_id: u64,
+        host_mass_msun: f64,
+    ) -> ExplicitPlanetCandidate {
+        let channel = ExplicitPlanetSourceChannel::FgkDopplerGiant;
+        let id = stable_explicit_planet_id(system_id, host_member_id, channel, 0);
+        let model = self.model.doppler_giant;
+        let minimum_mass_mjup = sample_log_power_law_for_entity(
+            seed,
+            b"explicit_planet/giant_minimum_mass/v1",
+            id,
+            model.minimum_mass_mjup,
+            model.maximum_mass_mjup,
+            model.mass_log_density_exponent,
+        );
+        let period_days = sample_log_power_law_for_entity(
+            seed,
+            b"explicit_planet/giant_period/v1",
+            id,
+            model.minimum_period_days,
+            model.maximum_period_days,
+            model.period_log_density_exponent,
+        );
+        ExplicitPlanetCandidate {
+            id,
+            host_member_id,
+            source_channel: channel,
+            properties: ExplicitPlanetProperties::DopplerMinimumMass { minimum_mass_mjup },
+            period_days,
+            semimajor_axis_au: semimajor_axis_from_period_days(period_days, host_mass_msun),
+            quality_flags: vec![
+                ExplicitPlanetQualityFlag::FgkHostTemperatureProxy,
+                ExplicitPlanetQualityFlag::DopplerMinimumMassIsMassTimesSinInclination,
+                ExplicitPlanetQualityFlag::OneGiantFromAtLeastOneOccurrenceGate,
+                ExplicitPlanetQualityFlag::PlanetInteractionsNotModeled,
+            ],
+        }
+    }
+
+    fn generate_m_dwarf_candidates(
+        &self,
+        seed: u64,
+        system_id: u64,
+        host_member_id: u64,
+        count: u32,
+        evolution: &Result<StellarEvolutionSnapshot, StellarEvolutionError>,
+        output: &mut Vec<ExplicitPlanetCandidate>,
+    ) {
+        let Ok(snapshot) = evolution else {
+            return;
+        };
+        let total_weight: f64 = self
+            .model
+            .m_dwarf_occurrence_cells
+            .iter()
+            .map(|cell| cell.occurrence_weight_percent)
+            .sum();
+        let channel = ExplicitPlanetSourceChannel::MDwarfSmallPlanet;
+        for index in 0..count {
+            let id = stable_explicit_planet_id(system_id, host_member_id, channel, index);
+            let draw = domain_rng(seed, b"explicit_planet/m_dwarf_cell/v1", Some(id))
+                .gen_range(0.0..total_weight);
+            let mut cumulative = 0.0;
+            let cell = self
+                .model
+                .m_dwarf_occurrence_cells
+                .iter()
+                .find(|cell| {
+                    cumulative += cell.occurrence_weight_percent;
+                    draw < cumulative
+                })
+                .copied()
+                .unwrap_or_else(|| {
+                    *self
+                        .model
+                        .m_dwarf_occurrence_cells
+                        .last()
+                        .expect("validated non-empty occurrence grid")
+                });
+            let radius_rearth = sample_log_uniform_for_entity(
+                seed,
+                b"explicit_planet/m_dwarf_radius/v1",
+                id,
+                cell.minimum_radius_rearth,
+                cell.maximum_radius_rearth,
+            );
+            let period_days = sample_log_uniform_for_entity(
+                seed,
+                b"explicit_planet/m_dwarf_period/v1",
+                id,
+                cell.minimum_period_days,
+                cell.maximum_period_days,
+            );
+            output.push(ExplicitPlanetCandidate {
+                id,
+                host_member_id,
+                source_channel: channel,
+                properties: ExplicitPlanetProperties::TransitRadius { radius_rearth },
+                period_days,
+                semimajor_axis_au: semimajor_axis_from_period_days(
+                    period_days,
+                    snapshot.current_mass_msun,
+                ),
+                quality_flags: vec![
+                    ExplicitPlanetQualityFlag::WithinBinLogUniformApproximation,
+                    ExplicitPlanetQualityFlag::MDwarfOccurrenceGridRenormalizedToAggregateCount,
+                    ExplicitPlanetQualityFlag::PlanetInteractionsNotModeled,
+                ],
+            });
+        }
+    }
+
+    fn generate_m_dwarf_sub_earth_candidates(
+        &self,
+        seed: u64,
+        system_id: u64,
+        host_member_id: u64,
+        count: u32,
+        evolution: &Result<StellarEvolutionSnapshot, StellarEvolutionError>,
+        output: &mut Vec<ExplicitPlanetCandidate>,
+    ) {
+        let Ok(snapshot) = evolution else {
+            return;
+        };
+        let cells = &self.model.m_dwarf_sub_earth_occurrence_cells;
+        let total_weight: f64 = cells
+            .iter()
+            .map(|cell| cell.occurrence_weight_percent)
+            .sum();
+        let channel = ExplicitPlanetSourceChannel::MDwarfSubEarth;
+        for index in 0..count {
+            let id = stable_explicit_planet_id(system_id, host_member_id, channel, index);
+            let draw = domain_rng(seed, b"explicit_planet/m_dwarf_sub_earth_cell/v1", Some(id))
+                .gen_range(0.0..total_weight);
+            let mut cumulative = 0.0;
+            let cell = cells
+                .iter()
+                .find(|cell| {
+                    cumulative += cell.occurrence_weight_percent;
+                    draw < cumulative
+                })
+                .copied()
+                .unwrap_or_else(|| *cells.last().expect("validated non-empty occurrence grid"));
+            let radius_rearth = sample_log_uniform_for_entity(
+                seed,
+                b"explicit_planet/m_dwarf_sub_earth_radius/v1",
+                id,
+                cell.minimum_radius_rearth,
+                cell.maximum_radius_rearth,
+            );
+            let period_days = sample_log_uniform_for_entity(
+                seed,
+                b"explicit_planet/m_dwarf_sub_earth_period/v1",
+                id,
+                cell.minimum_period_days,
+                cell.maximum_period_days,
+            );
+            output.push(ExplicitPlanetCandidate {
+                id,
+                host_member_id,
+                source_channel: channel,
+                properties: ExplicitPlanetProperties::TransitRadius { radius_rearth },
+                period_days,
+                semimajor_axis_au: semimajor_axis_from_period_days(
+                    period_days,
+                    snapshot.current_mass_msun,
+                ),
+                quality_flags: vec![
+                    ExplicitPlanetQualityFlag::WithinBinLogUniformApproximation,
+                    ExplicitPlanetQualityFlag::MDwarfSubEarthOccurrenceLimitedToMeasuredCells,
+                    ExplicitPlanetQualityFlag::PlanetInteractionsNotModeled,
+                ],
+            });
+        }
+    }
+}
+
+fn candidate_acceptance(
+    candidate: &ExplicitPlanetCandidate,
+    stability_zone: &Result<CircumstellarSTypeStabilityZone, PlanetaryStabilityError>,
+) -> Result<(), RejectedPlanetCandidateReason> {
+    match stability_zone {
+        Ok(CircumstellarSTypeStabilityZone::UnboundedByStellarCompanion { .. }) => Ok(()),
+        Ok(CircumstellarSTypeStabilityZone::CompanionLimited {
+            fit_residual_lower_semimajor_axis_au,
+            ..
+        }) if candidate.semimajor_axis_au <= *fit_residual_lower_semimajor_axis_au => Ok(()),
+        Ok(CircumstellarSTypeStabilityZone::CompanionLimited {
+            fit_residual_lower_semimajor_axis_au,
+            ..
+        }) => Err(
+            RejectedPlanetCandidateReason::OutsideCircumstellarStabilityZone {
+                semimajor_axis_au: candidate.semimajor_axis_au,
+                conservative_outer_limit_au: *fit_residual_lower_semimajor_axis_au,
+            },
+        ),
+        Err(error) => Err(RejectedPlanetCandidateReason::StabilityZoneUnavailable(
+            error.clone(),
+        )),
+    }
+}
+
+fn stable_explicit_planet_id(
+    system_id: u64,
+    host_member_id: u64,
+    channel: ExplicitPlanetSourceChannel,
+    index: u32,
+) -> u64 {
+    let mut input = Vec::with_capacity(64);
+    input.extend_from_slice(b"star_sim/explicit_planet_id/v1");
+    input.extend_from_slice(&system_id.to_le_bytes());
+    input.extend_from_slice(&host_member_id.to_le_bytes());
+    input.push(channel.stable_tag());
+    input.extend_from_slice(&index.to_le_bytes());
+    let hash = blake3::hash(&input);
+    u64::from_le_bytes(
+        hash.as_bytes()[..8]
+            .try_into()
+            .expect("eight-byte hash prefix"),
+    )
+}
+
+fn sample_log_uniform_for_entity(
+    seed: u64,
+    domain: &[u8],
+    entity_id: u64,
+    minimum: f64,
+    maximum: f64,
+) -> f64 {
+    let draw = domain_rng(seed, domain, Some(entity_id)).gen_range(0.0..1.0);
+    minimum * (maximum / minimum).powf(draw)
+}
+
+fn sample_log_power_law_for_entity(
+    seed: u64,
+    domain: &[u8],
+    entity_id: u64,
+    minimum: f64,
+    maximum: f64,
+    exponent: f64,
+) -> f64 {
+    let draw = domain_rng(seed, domain, Some(entity_id)).gen_range(0.0..1.0);
+    if exponent.abs() < 1e-12 {
+        minimum * (maximum / minimum).powf(draw)
+    } else {
+        (minimum.powf(exponent) + draw * (maximum.powf(exponent) - minimum.powf(exponent)))
+            .powf(1.0 / exponent)
+    }
+}
+
+fn valid_explicit_planet_model(model: &ExplicitPlanetModel) -> bool {
+    let bins = [model.warm_super_earth, model.warm_sub_neptune];
+    bins.into_iter().all(|bin| {
+        [
+            bin.minimum_radius_rearth,
+            bin.maximum_radius_rearth,
+            bin.minimum_period_days,
+            bin.maximum_period_days,
+        ]
+        .into_iter()
+        .all(f64::is_finite)
+            && bin.minimum_radius_rearth > 0.0
+            && bin.minimum_radius_rearth < bin.maximum_radius_rearth
+            && bin.minimum_period_days > 0.0
+            && bin.minimum_period_days < bin.maximum_period_days
+    }) && valid_occurrence_cells(&model.m_dwarf_occurrence_cells, 1.0, 4.0, 200.0)
+        && valid_occurrence_cells(&model.m_dwarf_sub_earth_occurrence_cells, 0.5, 1.0, 18.2)
+        && {
+            let giant = model.doppler_giant;
+            [
+                giant.minimum_host_effective_temperature_k,
+                giant.maximum_host_effective_temperature_k,
+                giant.minimum_mass_mjup,
+                giant.maximum_mass_mjup,
+                giant.mass_log_density_exponent,
+                giant.minimum_period_days,
+                giant.maximum_period_days,
+                giant.period_log_density_exponent,
+            ]
+            .into_iter()
+            .all(f64::is_finite)
+                && giant.minimum_host_effective_temperature_k
+                    < giant.maximum_host_effective_temperature_k
+                && giant.minimum_mass_mjup > 0.0
+                && giant.minimum_mass_mjup < giant.maximum_mass_mjup
+                && giant.minimum_period_days > 0.0
+                && giant.minimum_period_days < giant.maximum_period_days
+        }
+}
+
+fn valid_occurrence_cells(
+    cells: &[ExplicitPlanetOccurrenceCell],
+    minimum_radius_rearth: f64,
+    maximum_radius_rearth: f64,
+    maximum_period_days: f64,
+) -> bool {
+    !cells.is_empty()
+        && cells.iter().all(|cell| {
+            [
+                cell.minimum_radius_rearth,
+                cell.maximum_radius_rearth,
+                cell.minimum_period_days,
+                cell.maximum_period_days,
+                cell.occurrence_weight_percent,
+            ]
+            .into_iter()
+            .all(f64::is_finite)
+                && cell.minimum_radius_rearth >= minimum_radius_rearth
+                && cell.minimum_radius_rearth < cell.maximum_radius_rearth
+                && cell.maximum_radius_rearth <= maximum_radius_rearth
+                && cell.minimum_period_days > 0.0
+                && cell.minimum_period_days < cell.maximum_period_days
+                && cell.maximum_period_days <= maximum_period_days
+                && cell.occurrence_weight_percent > 0.0
+        })
+}
+
 fn valid_planet_occurrence_model(model: PlanetOccurrenceModel) -> bool {
     let fgk = model.fgk_small_planets;
     let m = model.m_dwarf_small_planets;
@@ -2413,6 +4272,7 @@ fn valid_planet_occurrence_model(model: PlanetOccurrenceModel) -> bool {
         m.maximum_effective_temperature_k,
         m.minimum_surface_gravity_log10_cgs,
         m.small_planet_mean,
+        m.sub_earth_mean,
         giant.minimum_host_mass_msun,
         giant.maximum_host_mass_msun,
         giant.minimum_iron_abundance_feh,
@@ -2432,6 +4292,7 @@ fn valid_planet_occurrence_model(model: PlanetOccurrenceModel) -> bool {
         && fgk.warm_sub_neptune_solar_mean > 0.0
         && m.minimum_effective_temperature_k < m.maximum_effective_temperature_k
         && m.small_planet_mean > 0.0
+        && m.sub_earth_mean > 0.0
         && giant.minimum_host_mass_msun < giant.maximum_host_mass_msun
         && giant.minimum_iron_abundance_feh < giant.maximum_iron_abundance_feh
         && giant.normalization > 0.0
@@ -2464,7 +4325,10 @@ pub struct StellarCatalogMember {
     pub birth: StellarBirthMember,
     /// A present-day snapshot or an explicit statement that the bundled model does not cover it.
     pub evolution: Result<StellarEvolutionSnapshot, StellarEvolutionError>,
+    pub circumstellar_stability_zone:
+        Result<CircumstellarSTypeStabilityZone, PlanetaryStabilityError>,
     pub planet_population: PlanetPopulationSummary,
+    pub planetary_system: PlanetarySystemRealization,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -2475,6 +4339,7 @@ pub struct StellarCatalogSystem {
     pub population: StellarPopulation,
     /// Formation age and chemistry shared by all coeval members of the system.
     pub history: StellarPopulationHistory,
+    pub orbital_hierarchy: Result<StellarOrbitalHierarchy, StellarOrbitalHierarchyError>,
     pub members: Vec<StellarCatalogMember>,
 }
 
@@ -2496,6 +4361,12 @@ pub enum StellarCatalogModelError {
     InvalidEvolutionModel(#[from] StellarEvolutionError),
     #[error(transparent)]
     InvalidPlanetOccurrenceModel(#[from] PlanetOccurrenceError),
+    #[error(transparent)]
+    InvalidOrbitalHierarchyModel(#[from] StellarOrbitalHierarchyError),
+    #[error(transparent)]
+    InvalidPlanetaryStabilityModel(#[from] PlanetaryStabilityError),
+    #[error(transparent)]
+    InvalidExplicitPlanetModel(#[from] ExplicitPlanetModelError),
 }
 
 /// Generates one coherent present-day stellar catalog for the local 10-parsec sphere.
@@ -2505,6 +4376,9 @@ pub struct StellarCatalogGenerator {
     history_sampler: PopulationHistorySampler,
     evolution_evaluator: StellarEvolutionEvaluator,
     planet_occurrence_sampler: PlanetOccurrenceSampler,
+    orbital_hierarchy_sampler: StellarOrbitalHierarchySampler,
+    planetary_stability_evaluator: PlanetaryStabilityEvaluator,
+    explicit_planet_generator: ExplicitPlanetGenerator,
 }
 
 impl StellarCatalogGenerator {
@@ -2513,12 +4387,22 @@ impl StellarCatalogGenerator {
         population_history_model: PopulationHistoryModel,
         evolution_model: StellarEvolutionModel,
         planet_occurrence_model: PlanetOccurrenceModel,
+        orbital_hierarchy_model: StellarOrbitalHierarchyModel,
+        planetary_stability_model: PlanetaryStabilityModel,
+        explicit_planet_model: ExplicitPlanetModel,
     ) -> Result<Self, StellarCatalogModelError> {
         Ok(Self {
             region_generator: StellarRegionGenerator::new(birth_mass_model)?,
             history_sampler: PopulationHistorySampler::new(population_history_model)?,
             evolution_evaluator: StellarEvolutionEvaluator::new(evolution_model)?,
             planet_occurrence_sampler: PlanetOccurrenceSampler::new(planet_occurrence_model)?,
+            orbital_hierarchy_sampler: StellarOrbitalHierarchySampler::new(
+                orbital_hierarchy_model,
+            )?,
+            planetary_stability_evaluator: PlanetaryStabilityEvaluator::new(
+                planetary_stability_model,
+            )?,
+            explicit_planet_generator: ExplicitPlanetGenerator::new(explicit_planet_model)?,
         })
     }
 
@@ -2546,13 +4430,9 @@ impl StellarCatalogGenerator {
                 let history =
                     self.history_sampler
                         .sample(seed, system.id, system.population, position);
-                let multiple_system = system.birth_masses.members.len() > 1;
-                let multiplicity = if multiple_system {
-                    StellarMultiplicityEnvironment::SeparationUnknown
-                } else {
-                    StellarMultiplicityEnvironment::Single
-                };
-                let members = system
+                let system_member_count = system.birth_masses.members.len();
+                let multiple_system = system_member_count > 1;
+                let evolved_births: Vec<_> = system
                     .birth_masses
                     .members
                     .into_iter()
@@ -2567,6 +4447,72 @@ impl StellarCatalogGenerator {
                                 .quality_flags
                                 .push(StellarEvolutionQualityFlag::BinaryInteractionIgnored);
                         }
+                        (birth, evolution)
+                    })
+                    .collect();
+                let orbit_inputs: Result<Vec<_>, _> = evolved_births
+                    .iter()
+                    .map(|(birth, evolution)| {
+                        if !multiple_system {
+                            return Ok(StellarOrbitMemberInput {
+                                id: birth.id,
+                                role: birth.role,
+                                mass_msun: birth.initial_mass_msun,
+                                radius_rsun: 0.0,
+                                provenance: StellarOrbitMemberProvenance::EvolutionSnapshot,
+                            });
+                        }
+                        let snapshot = match evolution.as_ref() {
+                            Ok(snapshot) => snapshot,
+                            Err(error) => {
+                                return low_mass_contact_radius_input(
+                                    self.orbital_hierarchy_sampler
+                                        .model
+                                        .low_mass_contact_radius_proxy,
+                                    birth,
+                                    history,
+                                    error,
+                                )
+                                .ok_or(StellarOrbitalHierarchyError::MissingStellarEvolution);
+                            }
+                        };
+                        if snapshot.state != EvolutionaryState::MainSequence {
+                            return Err(StellarOrbitalHierarchyError::OrbitalEvolutionNotModeled {
+                                state: snapshot.state,
+                            });
+                        }
+                        Ok(StellarOrbitMemberInput {
+                            id: birth.id,
+                            role: birth.role,
+                            mass_msun: snapshot.current_mass_msun,
+                            radius_rsun: snapshot
+                                .radius_rsun
+                                .ok_or(StellarOrbitalHierarchyError::MissingStellarRadius)?,
+                            provenance: StellarOrbitMemberProvenance::EvolutionSnapshot,
+                        })
+                    })
+                    .collect();
+                let orbital_hierarchy = orbit_inputs.and_then(|inputs| {
+                    self.orbital_hierarchy_sampler
+                        .generate(seed, system.id, &inputs)
+                });
+                let members = evolved_births
+                    .into_iter()
+                    .map(|(birth, evolution)| {
+                        let multiplicity = if !multiple_system {
+                            StellarMultiplicityEnvironment::Single
+                        } else if let Ok(hierarchy) = &orbital_hierarchy {
+                            hierarchy
+                                .nearest_companion_semimajor_axis_au(birth.id)
+                                .map(|semimajor_axis_au| {
+                                    StellarMultiplicityEnvironment::KnownCompanionSeparation {
+                                        semimajor_axis_au,
+                                    }
+                                })
+                                .unwrap_or(StellarMultiplicityEnvironment::SeparationUnknown)
+                        } else {
+                            StellarMultiplicityEnvironment::SeparationUnknown
+                        };
                         let planet_population = self.planet_occurrence_sampler.sample(
                             seed,
                             system.id,
@@ -2575,10 +4521,23 @@ impl StellarCatalogGenerator {
                             &evolution,
                             multiplicity,
                         );
+                        let circumstellar_stability_zone = self
+                            .planetary_stability_evaluator
+                            .evaluate(birth.id, system_member_count, &orbital_hierarchy);
+                        let planetary_system = self.explicit_planet_generator.generate(
+                            seed,
+                            system.id,
+                            birth.id,
+                            &evolution,
+                            &planet_population,
+                            &circumstellar_stability_zone,
+                        );
                         StellarCatalogMember {
                             birth,
                             evolution,
+                            circumstellar_stability_zone,
                             planet_population,
+                            planetary_system,
                         }
                     })
                     .collect();
@@ -2587,6 +4546,7 @@ impl StellarCatalogGenerator {
                     offset_pc: system.offset_pc,
                     population: system.population,
                     history,
+                    orbital_hierarchy,
                     members,
                 }
             })
@@ -3180,26 +5140,26 @@ mod tests {
 
     #[test]
     fn stellar_catalog_is_a_reproducible_coherent_ten_parsec_region() {
-        let location = SampledGalacticLocation {
-            position: GalacticPosition {
-                radius_pc: 8_178.0,
-                azimuth_rad: 0.0,
-                height_pc: 0.0,
-            },
-            sampled_population: StellarPopulation::ThinDisk,
-            local_density: PopulationDensity {
-                thin_disk: 0.14,
-                thick_disk: 0.01,
-                halo: 0.0,
-            },
-        };
+        let location =
+            GalacticLocationSampler::new(GalaxyModel::default(), GalacticSamplingVolume::default())
+                .unwrap()
+                .sample(42);
+        let birth_mass_model: StellarBirthMassModel =
+            ron::from_str(include_str!("../../../config/stellar_birth_masses.ron")).unwrap();
+        let population_history_model: PopulationHistoryModel = ron::from_str(include_str!(
+            "../../../config/stellar_population_history.ron"
+        ))
+        .unwrap();
         let evolution_model: StellarEvolutionModel =
             ron::from_str(include_str!("../../../config/stellar_evolution.ron")).unwrap();
         let generator = StellarCatalogGenerator::new(
-            test_birth_mass_model([0.6, 0.3, 0.1, 0.0]),
-            test_population_history_model(),
+            birth_mass_model,
+            population_history_model,
             evolution_model,
             PlanetOccurrenceModel::default(),
+            StellarOrbitalHierarchyModel::default(),
+            PlanetaryStabilityModel::default(),
+            ExplicitPlanetModel::default(),
         )
         .unwrap();
 
@@ -3207,6 +5167,116 @@ mod tests {
         let repeated = generator.generate(42, location).unwrap();
 
         assert_eq!(first, repeated);
+        let realized_or_retained_planet_outcomes: usize = first
+            .systems
+            .iter()
+            .flat_map(|system| &system.members)
+            .map(|member| {
+                member.planetary_system.accepted_planets.len()
+                    + member.planetary_system.rejected_candidates.len()
+                    + member.planetary_system.unresolved_populations.len()
+            })
+            .sum();
+        assert!(realized_or_retained_planet_outcomes > 0);
+        let mut explicit_planet_ids: Vec<_> = first
+            .systems
+            .iter()
+            .flat_map(|system| &system.members)
+            .flat_map(|member| &member.planetary_system.accepted_planets)
+            .map(|planet| planet.id)
+            .collect();
+        let explicit_planet_count = explicit_planet_ids.len();
+        explicit_planet_ids.sort_unstable();
+        explicit_planet_ids.dedup();
+        assert_eq!(explicit_planet_ids.len(), explicit_planet_count);
+        let drawn_small_planet_count: usize = first
+            .systems
+            .iter()
+            .flat_map(|system| &system.members)
+            .filter_map(|member| member.planet_population.small_planets.as_ref().ok())
+            .map(|occurrence| match occurrence {
+                SmallPlanetOccurrence::FgkWarm {
+                    warm_super_earth_count,
+                    warm_sub_neptune_count,
+                } => (*warm_super_earth_count + *warm_sub_neptune_count) as usize,
+                SmallPlanetOccurrence::MDwarfAggregate {
+                    small_planet_count,
+                    sub_earth_count,
+                } => (*small_planet_count + *sub_earth_count) as usize,
+            })
+            .sum();
+        let retained_small_planet_candidates = first
+            .systems
+            .iter()
+            .flat_map(|system| &system.members)
+            .flat_map(|member| {
+                member.planetary_system.accepted_planets.iter().chain(
+                    member
+                        .planetary_system
+                        .rejected_candidates
+                        .iter()
+                        .map(|rejected| &rejected.candidate),
+                )
+            })
+            .filter(|candidate| {
+                matches!(
+                    candidate.properties,
+                    ExplicitPlanetProperties::TransitRadius { .. }
+                )
+            })
+            .count();
+        assert_eq!(retained_small_planet_candidates, drawn_small_planet_count);
+        let retained_sub_earths: Vec<_> = first
+            .systems
+            .iter()
+            .flat_map(|system| &system.members)
+            .flat_map(|member| {
+                member.planetary_system.accepted_planets.iter().chain(
+                    member
+                        .planetary_system
+                        .rejected_candidates
+                        .iter()
+                        .map(|rejected| &rejected.candidate),
+                )
+            })
+            .filter(|candidate| {
+                candidate.source_channel == ExplicitPlanetSourceChannel::MDwarfSubEarth
+            })
+            .collect();
+        assert!(!retained_sub_earths.is_empty());
+        assert!(retained_sub_earths.iter().all(|candidate| {
+            matches!(
+                candidate.properties,
+                ExplicitPlanetProperties::TransitRadius { radius_rearth }
+                    if (0.5..1.0).contains(&radius_rearth)
+            ) && (0.5..=18.2).contains(&candidate.period_days)
+                && candidate.quality_flags.contains(
+                    &ExplicitPlanetQualityFlag::MDwarfSubEarthOccurrenceLimitedToMeasuredCells,
+                )
+        }));
+        for system in &first.systems {
+            for member in &system.members {
+                assert!(
+                    member
+                        .planetary_system
+                        .accepted_planets
+                        .windows(2)
+                        .all(|pair| pair[0].period_days <= pair[1].period_days)
+                );
+                for planet in &member.planetary_system.accepted_planets {
+                    assert_eq!(planet.host_member_id, member.birth.id);
+                    assert!(planet.period_days > 0.0);
+                    assert!(planet.semimajor_axis_au > 0.0);
+                    if let Ok(CircumstellarSTypeStabilityZone::CompanionLimited {
+                        fit_residual_lower_semimajor_axis_au,
+                        ..
+                    }) = &member.circumstellar_stability_zone
+                    {
+                        assert!(planet.semimajor_axis_au <= *fit_residual_lower_semimajor_axis_au);
+                    }
+                }
+            }
+        }
         assert_eq!(first.radius_pc, LOCAL_STELLAR_REGION_RADIUS_PC);
         assert!(!first.systems.is_empty());
         assert!(
@@ -3217,8 +5287,93 @@ mod tests {
                 .any(|member| member.planet_population.small_planets.is_ok()
                     || member.planet_population.giant_planets.is_ok())
         );
+        let mut companion_limited_zones = 0;
+        let mut explicit_stability_coverage_errors = 0;
+        for system in &first.systems {
+            for member in &system.members {
+                match member.circumstellar_stability_zone.as_ref() {
+                    Ok(CircumstellarSTypeStabilityZone::UnboundedByStellarCompanion { .. }) => {
+                        assert_eq!(system.members.len(), 1);
+                    }
+                    Ok(CircumstellarSTypeStabilityZone::CompanionLimited {
+                        nominal_outer_critical_semimajor_axis_au,
+                        limiting_relative_orbit,
+                        ..
+                    }) => {
+                        assert!(system.members.len() > 1);
+                        assert!(*nominal_outer_critical_semimajor_axis_au > 0.0);
+                        assert!(
+                            *nominal_outer_critical_semimajor_axis_au
+                                < limiting_relative_orbit.semimajor_axis_au
+                                    * (1.0 - limiting_relative_orbit.eccentricity)
+                        );
+                        companion_limited_zones += 1;
+                    }
+                    Err(PlanetaryStabilityError::OutsideEccentricityCalibration { .. }) => {
+                        assert!(system.members.len() > 1);
+                        explicit_stability_coverage_errors += 1;
+                    }
+                    Err(error) => panic!("unexpected stability-zone result: {error}"),
+                }
+            }
+        }
+        assert!(companion_limited_zones > 0);
+        assert!(explicit_stability_coverage_errors > 0);
+        let quadruple = first
+            .systems
+            .iter()
+            .find(|system| system.members.len() == 4)
+            .expect("seed 42 catalog fixture contains one quadruple");
+        let quadruple_hierarchy = quadruple.orbital_hierarchy.as_ref().unwrap();
+        assert!(
+            quadruple
+                .members
+                .iter()
+                .all(|member| member.circumstellar_stability_zone.is_ok())
+        );
+        assert!(
+            quadruple_hierarchy
+                .quality_flags
+                .contains(&StellarOrbitalHierarchyQualityFlag::LowMassContactRadiusProxy)
+        );
+        assert!(
+            quadruple_hierarchy
+                .quality_flags
+                .contains(&StellarOrbitalHierarchyQualityFlag::BirthMassUsedAsDynamicalMass)
+        );
+        let uncovered_low_mass_member = quadruple
+            .members
+            .iter()
+            .find(|member| member.birth.initial_mass_msun < 0.10)
+            .expect("seed 42 quadruple contains a sub-0.10 Msun member");
+        assert!(matches!(
+            uncovered_low_mass_member.evolution,
+            Err(StellarEvolutionError::OutsideMassGrid { .. })
+        ));
         for system in &first.systems {
             assert!(!system.members.is_empty());
+            if let Ok(hierarchy) = &system.orbital_hierarchy {
+                let mut hierarchy_member_ids = hierarchy.member_ids();
+                let mut catalog_member_ids: Vec<_> = system
+                    .members
+                    .iter()
+                    .map(|member| member.birth.id)
+                    .collect();
+                hierarchy_member_ids.sort_unstable();
+                catalog_member_ids.sort_unstable();
+                assert_eq!(hierarchy_member_ids, catalog_member_ids);
+                if system.members.len() > 1 {
+                    assert!(system.members.iter().all(|member| {
+                        hierarchy
+                            .nearest_companion_semimajor_axis_au(member.birth.id)
+                            .is_some_and(|value| value > 0.0)
+                            && !matches!(
+                                member.planet_population.small_planets,
+                                Err(PlanetOccurrenceError::MultiplicitySeparationRequired)
+                            )
+                    }));
+                }
+            }
             assert!(system.members.iter().all(|member| {
                 member.evolution.as_ref().map_or(true, |snapshot| {
                     snapshot.initial_mass_msun == member.birth.initial_mass_msun
@@ -3242,6 +5397,8 @@ mod tests {
                             .quality_flags
                             .contains(&StellarEvolutionQualityFlag::BinaryInteractionIgnored))
                 );
+            }
+            if system.members.len() > 1 && system.orbital_hierarchy.is_err() {
                 assert!(system.members.iter().all(|member| matches!(
                     member.planet_population.small_planets,
                     Err(PlanetOccurrenceError::MultiplicitySeparationRequired)

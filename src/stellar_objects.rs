@@ -1,8 +1,11 @@
 // Benötigte Typen aus dem neuen Einheitensystem importieren
-use physics_units::*;
-
+// use physics_units::*;
 use bevy::prelude::Component;
 use serde::{Deserialize, Serialize};
+use units::prelude::Giga;
+use units::prelude::Prefixed;
+use units::prelude::Time;
+use units::prelude::Year;
 
 //================================================================================
 // 1. Grundlegende Eigenschaften (als Komponenten, aber hier nur als Daten)

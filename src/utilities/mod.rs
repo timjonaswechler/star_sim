@@ -1,1 +1,1 @@
-pub mod name_generator;
+pub use name_generator::*;

@@ -6,13 +6,17 @@ use plotters::{
     prelude::*,
 };
 use simulation_core::{
-    EvolutionaryState, GalacticLocationSampler, GalacticPosition, GalacticSamplingVolume,
-    GalaxyModel, GeneratedStellarCatalog, PlanetOccurrenceError, PlanetOccurrenceModel,
-    PopulationHistoryModel, PopulationHistorySampler, SmallPlanetOccurrence, StellarBirthMassModel,
+    CircumstellarSTypeStabilityZone, EvolutionaryState, ExplicitPlanetModel,
+    ExplicitPlanetProperties, ExplicitPlanetSourceChannel, GalacticLocationSampler,
+    GalacticPosition, GalacticSamplingVolume, GalaxyModel, GeneratedStellarCatalog,
+    PlanetOccurrenceError, PlanetOccurrenceModel, PlanetaryStabilityError, PlanetaryStabilityModel,
+    PopulationHistoryModel, PopulationHistorySampler, QuadrupleTopology,
+    RejectedPlanetCandidateReason, SmallPlanetOccurrence, StellarBirthMassModel,
     StellarBirthMassSampler, StellarCatalogGenerator, StellarCatalogMember, StellarChemistry,
     StellarEvolutionError, StellarEvolutionEvaluator, StellarEvolutionModel,
-    StellarEvolutionQualityFlag, StellarEvolutionSnapshot, StellarPopulation,
-    StellarPopulationHistory, WhiteDwarfCoolingModel,
+    StellarEvolutionQualityFlag, StellarEvolutionSnapshot, StellarOrbitalHierarchyError,
+    StellarOrbitalHierarchyModel, StellarOrbitalHierarchyQualityFlag, StellarPopulation,
+    StellarPopulationHistory, UnresolvedPlanetPopulation, WhiteDwarfCoolingModel,
 };
 use std::{
     env,
@@ -94,6 +98,18 @@ fn main() -> Result<(), Box<dyn Error>> {
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../config/planet_occurrence.ron");
     let planet_occurrence_model: PlanetOccurrenceModel =
         ron::de::from_reader(BufReader::new(File::open(&planet_occurrence_path)?))?;
+    let orbital_hierarchy_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../config/stellar_orbital_hierarchy.ron");
+    let orbital_hierarchy_model: StellarOrbitalHierarchyModel =
+        ron::de::from_reader(BufReader::new(File::open(&orbital_hierarchy_path)?))?;
+    let planetary_stability_path =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../config/planetary_stability.ron");
+    let planetary_stability_model: PlanetaryStabilityModel =
+        ron::de::from_reader(BufReader::new(File::open(&planetary_stability_path)?))?;
+    let explicit_planet_path =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../config/explicit_planets.ron");
+    let explicit_planet_model: ExplicitPlanetModel =
+        ron::de::from_reader(BufReader::new(File::open(&explicit_planet_path)?))?;
     let sampler = GalacticLocationSampler::new(galaxy, GalacticSamplingVolume::default())?;
     let sampled = sampler.sample(seed);
     let selected = sampled.position;
@@ -104,6 +120,9 @@ fn main() -> Result<(), Box<dyn Error>> {
         history_model,
         evolution_model,
         planet_occurrence_model,
+        orbital_hierarchy_model,
+        planetary_stability_model,
+        explicit_planet_model,
     )?;
     let (catalog_generator, cooling_model_loaded) = if cooling_path.is_file() {
         let cooling_model: WhiteDwarfCoolingModel =
@@ -133,6 +152,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     let chemistry_plot_path = format!("{output_dir}/stellar-chemistry.png");
     let birth_mass_plot_path = format!("{output_dir}/stellar-birth-masses.png");
     let evolution_plot_path = format!("{output_dir}/stellar-evolution.png");
+    let orbit_plot_path = format!("{output_dir}/stellar-orbital-hierarchy.png");
+    let planetary_stability_plot_path = format!("{output_dir}/planetary-stability-zones.png");
+    let explicit_planets_plot_path = format!("{output_dir}/explicit-planets.png");
     render_density_sections(&total_path, &galaxy, selected)?;
     render_population_components(&components_path, &galaxy, selected)?;
     render_density_profiles(&profiles_path, &galaxy, selected)?;
@@ -148,10 +170,16 @@ fn main() -> Result<(), Box<dyn Error>> {
     render_stellar_chemistry(&chemistry_plot_path, history_sampler, seed, selected)?;
     render_stellar_birth_masses(&birth_mass_plot_path, &birth_mass_sampler, seed, &catalog)?;
     render_stellar_evolution(&evolution_plot_path, &evolved_members, &evolution_evaluator)?;
+    render_stellar_orbital_hierarchy(&orbit_plot_path, &catalog)?;
+    render_planetary_stability_zones(&planetary_stability_plot_path, &catalog)?;
+    render_explicit_planets(&explicit_planets_plot_path, &catalog)?;
 
     let density = galaxy.stellar_number_density_at(selected);
     println!("Loaded {}", config_path.display());
     println!("Loaded {}", planet_occurrence_path.display());
+    println!("Loaded {}", orbital_hierarchy_path.display());
+    println!("Loaded {}", planetary_stability_path.display());
+    println!("Loaded {}", explicit_planet_path.display());
     if cooling_model_loaded {
         println!("Loaded {}", cooling_path.display());
     } else {
@@ -169,6 +197,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     println!("Wrote {chemistry_plot_path}");
     println!("Wrote {birth_mass_plot_path}");
     println!("Wrote {evolution_plot_path}");
+    println!("Wrote {orbit_plot_path}");
+    println!("Wrote {planetary_stability_plot_path}");
+    println!("Wrote {explicit_planets_plot_path}");
     println!("Seed: {seed}");
     println!("Sampled population: {}", sampled.sampled_population.label());
     println!(
@@ -246,7 +277,10 @@ fn main() -> Result<(), Box<dyn Error>> {
                 warm_super_earth_count,
                 warm_sub_neptune_count,
             } => warm_super_earth_count + warm_sub_neptune_count,
-            SmallPlanetOccurrence::MDwarfAggregate { small_planet_count } => *small_planet_count,
+            SmallPlanetOccurrence::MDwarfAggregate {
+                small_planet_count,
+                sub_earth_count,
+            } => small_planet_count + sub_earth_count,
         })
         .sum();
     let calibrated_giant_planet_hosts = evolved_members
@@ -275,6 +309,175 @@ fn main() -> Result<(), Box<dyn Error>> {
         "  calibrated giant-planet hosts: {calibrated_giant_planet_hosts}, hosts with a CPS-domain giant: {drawn_giant_hosts}"
     );
     println!("  members awaiting companion separation: {unknown_multiplicity}");
+    let explicit_planets: Vec<_> = evolved_members
+        .iter()
+        .flat_map(|member| &member.planetary_system.accepted_planets)
+        .collect();
+    let explicit_small_planets = explicit_planets
+        .iter()
+        .filter(|planet| {
+            matches!(
+                planet.source_channel,
+                ExplicitPlanetSourceChannel::FgkWarmSuperEarth
+                    | ExplicitPlanetSourceChannel::FgkWarmSubNeptune
+                    | ExplicitPlanetSourceChannel::MDwarfSmallPlanet
+                    | ExplicitPlanetSourceChannel::MDwarfSubEarth
+            )
+        })
+        .count();
+    let explicit_sub_earths = explicit_planets
+        .iter()
+        .filter(|planet| planet.source_channel == ExplicitPlanetSourceChannel::MDwarfSubEarth)
+        .count();
+    let explicit_giant_planets = explicit_planets
+        .iter()
+        .filter(|planet| planet.source_channel == ExplicitPlanetSourceChannel::FgkDopplerGiant)
+        .count();
+    let rejected_planet_candidates: usize = evolved_members
+        .iter()
+        .map(|member| member.planetary_system.rejected_candidates.len())
+        .sum();
+    let rejected_outside_stability = evolved_members
+        .iter()
+        .flat_map(|member| &member.planetary_system.rejected_candidates)
+        .filter(|rejected| {
+            matches!(
+                &rejected.reason,
+                RejectedPlanetCandidateReason::OutsideCircumstellarStabilityZone { .. }
+            )
+        })
+        .count();
+    let rejected_without_stability_coverage =
+        rejected_planet_candidates - rejected_outside_stability;
+    let unresolved_planet_count: u32 = evolved_members
+        .iter()
+        .flat_map(|member| &member.planetary_system.unresolved_populations)
+        .map(|population| match population {
+            UnresolvedPlanetPopulation::MDwarfSmallPlanets { count } => *count,
+            UnresolvedPlanetPopulation::GiantPlanetPropertiesUnavailable => 1,
+        })
+        .sum();
+    println!("Explicit planet realization:");
+    println!(
+        "  accepted: {} ({explicit_small_planets} small, including {explicit_sub_earths} M-dwarf sub-Earths; {explicit_giant_planets} Doppler giants)",
+        explicit_planets.len()
+    );
+    println!(
+        "  rejected: {rejected_planet_candidates} ({rejected_outside_stability} outside stability zone, {rejected_without_stability_coverage} without stability coverage)"
+    );
+    println!("  positive occurrence objects still unresolved: {unresolved_planet_count}");
+    let generated_hierarchies = catalog
+        .systems
+        .iter()
+        .filter(|system| system.members.len() > 1 && system.orbital_hierarchy.is_ok())
+        .count();
+    let unsupported_hierarchies = catalog
+        .systems
+        .iter()
+        .filter(|system| system.members.len() > 1 && system.orbital_hierarchy.is_err())
+        .count();
+    println!(
+        "Stellar orbital hierarchies: {generated_hierarchies} generated, {unsupported_hierarchies} explicitly unsupported"
+    );
+    for system in catalog
+        .systems
+        .iter()
+        .filter(|system| system.members.len() == 4)
+    {
+        if let Ok(hierarchy) = &system.orbital_hierarchy {
+            let topology = match hierarchy.quadruple_topology {
+                Some(QuadrupleTopology::TwoPlusTwo) => "2+2",
+                Some(QuadrupleTopology::ThreePlusOne) => "3+1",
+                None => "missing",
+            };
+            let mut semimajor_axes: Vec<_> = hierarchy
+                .relative_orbits()
+                .into_iter()
+                .map(|orbit| orbit.semimajor_axis_au)
+                .collect();
+            semimajor_axes.sort_by(f64::total_cmp);
+            let axes = semimajor_axes
+                .iter()
+                .map(|axis| format!("{axis:.2}"))
+                .collect::<Vec<_>>()
+                .join(", ");
+            let uses_contact_proxy = hierarchy
+                .quality_flags
+                .contains(&StellarOrbitalHierarchyQualityFlag::LowMassContactRadiusProxy);
+            println!(
+                "  quadruple system {}: {topology} topology, relative semimajor axes [{axes}] AU, low-mass contact proxy: {uses_contact_proxy}",
+                system.id
+            );
+        }
+    }
+    for system in catalog
+        .systems
+        .iter()
+        .filter(|system| system.members.len() > 1)
+    {
+        if let Err(error) = &system.orbital_hierarchy {
+            let masses = system
+                .members
+                .iter()
+                .map(|member| format!("{:.3}", member.birth.initial_mass_msun))
+                .collect::<Vec<_>>()
+                .join(", ");
+            println!(
+                "  unsupported system {}: initial masses [{masses}] Msun, age {:.2} Gyr, [Fe/H] {:+.2} — {error}",
+                system.id, system.history.age_gyr, system.history.chemistry.iron_abundance_feh,
+            );
+        }
+    }
+    let unbounded_single_zones = evolved_members
+        .iter()
+        .filter(|member| {
+            matches!(
+                member.circumstellar_stability_zone,
+                Ok(CircumstellarSTypeStabilityZone::UnboundedByStellarCompanion { .. })
+            )
+        })
+        .count();
+    let companion_limited_zones = evolved_members
+        .iter()
+        .filter(|member| {
+            matches!(
+                member.circumstellar_stability_zone,
+                Ok(CircumstellarSTypeStabilityZone::CompanionLimited { .. })
+            )
+        })
+        .count();
+    let unsupported_stability_zones = evolved_members
+        .iter()
+        .filter(|member| member.circumstellar_stability_zone.is_err())
+        .count();
+    println!(
+        "Circumstellar S-type stability zones: {unbounded_single_zones} single-star unbounded, {companion_limited_zones} companion-limited, {unsupported_stability_zones} outside calibration"
+    );
+    for system in catalog
+        .systems
+        .iter()
+        .filter(|system| system.members.len() == 4)
+    {
+        for member in &system.members {
+            match &member.circumstellar_stability_zone {
+                Ok(CircumstellarSTypeStabilityZone::CompanionLimited {
+                    nominal_outer_critical_semimajor_axis_au,
+                    fit_residual_lower_semimajor_axis_au,
+                    ..
+                }) => println!(
+                    "  quadruple member {:.3} Msun: nominal outer boundary {:.2} AU, fit-residual lower estimate {:.2} AU",
+                    member.birth.initial_mass_msun,
+                    nominal_outer_critical_semimajor_axis_au,
+                    fit_residual_lower_semimajor_axis_au
+                ),
+                Err(error) => println!(
+                    "  quadruple member {:.3} Msun: {error}",
+                    member.birth.initial_mass_msun
+                ),
+                Ok(CircumstellarSTypeStabilityZone::UnboundedByStellarCompanion { .. }) => {}
+            }
+        }
+    }
     for population in StellarPopulation::ALL {
         let matching: Vec<_> = catalog
             .systems
@@ -1155,6 +1358,582 @@ fn render_stellar_birth_masses(
     ))?;
     root.present()?;
     Ok(())
+}
+
+fn render_stellar_orbital_hierarchy(
+    path: &str,
+    catalog: &GeneratedStellarCatalog,
+) -> Result<(), Box<dyn Error>> {
+    let root = BitMapBackend::new(path, (1_800, 650)).into_drawing_area();
+    root.fill(&RGBColor(12, 16, 28))?;
+    let panels = root.split_evenly((1, 3));
+
+    let mut companion_scale = ChartBuilder::on(&panels[0])
+        .caption(
+            "Nearest stellar companion scale",
+            ("sans-serif", 22).into_font().color(&WHITE),
+        )
+        .margin(18)
+        .x_label_area_size(50)
+        .y_label_area_size(58)
+        .build_cartesian_2d(-1.1_f64..0.2_f64, -3.0_f64..4.2_f64)?;
+    style_mesh(
+        &mut companion_scale,
+        "log10 initial stellar mass [M☉]",
+        "log10 nearest relative a [AU]",
+    )?;
+    for system in &catalog.systems {
+        let Ok(hierarchy) = &system.orbital_hierarchy else {
+            continue;
+        };
+        companion_scale.draw_series(system.members.iter().filter_map(|member| {
+            hierarchy
+                .nearest_companion_semimajor_axis_au(member.birth.id)
+                .map(|semimajor_axis_au| {
+                    Circle::new(
+                        (
+                            member.birth.initial_mass_msun.log10(),
+                            semimajor_axis_au.log10(),
+                        ),
+                        4,
+                        population_color(system.population).filled(),
+                    )
+                })
+        }))?;
+    }
+
+    let mut period_eccentricity = ChartBuilder::on(&panels[1])
+        .caption(
+            "Static relative stellar orbits",
+            ("sans-serif", 22).into_font().color(&WHITE),
+        )
+        .margin(18)
+        .x_label_area_size(50)
+        .y_label_area_size(58)
+        .build_cartesian_2d(-1.0_f64..10.0_f64, 0.0_f64..1.0_f64)?;
+    style_mesh(
+        &mut period_eccentricity,
+        "log10 relative period [days]",
+        "eccentricity",
+    )?;
+    period_eccentricity.draw_series(
+        catalog
+            .systems
+            .iter()
+            .filter_map(|system| system.orbital_hierarchy.as_ref().ok())
+            .flat_map(|hierarchy| hierarchy.relative_orbits())
+            .map(|orbit| {
+                Circle::new(
+                    (orbit.period_days.log10(), orbit.eccentricity),
+                    5,
+                    RGBColor(50, 205, 255).filled(),
+                )
+            }),
+    )?;
+
+    let categories = [
+        ("generated", RGBColor(74, 210, 132)),
+        ("mass", RGBColor(255, 178, 36)),
+        ("evolution", RGBColor(255, 110, 85)),
+        ("missing", RGBColor(185, 105, 255)),
+        ("sampling", RGBColor(150, 155, 175)),
+    ];
+    let counts = [
+        catalog
+            .systems
+            .iter()
+            .filter(|system| system.members.len() > 1 && system.orbital_hierarchy.is_ok())
+            .count(),
+        count_orbital_hierarchy_error(catalog, |error| {
+            matches!(
+                error,
+                StellarOrbitalHierarchyError::OutsideOrbitalScaleCalibration { .. }
+            )
+        }),
+        count_orbital_hierarchy_error(catalog, |error| {
+            matches!(
+                error,
+                StellarOrbitalHierarchyError::OrbitalEvolutionNotModeled { .. }
+            )
+        }),
+        count_orbital_hierarchy_error(catalog, |error| {
+            matches!(
+                error,
+                StellarOrbitalHierarchyError::MissingStellarEvolution
+                    | StellarOrbitalHierarchyError::MissingStellarRadius
+            )
+        }),
+        count_orbital_hierarchy_error(catalog, |error| {
+            matches!(
+                error,
+                StellarOrbitalHierarchyError::StableHierarchySamplingExhausted
+                    | StellarOrbitalHierarchyError::OutsideEccentricityCalibration
+                    | StellarOrbitalHierarchyError::UnsupportedMemberCount
+                    | StellarOrbitalHierarchyError::InvalidModel
+            )
+        }),
+    ];
+    let maximum = counts.iter().copied().max().unwrap_or(1).max(1) as f64;
+    let mut coverage = ChartBuilder::on(&panels[2])
+        .caption(
+            "Hierarchy coverage",
+            ("sans-serif", 22).into_font().color(&WHITE),
+        )
+        .margin(18)
+        .x_label_area_size(50)
+        .y_label_area_size(58)
+        .build_cartesian_2d(-0.5_f64..4.5_f64, 0.0_f64..maximum * 1.2)?;
+    coverage
+        .configure_mesh()
+        .disable_x_mesh()
+        .x_labels(5)
+        .x_label_formatter(&|value| {
+            let index = value.round() as usize;
+            categories
+                .get(index)
+                .map(|(label, _)| *label)
+                .unwrap_or("")
+                .to_string()
+        })
+        .x_desc("multiple-system outcome")
+        .y_desc("stellar systems")
+        .axis_desc_style(("sans-serif", 20).into_font().color(&WHITE))
+        .label_style(("sans-serif", 14).into_font().color(&WHITE))
+        .bold_line_style(RGBAColor(255, 255, 255, 0.16))
+        .light_line_style(RGBAColor(255, 255, 255, 0.06))
+        .draw()?;
+    for (index, ((_, color), count)) in categories.iter().zip(counts).enumerate() {
+        coverage.draw_series(std::iter::once(Rectangle::new(
+            [
+                (index as f64 - 0.38, 0.0),
+                (index as f64 + 0.38, count as f64),
+            ],
+            color.filled(),
+        )))?;
+    }
+
+    root.present()?;
+    Ok(())
+}
+
+fn count_orbital_hierarchy_error(
+    catalog: &GeneratedStellarCatalog,
+    predicate: impl Fn(&StellarOrbitalHierarchyError) -> bool,
+) -> usize {
+    catalog
+        .systems
+        .iter()
+        .filter(|system| {
+            system.members.len() > 1 && system.orbital_hierarchy.as_ref().is_err_and(&predicate)
+        })
+        .count()
+}
+
+fn render_planetary_stability_zones(
+    path: &str,
+    catalog: &GeneratedStellarCatalog,
+) -> Result<(), Box<dyn Error>> {
+    let root = BitMapBackend::new(path, (1_300, 650)).into_drawing_area();
+    root.fill(&RGBColor(12, 16, 28))?;
+    let panels = root.split_evenly((1, 2));
+
+    let mut limits = ChartBuilder::on(&panels[0])
+        .caption(
+            "Circumstellar S-type boundaries",
+            ("sans-serif", 22).into_font().color(&WHITE),
+        )
+        .margin(18)
+        .x_label_area_size(54)
+        .y_label_area_size(62)
+        .build_cartesian_2d(-1.15_f64..0.2_f64, -3.0_f64..3.0_f64)?;
+    style_mesh(
+        &mut limits,
+        "log10 initial host mass [M☉]",
+        "log10 critical semimajor axis [AU]",
+    )?;
+    for system in &catalog.systems {
+        for member in &system.members {
+            let Ok(CircumstellarSTypeStabilityZone::CompanionLimited {
+                nominal_outer_critical_semimajor_axis_au,
+                fit_residual_lower_semimajor_axis_au,
+                ..
+            }) = &member.circumstellar_stability_zone
+            else {
+                continue;
+            };
+            let x = member.birth.initial_mass_msun.log10();
+            let nominal_y = nominal_outer_critical_semimajor_axis_au.log10();
+            let lower_y = fit_residual_lower_semimajor_axis_au.log10();
+            let color = population_color(system.population);
+            limits.draw_series(std::iter::once(PathElement::new(
+                vec![(x, lower_y), (x, nominal_y)],
+                color.stroke_width(2),
+            )))?;
+            limits.draw_series(std::iter::once(Circle::new(
+                (x, nominal_y),
+                5,
+                color.filled(),
+            )))?;
+            limits.draw_series(std::iter::once(TriangleMarker::new(
+                (x, lower_y),
+                5,
+                color.filled(),
+            )))?;
+        }
+    }
+
+    let categories = [
+        ("single", RGBColor(74, 210, 132)),
+        ("limited", RGBColor(50, 205, 255)),
+        ("eccentricity", RGBColor(255, 178, 36)),
+        ("mass ratio", RGBColor(255, 110, 85)),
+        ("hierarchy/other", RGBColor(185, 105, 255)),
+    ];
+    let members: Vec<_> = catalog
+        .systems
+        .iter()
+        .flat_map(|system| &system.members)
+        .collect();
+    let counts = [
+        members
+            .iter()
+            .filter(|member| {
+                matches!(
+                    member.circumstellar_stability_zone,
+                    Ok(CircumstellarSTypeStabilityZone::UnboundedByStellarCompanion { .. })
+                )
+            })
+            .count(),
+        members
+            .iter()
+            .filter(|member| {
+                matches!(
+                    member.circumstellar_stability_zone,
+                    Ok(CircumstellarSTypeStabilityZone::CompanionLimited { .. })
+                )
+            })
+            .count(),
+        count_planetary_stability_error(catalog, |error| {
+            matches!(
+                error,
+                PlanetaryStabilityError::OutsideEccentricityCalibration { .. }
+            )
+        }),
+        count_planetary_stability_error(catalog, |error| {
+            matches!(
+                error,
+                PlanetaryStabilityError::OutsideMassRatioCalibration { .. }
+            )
+        }),
+        count_planetary_stability_error(catalog, |error| {
+            !matches!(
+                error,
+                PlanetaryStabilityError::OutsideEccentricityCalibration { .. }
+                    | PlanetaryStabilityError::OutsideMassRatioCalibration { .. }
+            )
+        }),
+    ];
+    let maximum = counts.iter().copied().max().unwrap_or(1).max(1) as f64;
+    let mut coverage = ChartBuilder::on(&panels[1])
+        .caption(
+            "S-type model coverage",
+            ("sans-serif", 22).into_font().color(&WHITE),
+        )
+        .margin(18)
+        .x_label_area_size(54)
+        .y_label_area_size(58)
+        .build_cartesian_2d(-0.5_f64..4.5_f64, 0.0_f64..maximum * 1.2)?;
+    coverage
+        .configure_mesh()
+        .disable_x_mesh()
+        .x_labels(5)
+        .x_label_formatter(&|value| {
+            categories
+                .get(value.round() as usize)
+                .map(|(label, _)| *label)
+                .unwrap_or("")
+                .to_string()
+        })
+        .x_desc("catalog-member outcome")
+        .y_desc("stellar members")
+        .axis_desc_style(("sans-serif", 20).into_font().color(&WHITE))
+        .label_style(("sans-serif", 14).into_font().color(&WHITE))
+        .bold_line_style(RGBAColor(255, 255, 255, 0.16))
+        .light_line_style(RGBAColor(255, 255, 255, 0.06))
+        .draw()?;
+    for (index, ((_, color), count)) in categories.iter().zip(counts).enumerate() {
+        coverage.draw_series(std::iter::once(Rectangle::new(
+            [
+                (index as f64 - 0.38, 0.0),
+                (index as f64 + 0.38, count as f64),
+            ],
+            color.filled(),
+        )))?;
+    }
+    root.present()?;
+    Ok(())
+}
+
+fn render_explicit_planets(
+    path: &str,
+    catalog: &GeneratedStellarCatalog,
+) -> Result<(), Box<dyn Error>> {
+    let root = BitMapBackend::new(path, (1_800, 650)).into_drawing_area();
+    root.fill(&RGBColor(12, 16, 28))?;
+    let panels = root.split_evenly((1, 3));
+
+    let mut small_planets = ChartBuilder::on(&panels[0])
+        .caption(
+            "Explicit small planets",
+            ("sans-serif", 22).into_font().color(&WHITE),
+        )
+        .margin(18)
+        .x_label_area_size(54)
+        .y_label_area_size(58)
+        .build_cartesian_2d(-0.35_f64..2.35_f64, 0.45_f64..4.2_f64)?;
+    style_mesh(&mut small_planets, "log10 period [days]", "radius [R⊕]")?;
+    small_planets
+        .draw_series(std::iter::once(PathElement::new(
+            vec![(-0.35, 1.0), (2.35, 1.0)],
+            RGBAColor(255, 255, 255, 0.55).stroke_width(2),
+        )))?
+        .label("Earth radius (1 R⊕)")
+        .legend(|(x, y)| {
+            PathElement::new(
+                vec![(x, y), (x + 22, y)],
+                RGBAColor(255, 255, 255, 0.55).stroke_width(2),
+            )
+        });
+    for system in &catalog.systems {
+        for member in &system.members {
+            small_planets.draw_series(
+                member
+                    .planetary_system
+                    .accepted_planets
+                    .iter()
+                    .filter(|planet| {
+                        planet.source_channel != ExplicitPlanetSourceChannel::MDwarfSubEarth
+                    })
+                    .filter_map(|planet| match planet.properties {
+                        ExplicitPlanetProperties::TransitRadius { radius_rearth } => {
+                            Some(Circle::new(
+                                (planet.period_days.log10(), radius_rearth),
+                                5,
+                                population_color(system.population).filled(),
+                            ))
+                        }
+                        ExplicitPlanetProperties::DopplerMinimumMass { .. } => None,
+                    }),
+            )?;
+            small_planets.draw_series(
+                member
+                    .planetary_system
+                    .rejected_candidates
+                    .iter()
+                    .filter(|rejected| {
+                        rejected.candidate.source_channel
+                            != ExplicitPlanetSourceChannel::MDwarfSubEarth
+                    })
+                    .filter_map(|rejected| match rejected.candidate.properties {
+                        ExplicitPlanetProperties::TransitRadius { radius_rearth } => {
+                            Some(Cross::new(
+                                (rejected.candidate.period_days.log10(), radius_rearth),
+                                6,
+                                RGBColor(255, 110, 85).stroke_width(2),
+                            ))
+                        }
+                        ExplicitPlanetProperties::DopplerMinimumMass { .. } => None,
+                    }),
+            )?;
+        }
+    }
+    let accepted_sub_earths: Vec<_> = catalog
+        .systems
+        .iter()
+        .flat_map(|system| &system.members)
+        .flat_map(|member| &member.planetary_system.accepted_planets)
+        .filter(|planet| planet.source_channel == ExplicitPlanetSourceChannel::MDwarfSubEarth)
+        .filter_map(|planet| match planet.properties {
+            ExplicitPlanetProperties::TransitRadius { radius_rearth } => {
+                Some((planet.period_days.log10(), radius_rearth))
+            }
+            ExplicitPlanetProperties::DopplerMinimumMass { .. } => None,
+        })
+        .collect();
+    let sub_earth_label = format!("M-dwarf sub-Earths ({})", accepted_sub_earths.len());
+    small_planets
+        .draw_series(
+            accepted_sub_earths
+                .iter()
+                .copied()
+                .map(|position| TriangleMarker::new(position, 9, RGBColor(235, 75, 255).filled())),
+        )?
+        .label(sub_earth_label)
+        .legend(|(x, y)| TriangleMarker::new((x + 11, y), 8, RGBColor(235, 75, 255).filled()));
+    small_planets.draw_series(
+        catalog
+            .systems
+            .iter()
+            .flat_map(|system| &system.members)
+            .flat_map(|member| &member.planetary_system.rejected_candidates)
+            .filter(|rejected| {
+                rejected.candidate.source_channel == ExplicitPlanetSourceChannel::MDwarfSubEarth
+            })
+            .filter_map(|rejected| match rejected.candidate.properties {
+                ExplicitPlanetProperties::TransitRadius { radius_rearth } => Some(Cross::new(
+                    (rejected.candidate.period_days.log10(), radius_rearth),
+                    9,
+                    RGBColor(235, 75, 255).stroke_width(3),
+                )),
+                ExplicitPlanetProperties::DopplerMinimumMass { .. } => None,
+            }),
+    )?;
+    small_planets
+        .configure_series_labels()
+        .position(SeriesLabelPosition::UpperRight)
+        .background_style(RGBAColor(12, 16, 28, 0.88))
+        .border_style(RGBAColor(255, 255, 255, 0.25))
+        .label_font(("sans-serif", 14).into_font().color(&WHITE))
+        .draw()?;
+
+    let mut giants = ChartBuilder::on(&panels[1])
+        .caption(
+            "Explicit FGK Doppler giants",
+            ("sans-serif", 22).into_font().color(&WHITE),
+        )
+        .margin(18)
+        .x_label_area_size(54)
+        .y_label_area_size(62)
+        .build_cartesian_2d(0.2_f64..3.4_f64, -0.6_f64..1.1_f64)?;
+    style_mesh(
+        &mut giants,
+        "log10 period [days]",
+        "log10 minimum mass [M♃]",
+    )?;
+    for system in &catalog.systems {
+        for member in &system.members {
+            giants.draw_series(member.planetary_system.accepted_planets.iter().filter_map(
+                |planet| match planet.properties {
+                    ExplicitPlanetProperties::DopplerMinimumMass { minimum_mass_mjup } => {
+                        Some(Circle::new(
+                            (planet.period_days.log10(), minimum_mass_mjup.log10()),
+                            6,
+                            population_color(system.population).filled(),
+                        ))
+                    }
+                    ExplicitPlanetProperties::TransitRadius { .. } => None,
+                },
+            ))?;
+            giants.draw_series(
+                member
+                    .planetary_system
+                    .rejected_candidates
+                    .iter()
+                    .filter_map(|rejected| match rejected.candidate.properties {
+                        ExplicitPlanetProperties::DopplerMinimumMass { minimum_mass_mjup } => {
+                            Some(Cross::new(
+                                (
+                                    rejected.candidate.period_days.log10(),
+                                    minimum_mass_mjup.log10(),
+                                ),
+                                6,
+                                RGBColor(255, 110, 85).stroke_width(2),
+                            ))
+                        }
+                        ExplicitPlanetProperties::TransitRadius { .. } => None,
+                    }),
+            )?;
+        }
+    }
+
+    let accepted: usize = catalog
+        .systems
+        .iter()
+        .flat_map(|system| &system.members)
+        .map(|member| member.planetary_system.accepted_planets.len())
+        .sum();
+    let rejected: usize = catalog
+        .systems
+        .iter()
+        .flat_map(|system| &system.members)
+        .map(|member| member.planetary_system.rejected_candidates.len())
+        .sum();
+    let unresolved: usize = catalog
+        .systems
+        .iter()
+        .flat_map(|system| &system.members)
+        .flat_map(|member| &member.planetary_system.unresolved_populations)
+        .map(|population| match population {
+            UnresolvedPlanetPopulation::MDwarfSmallPlanets { count } => *count as usize,
+            UnresolvedPlanetPopulation::GiantPlanetPropertiesUnavailable => 1,
+        })
+        .sum();
+    let categories = [
+        ("accepted", RGBColor(74, 210, 132), accepted),
+        ("rejected", RGBColor(255, 110, 85), rejected),
+        ("unresolved", RGBColor(255, 178, 36), unresolved),
+    ];
+    let maximum = categories
+        .iter()
+        .map(|(_, _, count)| *count)
+        .max()
+        .unwrap_or(1)
+        .max(1) as f64;
+    let mut outcomes = ChartBuilder::on(&panels[2])
+        .caption(
+            "Explicit-planet outcomes",
+            ("sans-serif", 22).into_font().color(&WHITE),
+        )
+        .margin(18)
+        .x_label_area_size(54)
+        .y_label_area_size(58)
+        .build_cartesian_2d(-0.5_f64..2.5_f64, 0.0_f64..maximum * 1.2)?;
+    outcomes
+        .configure_mesh()
+        .disable_x_mesh()
+        .x_labels(3)
+        .x_label_formatter(&|value| {
+            categories
+                .get(value.round() as usize)
+                .map(|(label, _, _)| *label)
+                .unwrap_or("")
+                .to_string()
+        })
+        .x_desc("candidate outcome")
+        .y_desc("planet candidates / unresolved count")
+        .axis_desc_style(("sans-serif", 20).into_font().color(&WHITE))
+        .label_style(("sans-serif", 14).into_font().color(&WHITE))
+        .bold_line_style(RGBAColor(255, 255, 255, 0.16))
+        .light_line_style(RGBAColor(255, 255, 255, 0.06))
+        .draw()?;
+    for (index, (_, color, count)) in categories.iter().enumerate() {
+        outcomes.draw_series(std::iter::once(Rectangle::new(
+            [
+                (index as f64 - 0.38, 0.0),
+                (index as f64 + 0.38, *count as f64),
+            ],
+            color.filled(),
+        )))?;
+    }
+    root.present()?;
+    Ok(())
+}
+
+fn count_planetary_stability_error(
+    catalog: &GeneratedStellarCatalog,
+    predicate: impl Fn(&PlanetaryStabilityError) -> bool,
+) -> usize {
+    catalog
+        .systems
+        .iter()
+        .flat_map(|system| &system.members)
+        .filter(|member| {
+            member
+                .circumstellar_stability_zone
+                .as_ref()
+                .is_err_and(&predicate)
+        })
+        .count()
 }
 
 fn render_local_region(path: &str, region: &GeneratedStellarCatalog) -> Result<(), Box<dyn Error>> {

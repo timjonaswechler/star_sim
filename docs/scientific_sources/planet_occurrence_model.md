@@ -38,6 +38,7 @@ PlanetPopulationSummary {
         }
       | MDwarfAggregate {
             small_planet_count,        # 1.0-4.0 R_earth, P < 200 d
+            sub_earth_count,           # 0.5-1.0 R_earth, 0.5-18.2 d
         },
         SmallPlanetCoverageError,
     >,
@@ -91,7 +92,17 @@ lambda_m_dwarf_small = 2.5 planets/star
 
 for `1-4 R_earth` planets with periods shorter than `200 d`, with a quoted uncertainty of `+/- 0.2 planets/star`. The source sample began with `Teff < 4000 K` and `log(g) > 3`; after its quality cuts the 2,543 retained stars span `2661-3999 K`. The exact implementable v1 eligibility is therefore `2661 <= Teff <= 3999 K`, `log(g) > 3`, and `MainSequence`. Store these cuts in configuration rather than equating the word “M dwarf” with an arbitrary mass boundary. They reproduce the source domain more directly than a spectral-type label, though they do not reproduce all of the survey's light-curve quality selections.
 
-Do not apply the FGK metallicity scaling to this M-dwarf rate. This study did not calibrate such a dependence, and M-dwarf abundance scales have additional systematics. The aggregate `1-4 R_earth` count also cannot be subdivided into super-Earths and sub-Neptunes without importing the paper's full radius-period occurrence table.
+The revised-stellar-radius half of Table 4 also provides point estimates for the `0.5-1.0 R_earth` row in three short-period cells:
+
+| Radius | Period | Mean planets per star |
+|---:|---:|---:|
+| `0.5-1.0 R_earth` | `0.5-1.7 d` | `0.0138` |
+| `0.5-1.0 R_earth` | `1.7-5.5 d` | `0.0842` |
+| `0.5-1.0 R_earth` | `5.5-18.2 d` | `0.2059` |
+
+V1 therefore draws an independent `sub_earth_count ~ Poisson(0.3039 * multiplicity_factor)` and conditionally selects one of those three cells using their reported occurrence values as weights. This population is additional to, not a redistribution of, the `1-4 R_earth` aggregate. The `18.2-200 d` cells supply no point estimate in this row; V1 leaves that region outside coverage instead of interpreting missing estimates as zero occurrence.
+
+Do not apply the FGK metallicity scaling to either M-dwarf rate. This study did not calibrate such a dependence, and M-dwarf abundance scales have additional systematics. The aggregate `1-4 R_earth` count also cannot be subdivided into super-Earths and sub-Neptunes without importing the paper's full radius-period occurrence table.
 
 Source: [Dressing & Charbonneau (2015)](https://doi.org/10.1088/0004-637X/807/1/45); [open manuscript](https://arxiv.org/abs/1501.01623).
 

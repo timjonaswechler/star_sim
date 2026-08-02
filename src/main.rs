@@ -7,33 +7,6 @@ use star_sim::astronomy::celestial_bodies::{
 use star_sim::utilities::name_generator::*;
 
 fn main() {
-    let pattern_str = "<s!v|s~c>";
-    println!(
-        "Parse und generiere Namen für das Muster: '{}'",
-        pattern_str
-    );
-
-    let parse_result = Pattern::parse(pattern_str, &SYMBOL_MAP, true);
-
-    match parse_result {
-        Ok(pattern) => {
-            println!("\n--- Erfolgreich geparst! Generiere 10 Namen: ---");
-
-            // Initialisiere den Zufallszahlengenerator.
-            let mut rng = rand::thread_rng();
-
-            // Generiere und drucke 10 Beispielnamen.
-            for i in 1..=10 {
-                let name = pattern.generate(&mut rng);
-                println!("{:2}. {}", i, name);
-            }
-        }
-        Err(error) => {
-            println!("\n--- Fehler beim Parsen! ---");
-            println!("Fehler: {}", error);
-        }
-    }
-
     match to_roman(8) {
         Ok(roman) => println!("Römische Zahl: {}", roman),
         Err(e) => eprintln!("Fehler bei der Umwandlung in römische Zahlen: {}", e),

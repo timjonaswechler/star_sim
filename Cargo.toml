@@ -3,6 +3,22 @@ name = "star_sim"
 version = "0.1.0"
 edition = "2024"
 
+[workspace]
+resolver = "3"
+members = [
+    ".",
+    "apps/bevy_viewer",
+    "apps/population_lab",
+    "crates/physics/units",
+    "crates/simulation_core",
+    "crates/utilities/name_generator",
+]
+default-members = [
+    "apps/bevy_viewer",
+    "apps/population_lab",
+    "crates/simulation_core",
+]
+
 [dependencies]
 bevy = "0.15"
 egui = "0.30"
@@ -17,4 +33,5 @@ lazy_static = "1.4.0"
 paste = "1.0"
 
 # Local crates
-physics-units = { path = "crates/physics_units" }
+units = { path = "crates/physics/units" }
+name_generator = { path = "crates/utilities/name_generator" }

@@ -1,0 +1,47 @@
+// Static field-star hierarchy model; it does not integrate orbital motion.
+// See docs/scientific_sources/stellar_orbital_hierarchy.md.
+(
+    model_version: StaticFieldHierarchyV1,
+    m_dwarf_scale: (
+        minimum_primary_mass_msun: 0.08,
+        source_minimum_primary_mass_msun: 0.20,
+        source_maximum_primary_mass_msun: 0.67,
+        maximum_primary_mass_msun: 0.70,
+        log10_semimajor_axis_au_mean: 1.68,
+        log10_semimajor_axis_au_standard_deviation: 0.97,
+        maximum_semimajor_axis_au: 10000.0,
+    ),
+    solar_type_scale: (
+        minimum_primary_mass_msun: 0.70,
+        maximum_primary_mass_msun: 1.30,
+        source_anchor_minimum_primary_mass_msun: 0.80,
+        source_anchor_maximum_primary_mass_msun: 1.20,
+        log10_period_days_mean: 5.03,
+        log10_period_days_standard_deviation: 2.28,
+        minimum_log10_period_days: -0.3,
+        maximum_log10_period_days: 10.0,
+    ),
+    eccentricity: (
+        circularization_period_days: 12.0,
+        absolute_maximum: 0.99,
+        m_dwarf_uses_solar_proxy: true,
+    ),
+    quadruple_topology: (
+        probability_two_plus_two: 0.74,
+        probability_three_plus_one: 0.26,
+    ),
+    stability: (
+        mardling_aarseth_coefficient: 2.8,
+        mutual_inclination_rad: 0.0,
+        maximum_sampling_attempts: 128,
+    ),
+    // BHAC15-backed conservative envelopes used only for contact rejection.
+    low_mass_contact_radius_proxy: (
+        minimum_mass_msun: 0.08,
+        maximum_mass_msun_exclusive: 0.10,
+        minimum_age_gyr: 0.10,
+        old_field_age_gyr: 1.0,
+        young_field_radius_rsun: 0.20,
+        old_field_radius_rsun: 0.15,
+    ),
+)

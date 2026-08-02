@@ -17,7 +17,11 @@
         minimum_effective_temperature_k: 2661.0,
         maximum_effective_temperature_k: 3999.0,
         minimum_surface_gravity_log10_cgs: 3.0,
+        // Dressing & Charbonneau (2015), Table 4: 1-4 R_earth, P<200 d.
         small_planet_mean: 2.5,
+        // Independently measured 0.5-1.0 R_earth cells with point estimates,
+        // limited to P=0.5-18.2 d. Longer-period cells are not treated as zero.
+        sub_earth_mean: 0.3039,
     ),
     giant_planets: (
         minimum_host_mass_msun: 0.2,
