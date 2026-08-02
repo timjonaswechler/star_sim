@@ -1,11 +1,11 @@
-/// Represents an event that is triggered when the seed for random number generation changes.
+/// Represents a message sent when the seed for random number generation changes.
 ///
-/// This event carries the new seed value, allowing other parts of the application
+/// This message carries the new seed value, allowing other parts of the application
 /// to react to the change, for example, by re-initializing their own random number
 /// generators or re-calculating procedurally generated content.
 use bevy::prelude::*;
 
-#[derive(Event, Debug, Clone)]
+#[derive(Message, Debug, Clone)]
 pub struct SeedChangedEvent {
     /// The new seed value.
     pub new_seed: u32,

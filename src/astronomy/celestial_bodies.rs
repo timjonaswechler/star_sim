@@ -1,8 +1,20 @@
-// use physics_units::{
-//     self as units, Angle, Degree, Fraction, Kelvin, Kilo, Kilogram, Mega, Meter, Prefixed, Ratio, Second,
-//     Year,
-// };
 use bevy::prelude::*;
+use units::{
+    prefix::{Kilo, Mega, Prefixed},
+    quantities::{
+        astronomy::{Acceleration, Angle, Degree, MeterPerSecondSquared},
+        length::{Length, Meter},
+        mass::{Kilogram, Mass as MassQuantity},
+        temperature::{AbsoluteTemperature, Kelvin},
+        time::{Second, Time, Year},
+    },
+    value::Value,
+};
+
+type Kilometers = Value<Length, Prefixed<Kilo, Meter>>;
+type Megayears = Value<Time, Prefixed<Mega, Year>>;
+type Kiloseconds = Value<Time, Prefixed<Kilo, Second>>;
+type Degrees = Value<Angle, Degree>;
 
 #[derive(Component, Debug, Clone, Copy)]
 pub struct Root;
@@ -24,36 +36,36 @@ pub struct Habitable;
 
 #[derive(Component, Debug, Clone, Copy)]
 pub struct Mass {
-    pub value: units::Mass<Kilogram>,
+    pub value: Value<MassQuantity, Kilogram>,
 }
 
 #[derive(Component, Debug, Clone, Copy)]
 pub struct Age {
-    pub value: units::Time<Prefixed<Mega, Year>>,
+    pub value: Megayears,
 }
 
 #[derive(Component, Debug, Clone, Copy)]
 pub struct MeanRadius {
-    pub value: units::Distance<Prefixed<Kilo, Meter>>,
+    pub value: Kilometers,
 }
 
 #[derive(Component, Debug, Clone, Copy)]
 pub struct SurfaceGravity {
-    pub value: units::Acceleration<Prefixed<Kilo, Meter>>,
+    pub value: Value<Acceleration, MeterPerSecondSquared>,
 }
 
 #[derive(Component, Debug, Clone, Copy)]
 pub struct RotationPeriod {
-    pub value: units::Time<Prefixed<Kilo, Second>>,
+    pub value: Kiloseconds,
 }
 #[derive(Component, Debug, Clone, Copy)]
 pub struct AxialTilt {
-    pub value: Angle<Degree>,
+    pub value: Degrees,
 }
 
 #[derive(Component, Debug, Clone, Copy)]
 pub struct BlackBodyTemperature {
-    pub value: units::Temperature<Kelvin>,
+    pub value: Value<AbsoluteTemperature, Kelvin>,
 }
 
 pub struct CelestialBody {
@@ -64,42 +76,42 @@ pub struct CelestialBody {
 // Define the orbital parameters for celestial bodies
 #[derive(Component, Debug, Clone, Copy)]
 pub struct SemiMajorAxis {
-    pub value: units::Distance<Prefixed<Kilo, Meter>>,
+    pub value: Kilometers,
 }
 
 #[derive(Component, Debug, Clone, Copy)]
 pub struct Eccentricity {
-    pub value: Ratio<Fraction>, // 0.0 to 1.0
+    pub value: f64, // 0.0 to 1.0
 }
 
 #[derive(Component, Debug, Clone, Copy)]
 pub struct Inclination {
-    pub value: Angle<Degree>,
+    pub value: Degrees,
 }
 
 #[derive(Component, Debug, Clone, Copy)]
 pub struct ArgumentOfPeriapsis {
-    pub value: Angle<Degree>,
+    pub value: Degrees,
 }
 
 #[derive(Component, Debug, Clone, Copy)]
 pub struct TimeOfPeriapsis {
-    pub value: units::Time<Year>,
+    pub value: Value<Time, Year>,
 }
 
 #[derive(Component, Debug, Clone, Copy)]
 pub struct LongitudeOfAscendingNode {
-    pub value: Angle<Degree>,
+    pub value: Degrees,
 }
 
 #[derive(Component, Debug, Clone, Copy)]
 pub struct AscendingNode {
-    pub value: units::Distance<Prefixed<Kilo, Meter>>,
+    pub value: Kilometers,
 }
 
 #[derive(Component, Debug, Clone, Copy)]
 pub struct DescendingNode {
-    pub value: units::Distance<Prefixed<Kilo, Meter>>,
+    pub value: Kilometers,
 }
 
 #[derive(Component, Debug, Clone, Copy)]
@@ -116,22 +128,20 @@ impl Default for Orbit {
     fn default() -> Self {
         Self {
             semi_major_axis: SemiMajorAxis {
-                value: units::Distance::<Prefixed<Kilo, Meter>>::new(1.0),
+                value: Kilometers::new(1.0),
             },
-            eccentricity: Eccentricity {
-                value: Ratio::new(0.0),
-            },
+            eccentricity: Eccentricity { value: 0.0 },
             inclination: Inclination {
-                value: Angle::<Degree>::new(0.0),
+                value: Degrees::new(0.0),
             },
             argument_of_periapsis: ArgumentOfPeriapsis {
-                value: Angle::<Degree>::new(0.0),
+                value: Degrees::new(0.0),
             },
             time_of_periapsis: TimeOfPeriapsis {
-                value: units::Time::<Year>::new(1.0),
+                value: Value::<Time, Year>::new(1.0),
             },
             longitude_of_ascending_node: LongitudeOfAscendingNode {
-                value: Angle::<Degree>::new(0.0),
+                value: Degrees::new(0.0),
             },
         }
     }
@@ -139,13 +149,13 @@ impl Default for Orbit {
 
 #[derive(Component, Debug, Clone, Copy)]
 pub struct Barycenter {
-    pub mass: units::Mass<Kilogram>,
+    pub mass: Value<MassQuantity, Kilogram>,
 }
 
 impl Default for Barycenter {
     fn default() -> Self {
         Self {
-            mass: units::Mass::<Kilogram>::new(0.0),
+            mass: Value::<MassQuantity, Kilogram>::new(0.0),
         }
     }
 }
@@ -204,7 +214,7 @@ pub fn query_satellites_of_specific_parent(
     query: Query<(&Name, &SatelliteOf)>,
     parent_query: Query<&Name, With<Root>>,
 ) {
-    if let Ok(parent_name) = parent_query.get_single() {
+    if parent_query.single().is_ok() {
         for (sat_name, satellite_of) in &query {
             if let Ok(parent_name) = parent_query.get(satellite_of.0) {
                 println!("Satellit '{}' umkreist '{}'", sat_name, parent_name);

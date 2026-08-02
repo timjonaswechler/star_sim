@@ -33,5 +33,5 @@ lazy_static = "1.4.0"
 paste = "1.0"
 
 # Local crates
-units = { path = "crates/physics/units" }
+units = { path = "crates/physics/units", features = ["serde"] }
 name_generator = { path = "crates/utilities/name_generator" }

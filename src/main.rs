@@ -4,7 +4,6 @@ use star_sim::astronomy::celestial_bodies::{
     query_all_satellites, query_nested_hierarchy, query_rocky_satellites,
     query_satellites_with_orbit, setup_system,
 };
-use star_sim::utilities::name_generator::*;
 
 fn main() {
     match to_roman(8) {

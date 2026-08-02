@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use crate::math::probabilities::SeedPlugin;
 
-mod probabilities;
+pub mod probabilities;
 
 pub struct MathPlugin;
 
