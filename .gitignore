@@ -1,4 +1,5 @@
 /target
+/examples/color_preview/target/
 .DS_Store
 *.py
 combined_source.md
