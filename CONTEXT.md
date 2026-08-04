@@ -202,6 +202,66 @@ _Avoid_: Destroyed planet, resampling request
 A positive occurrence result whose source domain does not determine enough properties to materialise individual planets without inventing a distribution.
 _Avoid_: Empty planetary system, unsupported host
 
+**Scientific Claim**:
+A scientifically meaningful generated value together with the provenance that explains how that value was obtained. Its provenance remains inseparable from the value, allowing one object to contain claims supported by different kinds of evidence.
+_Avoid_: Unannotated generated property, object-level evidence label
+
+**Evidence Level**:
+The kind of support behind a scientific claim: `Empirical` when a named source directly supports the claim inside its calibrated domain, `PhysicalProxy` when a physical model or explicitly transferred analogue produces it, and `Decorative` when bounded variation is added only for presentation. Extrapolation is a qualifier on a physical-proxy claim, not a separate evidence level.
+_Avoid_: Confidence, quality score, speculative evidence level
+
+**Generating Prescription**:
+An immutable, versioned identity for the method that produced a scientific claim. It refers to every scientific source used by that method and preserves any precise source locator needed to audit the claim.
+_Avoid_: Unversioned model name, citation
+
+**Scientific Source**:
+A uniquely identified publication, dataset, or other scientific record supporting a generating prescription. Its complete citation may be stored once in a shared catalog while each scientific claim retains stable references to it.
+_Avoid_: Generating prescription, free-text citation
+
+**Aleatory Variation**:
+The variation among possible stellar systems or properties represented by a generating prescription. It is sampled seed-deterministically for each applicable claim.
+_Avoid_: Epistemic uncertainty, model error
+
+**Epistemic Uncertainty**:
+Uncertainty in scientific knowledge, source parameters, or model assumptions rather than variation among generated systems. Shared epistemic parameters are selected consistently for a whole model realization rather than independently for each object.
+_Avoid_: Aleatory variation, random decorative variation
+
+**Model Realization**:
+One coherent selection of shared epistemic parameters used throughout a generated stellar catalog. It allows sensitivity or ensemble runs without turning common scientific uncertainty into independent object-to-object variation.
+_Avoid_: Stellar system seed, individual property draw
+
+**Claim Uncertainty**:
+The source-faithful quantitative or explicitly unquantified uncertainty attached to a scientific claim. It preserves whether the source supplied an interval, bound, parametric distribution, posterior artifact, or no quantified uncertainty, including confidence or credible level and correlations shared with other claims.
+_Avoid_: Generic confidence score, automatically Gaussian error, aleatory variation
+
+**Claim Extrapolation**:
+A structured applicability record for a physical-proxy claim evaluated beyond a scientific source's calibrated domain. It identifies every exceeded input axis, the source domain, the evaluated input, and the direction, extent, and method of extrapolation. An empirical prescription never silently extrapolates or clamps its inputs.
+_Avoid_: Empirical claim, generic warning flag, clamped estimate
+
+**Claim Derivation**:
+The auditable relationship from a derived scientific claim to its immediate input claims. Stable claim identities and transitive derivation links preserve the complete origin without duplicating entire provenance chains on every value. A derived claim's evidence level is the least-supported level among its generating prescription and every essential input; decorative input may not silently support a physical claim.
+_Avoid_: Copied provenance text, source list without input relationships
+
+**Object Evidence Summary**:
+A derived overview of an object's claim composition: counts by evidence level, the least-supported physical evidence level, and separate indications of decorative claims, extrapolation, unquantified uncertainty, rejection, and unsupported coverage. Individual scientific claims remain the source of truth; the summary is never a single object-wide evidence label.
+_Avoid_: Object-level evidence label, replacement for claim provenance
+
+**Claim Outcome**:
+The result of attempting to produce a scientific claim: `Accepted` retains a plausibility-checked claim, `NotSelected` records a normal evidence-based draw that produced no candidate, `Rejected` retains the candidate and violated constraints, and `Unsupported` records why no value may be generated. Only accepted and rejected outcomes contain a generated value.
+_Avoid_: Optional value without reason, replacing rejected candidates, clamped unsupported value
+
+**Random Draw Address**:
+The stable identity of a stochastic decision within a simulation seed, formed from the generating-prescription namespace, stable object identity, claim key, and bounded-attempt index under a named random-number algorithm version. It allows one claim or non-selection to be reproduced without depending on unrelated draw order.
+_Avoid_: Mutable global draw position, unexplained derived seed
+
+**Validation Receipt**:
+The versioned record of the plausibility policy applied to a generated candidate, its input claims, and every relevant passed, failed, or unevaluated constraint, including evaluated margins and thresholds. It explains acceptance or rejection but does not guarantee unmodelled long-term stability.
+_Avoid_: Boolean validity flag, first failure only, stability guarantee
+
+**Provenance Integrity**:
+The invariant that every scientific claim and claim outcome is complete and internally consistent with its evidence level, sources, applicability, derivation, uncertainty, stochastic origin, and validation state. Invalid combinations fail during construction or deserialization rather than continuing as warning-bearing data.
+_Avoid_: Best-effort provenance, partially trusted claim
+
 **Orbital Node**:
 A member of a hierarchical orbital arrangement that is either a physical body or a barycentre.
 _Avoid_: Satellite, child entity

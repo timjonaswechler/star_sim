@@ -35,6 +35,9 @@ fn fragment(input: VertexOutput) -> @location(0) vec4<f32> {
     let phase_offset = plasma.dynamics.w;
     let detail_scale = plasma.detail.x;
     let turbulence = plasma.detail.y;
+    if brightness <= 0.0001 || fill <= 0.0001 {
+        return vec4(0.0);
+    }
 
     // Energy reaches the loop from both footpoints during the evaporation phase.
     let distance_from_footpoint = 2.0 * min(input.uv.x, 1.0 - input.uv.x);
@@ -56,6 +59,6 @@ fn fragment(input: VertexOutput) -> @location(0) vec4<f32> {
     let volume_profile = 0.58 + rim * 0.85;
     let leading_edge = 1.0 + 0.75 * smoothstep(fill - 0.1, fill, distance_from_footpoint);
     let emission = plasma.color.rgb * brightness * density * volume_profile * leading_edge;
-    let opacity = clamp(0.16 + density * 0.2 + rim * 0.17, 0.0, 0.62);
+    let opacity = clamp((0.16 + density * 0.2 + rim * 0.17) * brightness, 0.0, 0.62);
     return vec4(emission, opacity);
 }

@@ -38,6 +38,10 @@ pub struct StarSurfaceUniform {
     pub granulation_strength: f32,
     pub granulation_scale: f32,
     pub animation_speed: f32,
+    /// 0: physical stellar surface, 1: signed noisy dipole diagnostic.
+    pub display_mode: u32,
+    /// World-space direction of the magnetic poles; independent of geographic Y.
+    pub magnetic_axis: Vec4,
 }
 
 /// HDR material with view-dependent limb darkening and animated granulation.
@@ -83,6 +87,8 @@ pub fn procedural_star_surface_material(emission: BlackBodyEmission) -> StarSurf
             granulation_strength: 0.16,
             granulation_scale: 18.0,
             animation_speed: 0.025,
+            display_mode: 0,
+            magnetic_axis: Vec4::new(0.31, 0.88, 0.36, 0.0).normalize(),
         },
     }
 }
