@@ -6,6 +6,10 @@ use rand_distr::{Distribution, Normal, Poisson};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+pub mod provenance;
+
+pub use provenance::*;
+
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct ExponentialDisk {
     /// Mid-plane number density at the solar radius, in stars per cubic parsec.
