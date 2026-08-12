@@ -36,6 +36,8 @@ pub enum ProvenanceError {
     PhysicalProxyWithoutApplicability,
     #[error("only physical-proxy claims may carry extrapolation")]
     ExtrapolationRequiresPhysicalProxy,
+    #[error("decorative claims must have presentation-only applicability")]
+    DecorativeWithoutPresentationApplicability,
     #[error(
         "claim uncertainty must record aleatory or epistemic uncertainty; use NotQuantified when necessary"
     )]

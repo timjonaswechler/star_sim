@@ -83,16 +83,27 @@ impl ExtrapolatedInputAxis {
                 field: "extrapolation departure",
             });
         }
-        match self.direction {
+        let expected_departure = match self.direction {
             ExtrapolationDirection::BelowMinimum
-                if self.evaluated_value < self.calibrated_minimum => {}
+                if self.evaluated_value < self.calibrated_minimum =>
+            {
+                self.calibrated_minimum - self.evaluated_value
+            }
             ExtrapolationDirection::AboveMaximum
-                if self.evaluated_value > self.calibrated_maximum => {}
+                if self.evaluated_value > self.calibrated_maximum =>
+            {
+                self.evaluated_value - self.calibrated_maximum
+            }
             _ => {
                 return Err(ProvenanceError::InvalidInterval {
                     field: "extrapolated input axis",
                 });
             }
+        };
+        if !expected_departure.is_finite() || self.departure != expected_departure {
+            return Err(ProvenanceError::InvalidInterval {
+                field: "extrapolation departure",
+            });
         }
         Ok(())
     }

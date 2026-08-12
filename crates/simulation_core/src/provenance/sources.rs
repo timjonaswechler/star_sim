@@ -317,6 +317,8 @@ impl TryFrom<CorrelationGroupWire> for CorrelationGroup {
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 #[serde(try_from = "ScientificSourceCatalogWire")]
 pub struct ScientificSourceCatalog {
+    /// Global simulation seed used to resolve deterministic claim draw addresses.
+    pub simulation_seed: u64,
     /// Bibliographic sources referenced by prescriptions and claims.
     pub sources: Vec<ScientificSource>,
     /// Versioned generation methods used by claims.
@@ -329,6 +331,7 @@ pub struct ScientificSourceCatalog {
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 struct ScientificSourceCatalogWire {
+    simulation_seed: u64,
     sources: Vec<ScientificSource>,
     prescriptions: Vec<GeneratingPrescription>,
     model_realizations: Vec<ModelRealization>,
@@ -338,12 +341,14 @@ struct ScientificSourceCatalogWire {
 impl ScientificSourceCatalog {
     /// Creates a catalog and validates uniqueness plus all internal references.
     pub fn new(
+        simulation_seed: u64,
         sources: Vec<ScientificSource>,
         prescriptions: Vec<GeneratingPrescription>,
         model_realizations: Vec<ModelRealization>,
         correlation_groups: Vec<CorrelationGroup>,
     ) -> Result<Self, ProvenanceError> {
         let catalog = Self {
+            simulation_seed,
             sources,
             prescriptions,
             model_realizations,
@@ -443,6 +448,7 @@ impl TryFrom<ScientificSourceCatalogWire> for ScientificSourceCatalog {
 
     fn try_from(value: ScientificSourceCatalogWire) -> Result<Self, Self::Error> {
         Self::new(
+            value.simulation_seed,
             value.sources,
             value.prescriptions,
             value.model_realizations,

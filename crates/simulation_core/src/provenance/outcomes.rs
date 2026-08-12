@@ -137,6 +137,17 @@ impl<T> ClaimOutcome<T> {
         }
     }
 
+    /// Returns the draw address retained by a stochastic outcome, when present.
+    pub(crate) fn random_draw_address(&self) -> Option<&RandomDrawAddress> {
+        match self {
+            Self::NotSelected(_, address) => Some(address),
+            Self::Accepted(claim, _) | Self::Rejected(claim, _) => {
+                claim.provenance.random_draw_address.as_ref()
+            }
+            Self::Unsupported(provenance, _) => provenance.random_draw_address.as_ref(),
+        }
+    }
+
     /// Returns the realized claim for accepted or rejected outcomes.
     pub fn claim(&self) -> Option<&ScientificClaim<T>> {
         match self {

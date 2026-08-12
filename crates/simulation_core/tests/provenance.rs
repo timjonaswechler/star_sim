@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use simulation_core::{
     AleatoryVariation, ClaimApplicability, ClaimDerivation, ClaimExtrapolation, ClaimOutcome,
-    ClaimProvenance, ClaimUncertainty, ConstraintEvaluation, CorrelationGroup,
+    ClaimProvenance, ClaimUncertainty, ConstraintClass, ConstraintEvaluation, CorrelationGroup,
     EpistemicUncertainty, EvidenceLevel, ExtrapolatedInputAxis, ExtrapolationDirection,
     GeneratingPrescription, ModelRealization, ModelRealizationId, ObjectEvidenceSummary, ObjectId,
     PrescriptionId, ProvenanceDocument, RandomDrawAddress, ScientificClaim, ScientificSource,
@@ -12,6 +12,7 @@ use simulation_core::{
 
 fn source_catalog() -> ScientificSourceCatalog {
     ScientificSourceCatalog::new(
+        42,
         vec![ScientificSource {
             id: SourceId::from("source.kepler-2019"),
             title: "A measured occurrence rate".into(),
@@ -106,8 +107,9 @@ fn accepted_claim_document_round_trips_through_ron() {
         std::slice::from_ref(&outcome),
     )
     .expect("summary is valid");
-    let document = ProvenanceDocument::new(source_catalog(), vec![outcome], vec![object_summary])
-        .expect("document is valid");
+    let document =
+        ProvenanceDocument::new(source_catalog(), vec![outcome], vec![object_summary])
+            .expect("document is valid");
 
     let encoded = ron::to_string(&document).expect("document serializes");
     let decoded: ProvenanceDocument<f64> = ron::from_str(&encoded).expect("document deserializes");
@@ -209,6 +211,7 @@ fn derived_decorative_input_cannot_be_declared_physical() {
     decorative_provenance.generating_prescription =
         PrescriptionId::from("prescription.decorative-shape");
     decorative_provenance.source_references.clear();
+    decorative_provenance.applicability = ClaimApplicability::PresentationOnly;
     let decorative = ScientificClaim::new("star-1/planet-1/shape", 1.0_f64, decorative_provenance)
         .expect("decorative claim is valid");
 
@@ -222,14 +225,15 @@ fn derived_decorative_input_cannot_be_declared_physical() {
     let proxy = ScientificClaim::new("star-1/planet-1/temperature", 800.0_f64, proxy_provenance)
         .expect("claim is locally valid");
 
-    let document = ProvenanceDocument::new(
-        catalog,
-        vec![
-            ClaimOutcome::Accepted(decorative, successful_receipt()),
-            ClaimOutcome::Accepted(proxy, successful_receipt()),
-        ],
-        vec![],
-    );
+    let outcomes = vec![
+        ClaimOutcome::Accepted(decorative, successful_receipt()),
+        ClaimOutcome::Accepted(proxy, successful_receipt()),
+    ];
+    let summaries = vec![
+        ObjectEvidenceSummary::from_outcomes(ObjectId::from("star-1"), &outcomes)
+            .expect("summary is valid"),
+    ];
+    let document = ProvenanceDocument::new(catalog, outcomes, summaries);
     assert!(document.is_err());
 }
 
@@ -337,12 +341,13 @@ fn proxy_extrapolation_and_correlated_epistemic_uncertainty_round_trip() {
     .expect("proxy provenance is valid");
     let claim = ScientificClaim::new("star-1/planet-1/temperature", 1_800.0_f64, provenance)
         .expect("proxy claim is valid");
-    let document = ProvenanceDocument::new(
-        catalog,
-        vec![ClaimOutcome::Accepted(claim, successful_receipt())],
-        vec![],
-    )
-    .expect("proxy document is valid");
+    let outcomes = vec![ClaimOutcome::Accepted(claim, successful_receipt())];
+    let summaries = vec![
+        ObjectEvidenceSummary::from_outcomes(ObjectId::from("star-1"), &outcomes)
+            .expect("summary is valid"),
+    ];
+    let document =
+        ProvenanceDocument::new(catalog, outcomes, summaries).expect("proxy document is valid");
 
     let encoded = ron::to_string(&document).expect("proxy document serializes");
     let decoded: ProvenanceDocument<f64> =
@@ -369,6 +374,195 @@ fn object_summaries_reject_inconsistent_derived_counts_during_deserialization() 
 
     let encoded = ron::to_string(&summary).expect("summary serializes");
     assert!(ron::from_str::<ObjectEvidenceSummary>(&encoded).is_err());
+}
+
+#[test]
+fn required_not_evaluated_constraints_prevent_acceptance() {
+    let claim = ScientificClaim::new(
+        "star-1/planet-1/radius",
+        1.4_f64,
+        empirical_provenance("radius"),
+    )
+    .expect("test claim is valid");
+    let receipt = ValidationReceipt::new(
+        "planetary-stability",
+        "1",
+        vec![],
+        vec![
+            ConstraintEvaluation::not_evaluated(
+                "mutual-hill-spacing",
+                ConstraintClass::Required,
+                "planet mass is unavailable",
+            )
+            .expect("test constraint is valid"),
+        ],
+    )
+    .expect("test receipt is valid");
+
+    assert!(ClaimOutcome::Accepted(claim, receipt).validate().is_err());
+}
+
+#[test]
+fn out_of_coverage_constraints_cannot_form_accepted_or_rejected_receipts() {
+    assert!(
+        ConstraintEvaluation::new(
+            "n-body-coverage",
+            ConstraintClass::OutOfCoverage,
+            simulation_core::ConstraintStatus::Passed,
+            None,
+            None,
+            None,
+            Some("outside integration coverage".into()),
+        )
+        .is_err()
+    );
+
+    let claim = ScientificClaim::new(
+        "star-1/planet-1/radius",
+        1.4_f64,
+        empirical_provenance("radius"),
+    )
+    .expect("test claim is valid");
+    let receipt = ValidationReceipt::new(
+        "planetary-stability",
+        "1",
+        vec![],
+        vec![
+            ConstraintEvaluation::not_evaluated(
+                "n-body-coverage",
+                ConstraintClass::OutOfCoverage,
+                "outside integration coverage",
+            )
+            .expect("test constraint is valid"),
+        ],
+    )
+    .expect("test receipt is valid");
+
+    assert!(ClaimOutcome::Accepted(claim.clone(), receipt.clone()).validate().is_err());
+    assert!(ClaimOutcome::Rejected(claim, receipt).validate().is_err());
+}
+
+#[test]
+fn advisory_not_evaluated_constraints_allow_acceptance() {
+    let claim = ScientificClaim::new(
+        "star-1/planet-1/radius",
+        1.4_f64,
+        empirical_provenance("radius"),
+    )
+    .expect("test claim is valid");
+    let receipt = ValidationReceipt::new(
+        "planetary-stability",
+        "1",
+        vec![],
+        vec![
+            ConstraintEvaluation::not_evaluated(
+                "n-body-integration",
+                ConstraintClass::Advisory,
+                "integration was not requested",
+            )
+            .expect("test constraint is valid"),
+        ],
+    )
+    .expect("test receipt is valid");
+
+    assert!(ClaimOutcome::Accepted(claim, receipt).validate().is_ok());
+}
+
+#[test]
+fn documents_require_exactly_one_summary_for_each_outcome_object() {
+    let claim = ScientificClaim::new(
+        "star-1/planet-1/radius",
+        1.4_f64,
+        empirical_provenance("radius"),
+    )
+    .expect("test claim is valid");
+    let outcomes = vec![ClaimOutcome::Accepted(claim, successful_receipt())];
+
+    assert!(ProvenanceDocument::new(source_catalog(), outcomes, vec![]).is_err());
+}
+
+#[test]
+fn non_selection_namespace_must_match_its_prescription() {
+    let mut provenance = empirical_provenance("radius");
+    provenance.uncertainty = ClaimUncertainty::new(
+        Some(
+            AleatoryVariation::new(
+                UncertaintyRepresentation::not_quantified("draw")
+                    .expect("uncertainty representation is valid"),
+            )
+            .expect("variation is valid"),
+        ),
+        None,
+    )
+    .expect("uncertainty is valid");
+    provenance.random_draw_address = None;
+    let wrong_address = RandomDrawAddress::new(
+        "ChaCha8",
+        "1",
+        "wrong/namespace",
+        ObjectId::from("star-1"),
+        "radius",
+        0,
+    )
+    .expect("address is locally valid");
+    let outcomes: Vec<ClaimOutcome<f64>> =
+        vec![ClaimOutcome::NotSelected(provenance, wrong_address)];
+    let summaries = vec![
+        ObjectEvidenceSummary::from_outcomes(ObjectId::from("star-1"), &outcomes)
+            .expect("summary is valid"),
+    ];
+
+    assert!(ProvenanceDocument::new(source_catalog(), outcomes, summaries).is_err());
+}
+
+#[test]
+fn decorative_claims_are_presentation_only() {
+    let mut provenance = empirical_provenance("shape");
+    provenance.evidence_level = EvidenceLevel::Decorative;
+    provenance.source_references.clear();
+
+    assert!(ScientificClaim::new("star-1/shape", 1.0_f64, provenance).is_err());
+}
+
+#[test]
+fn extrapolation_departure_must_match_the_crossed_boundary() {
+    assert!(
+        ExtrapolatedInputAxis::new(
+            "host_mass_msun",
+            0.7,
+            1.3,
+            1.8,
+            ExtrapolationDirection::AboveMaximum,
+            99.0,
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn extrapolation_departure_rejects_tiny_mismatch_and_overflow() {
+    assert!(
+        ExtrapolatedInputAxis::new(
+            "tiny",
+            0.0,
+            1.0,
+            1.0 + f64::EPSILON,
+            ExtrapolationDirection::AboveMaximum,
+            f64::EPSILON * 2.0,
+        )
+        .is_err()
+    );
+    assert!(
+        ExtrapolatedInputAxis::new(
+            "overflow",
+            -f64::MAX,
+            -f64::MAX / 2.0,
+            f64::MAX,
+            ExtrapolationDirection::AboveMaximum,
+            f64::MAX,
+        )
+        .is_err()
+    );
 }
 
 #[test]

@@ -19,12 +19,25 @@ pub enum ConstraintStatus {
     NotEvaluated,
 }
 
+/// Acceptance significance assigned to a validation constraint by the policy.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ConstraintClass {
+    /// The constraint must pass before the candidate can be accepted.
+    Required,
+    /// The constraint may remain unevaluated when its limitation is recorded.
+    Advisory,
+    /// The requested evaluation lies outside the validator's model coverage.
+    OutOfCoverage,
+}
+
 /// A receipt preserves every relevant constraint result, not only the first failure.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(try_from = "ConstraintEvaluationWire")]
 pub struct ConstraintEvaluation {
     /// Stable identity of the validation constraint.
     pub id: String,
+    /// Acceptance significance assigned by the versioned policy.
+    pub class: ConstraintClass,
     /// Result of evaluating the constraint.
     pub status: ConstraintStatus,
     /// Value observed by the constraint, when applicable.
@@ -40,6 +53,7 @@ pub struct ConstraintEvaluation {
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 struct ConstraintEvaluationWire {
     id: String,
+    class: ConstraintClass,
     status: ConstraintStatus,
     evaluated_value: Option<f64>,
     threshold: Option<f64>,
@@ -51,6 +65,7 @@ impl ConstraintEvaluation {
     /// Creates and validates a complete constraint result.
     pub fn new(
         id: impl Into<String>,
+        class: ConstraintClass,
         status: ConstraintStatus,
         evaluated_value: Option<f64>,
         threshold: Option<f64>,
@@ -59,6 +74,7 @@ impl ConstraintEvaluation {
     ) -> Result<Self, ProvenanceError> {
         let evaluation = Self {
             id: id.into(),
+            class,
             status,
             evaluated_value,
             threshold,
@@ -79,6 +95,7 @@ impl ConstraintEvaluation {
     ) -> Result<Self, ProvenanceError> {
         Self::new(
             id,
+            ConstraintClass::Required,
             ConstraintStatus::Passed,
             evaluated_value,
             threshold,
@@ -97,6 +114,7 @@ impl ConstraintEvaluation {
     ) -> Result<Self, ProvenanceError> {
         Self::new(
             id,
+            ConstraintClass::Required,
             ConstraintStatus::Failed,
             evaluated_value,
             threshold,
@@ -108,10 +126,12 @@ impl ConstraintEvaluation {
     /// Creates a not-evaluated result with a required explanation.
     pub fn not_evaluated(
         id: impl Into<String>,
+        class: ConstraintClass,
         detail: impl Into<String>,
     ) -> Result<Self, ProvenanceError> {
         Self::new(
             id,
+            class,
             ConstraintStatus::NotEvaluated,
             None,
             None,
@@ -137,6 +157,11 @@ impl ConstraintEvaluation {
         {
             return Err(ProvenanceError::InvalidConstraintEvaluation);
         }
+        if self.class == ConstraintClass::OutOfCoverage
+            && self.status != ConstraintStatus::NotEvaluated
+        {
+            return Err(ProvenanceError::InvalidConstraintEvaluation);
+        }
         validate_optional_text(&self.detail, "constraint detail")?;
         Ok(())
     }
@@ -148,6 +173,7 @@ impl TryFrom<ConstraintEvaluationWire> for ConstraintEvaluation {
     fn try_from(value: ConstraintEvaluationWire) -> Result<Self, Self::Error> {
         Self::new(
             value.id,
+            value.class,
             value.status,
             value.evaluated_value,
             value.threshold,
@@ -220,15 +246,15 @@ impl ValidationReceipt {
         Ok(())
     }
 
-    /// Returns `true` when at least one constraint passed and none failed.
+    /// Returns `true` when no constraint failed and every required check was evaluated.
     pub fn is_successful(&self) -> bool {
         self.constraints
             .iter()
-            .any(|constraint| constraint.status == ConstraintStatus::Passed)
-            && self
-                .constraints
-                .iter()
-                .all(|constraint| constraint.status != ConstraintStatus::Failed)
+            .all(|constraint| match constraint.status {
+                ConstraintStatus::Passed => true,
+                ConstraintStatus::Failed => false,
+                ConstraintStatus::NotEvaluated => constraint.class == ConstraintClass::Advisory,
+            })
     }
 
     /// Returns `true` when any constraint failed.

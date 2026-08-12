@@ -19,7 +19,7 @@ use super::validation::ValidationReceipt;
     bound(deserialize = "T: Deserialize<'de>")
 )]
 pub struct ProvenanceDocument<T> {
-    /// Deduplicated sources, prescriptions, model realizations, and groups.
+    /// Deduplicated sources, prescriptions, model realizations, seed, and groups.
     pub catalog: ScientificSourceCatalog,
     /// Every accepted, rejected, non-selected, or unsupported claim attempt.
     pub outcomes: Vec<ClaimOutcome<T>>,
@@ -75,7 +75,12 @@ impl<T> ProvenanceDocument<T> {
                 .claim()
                 .map(|claim| claim.id.to_string())
                 .unwrap_or_else(|| format!("{}/{}", provenance.object_id, provenance.claim_key));
-            self.validate_provenance_references(provenance, &claims, &claim_label)?;
+            self.validate_provenance_references(
+                provenance,
+                outcome.random_draw_address(),
+                &claims,
+                &claim_label,
+            )?;
             if let Some(claim) = outcome.claim() {
                 if let Some(receipt) = outcome_validation_receipt(outcome) {
                     for input_claim in &receipt.input_claims {
@@ -105,6 +110,24 @@ impl<T> ProvenanceDocument<T> {
                 .map(|summary| summary.object_id.clone()),
             "object evidence summary",
         )?;
+        let outcome_object_ids = self
+            .outcomes
+            .iter()
+            .map(|outcome| outcome.provenance().object_id.clone())
+            .collect::<BTreeSet<_>>();
+        let summary_object_ids = self
+            .object_summaries
+            .iter()
+            .map(|summary| summary.object_id.clone())
+            .collect::<BTreeSet<_>>();
+        if outcome_object_ids != summary_object_ids {
+            let object = outcome_object_ids
+                .symmetric_difference(&summary_object_ids)
+                .next()
+                .expect("different sets have a member")
+                .to_string();
+            return Err(ProvenanceError::InvalidObjectEvidenceSummary { object });
+        }
         for summary in &self.object_summaries {
             let expected =
                 ObjectEvidenceSummary::from_outcomes(summary.object_id.clone(), &self.outcomes)?;
@@ -120,6 +143,7 @@ impl<T> ProvenanceDocument<T> {
     fn validate_provenance_references(
         &self,
         provenance: &ClaimProvenance,
+        random_draw_address: Option<&super::claims::RandomDrawAddress>,
         claims: &BTreeMap<ClaimId, EvidenceLevel>,
         claim_label: &str,
     ) -> Result<(), ProvenanceError> {
@@ -145,7 +169,7 @@ impl<T> ProvenanceDocument<T> {
                 });
             }
         }
-        if let Some(address) = &provenance.random_draw_address
+        if let Some(address) = random_draw_address
             && address.prescription_namespace != prescription.namespace
         {
             return Err(ProvenanceError::RandomDrawAddressMismatch);

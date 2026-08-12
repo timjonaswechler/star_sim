@@ -235,6 +235,11 @@ impl ClaimProvenance {
         {
             return Err(ProvenanceError::PhysicalProxyWithoutApplicability);
         }
+        if self.evidence_level == EvidenceLevel::Decorative
+            && !matches!(self.applicability, ClaimApplicability::PresentationOnly)
+        {
+            return Err(ProvenanceError::DecorativeWithoutPresentationApplicability);
+        }
         Ok(())
     }
 

@@ -56,6 +56,7 @@
 //!     locator: Some("Table 1".into()),
 //! };
 //! let catalog = ScientificSourceCatalog::new(
+//!     42,
 //!     vec![ScientificSource::new(source_id, "Example measurement")?],
 //!     vec![GeneratingPrescription::new(
 //!         prescription_id.clone(),
