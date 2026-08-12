@@ -274,6 +274,30 @@ _Avoid_: Mutable global draw position, unexplained derived seed
 The versioned record of the plausibility policy applied to a generated candidate, its input claims, and every relevant passed, failed, or unevaluated constraint, including evaluated margins and thresholds. It explains acceptance or rejection but does not guarantee unmodelled long-term stability.
 _Avoid_: Boolean validity flag, first failure only, stability guarantee
 
+**Whole-System Plausibility**:
+The state in which all accepted members jointly satisfy every applicable required constraint evaluated by one versioned policy. Unevaluated advisory constraints remain visible limitations rather than guarantees.
+_Avoid_: Individual candidate validity, permanent stability, complete model coverage
+
+**Reconciliation Policy**:
+The immutable, versioned rules that order candidate evaluation, resolve conflict groups, permit bounded placement attempts, and determine final outcomes for one Model Realization.
+_Avoid_: Evidence ranking, mutable retry logic, validator
+
+**Conflict Group**:
+A recorded set of individually generated candidates that cannot coexist under the Reconciliation Policy. It preserves every participant and the deterministic reason for each winner, rejection, or revoked provisional acceptance.
+_Avoid_: Duplicate candidate, first failure
+
+**Provisional Acceptance**:
+A reversible candidate state that has passed the currently available checks but has not reached the final whole-system fixpoint. It is not an accepted published outcome.
+_Avoid_: Accepted outcome, guaranteed member
+
+**Placement Attempt**:
+One immutable, deterministically addressed candidate produced within a Generating Prescription's versioned attempt bound. Changing a candidate's placement creates another attempt rather than mutating the original.
+_Avoid_: Silent retry, in-place correction
+
+**Whole-System Fixpoint**:
+The publishable state with no unresolved conflict groups, current dependent Validation Receipts, satisfied required constraints, and internally valid references.
+_Avoid_: Intermediate generation state, partially validated system
+
 **Provenance Integrity**:
 The invariant that every scientific claim and claim outcome is complete and internally consistent with its evidence level, sources, applicability, derivation, uncertainty, stochastic origin, and validation state. Invalid combinations fail during construction or deserialization rather than continuing as warning-bearing data.
 _Avoid_: Best-effort provenance, partially trusted claim
