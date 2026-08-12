@@ -135,28 +135,44 @@ The planets, dwarf planets, natural satellites, rings, and small-body population
 _Avoid_: Stellar system
 
 **Planetary Architecture**:
-The present-day orbital organization of planets and population-level small-body reservoirs around one or more stellar hosts.
-_Avoid_: Planet occurrence, formation history
+The present-day orbital organization of all planetary bodies, collective orbital structures, and small-body populations within a Stellar System. Circumstellar and circumbinary host scopes may coexist in one architecture.
+_Avoid_: Planet occurrence, formation history, object owner
+
+**System Ownership**:
+The relationship placing every generated object within exactly one Stellar System for identity and lifecycle purposes. Ownership is independent of orbital parentage, population membership, and claim derivation.
+_Avoid_: Orbital parent, host scope, barycentre ownership
+
+**Orbital Parent**:
+The physical body or barycentre that is the present-day centre of an Orbital Node's orbit. It records neither formation history nor ownership.
+_Avoid_: Owner, formation host, resonance partner
+
+**Host Scope**:
+The stellar member or barycentre whose stable orbital domain contains a planetary body or collective structure. A host scope organizes a Planetary Architecture but does not own its members.
+_Avoid_: System ownership, orbital parent when referring to a collective structure
+
+**Population Membership**:
+The relationship from a materialised small body to the statistical population from which it was drawn. The body still orbits its physical or barycentric Orbital Parent rather than the population.
+_Avoid_: Orbital parent, ownership
 
 **Planet**:
-A non-stellar body represented as an individual member of a planetary architecture and dynamically associated with one or more stellar hosts.
+A non-stellar body represented as an individual member of a planetary architecture whose Orbital Parent is a stellar member or barycentre.
 _Avoid_: Planet candidate, planetesimal
 
 **Natural Satellite**:
-A non-stellar body orbiting a planet or dwarf planet rather than directly orbiting the stellar host hierarchy.
+A non-stellar body whose Orbital Parent is a planet or dwarf planet. A notable ring moonlet is a Natural Satellite rather than an individually represented ring particle.
 _Avoid_: Stellar companion, ring particle
 
 **Ring System**:
-A circumplanetary population of solid particles represented as a collective structure rather than as individually materialised bodies.
-_Avoid_: Debris disk, asteroid belt
+A circumplanetary population of solid particles represented as a collective orbital structure associated with a planet or dwarf planet, not as an Orbital Node or individually materialised particles.
+_Avoid_: Debris disk, asteroid belt, orbital parent
 
 **Dwarf Planet**:
-A near-round non-stellar body that does not dynamically dominate its circumstellar orbital neighbourhood. It may be materialised as a notable member of a planetesimal reservoir.
-_Avoid_: Small planet, arbitrary large asteroid
+A near-round non-stellar body that does not dynamically dominate its orbital neighbourhood. It may be materialised as a notable member of a Planetesimal Reservoir while retaining a stellar member or barycentre as its Orbital Parent.
+_Avoid_: Small planet, arbitrary large asteroid, reservoir satellite
 
 **Planetesimal Reservoir**:
-A statistical population of smaller solid bodies sharing a formation and orbital domain; it is not an enumeration of every asteroid or comet.
-_Avoid_: Planet list, debris disk
+A statistical population of smaller solid bodies sharing a formation and stellar host scope; it describes an orbital domain but is neither an Orbital Node nor the Orbital Parent of its materialised members.
+_Avoid_: Planet list, debris disk, orbital parent
 
 **Asteroid Belt**:
 A circumstellar planetesimal reservoir dominated by relatively rocky bodies in a bounded orbital band.
@@ -171,12 +187,12 @@ A cold planetesimal population capable of supplying bodies onto comet-like orbit
 _Avoid_: Debris disk, asteroid belt
 
 **Trojan Population**:
-A co-orbital small-body population associated with a particular massive body's orbit near dynamically stable libration regions.
-_Avoid_: Independent belt, moon system
+A co-orbital small-body population sharing a planet's stellar Orbital Parent in a 1:1 resonance. The planet is its resonance partner, not its Orbital Parent.
+_Avoid_: Independent belt, moon system, planetary satellite
 
 **Debris Disk**:
-An observable circumstellar dust population replenished by collisions in an underlying small-body reservoir; it is not interchangeable with the unseen reservoir itself.
-_Avoid_: Protoplanetary disk, asteroid inventory
+An observable dust population replenished by collisions in one or more compatible Planetesimal Reservoirs. It shares their Host Scope but neither owns nor is interchangeable with them.
+_Avoid_: Protoplanetary disk, asteroid inventory, planetesimal reservoir
 
 **Planet Occurrence**:
 An empirically calibrated expectation or probability within a stated host-star, planet-size, and orbital-period domain.
@@ -263,12 +279,12 @@ The invariant that every scientific claim and claim outcome is complete and inte
 _Avoid_: Best-effort provenance, partially trusted claim
 
 **Orbital Node**:
-A member of a hierarchical orbital arrangement that is either a physical body or a barycentre.
-_Avoid_: Satellite, child entity
+A member of a hierarchical orbital arrangement that is either an individually materialised physical body or a barycentre. Collective structures and unmaterialised statistical populations are not Orbital Nodes.
+_Avoid_: Collective orbital structure, child entity
 
 **Barycentre**:
-The shared centre of mass about which two or more members of an orbital arrangement move.
-_Avoid_: Central body, root object
+A structural Orbital Node representing the shared centre of mass about which two or more children move. It has no independent physical-body properties or ownership; its mass and position are derived from its descendants.
+_Avoid_: Central body, object owner, physical body
 
 **Stellar Orbital Hierarchy**:
 A nested arrangement of stellar members and barycentres connected by relative stellar orbits.
