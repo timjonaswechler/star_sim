@@ -51,12 +51,13 @@ jobs:
           submodules: recursive
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - name: Install X11 and Mesa Vulkan software rendering
+      - name: Install Bevy Linux build dependencies and Mesa Vulkan software rendering
         run: |
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y \
-            xvfb libxkbcommon-x11-0 libxcb-xfixes0-dev libgl1-mesa-dri \
-            mesa-vulkan-drivers vulkan-tools
+            pkg-config xvfb libx11-dev libxi-dev libxcursor-dev libxrandr-dev \
+            libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev \
+            libxcb-xfixes0-dev libgl1-mesa-dri mesa-vulkan-drivers vulkan-tools
       - name: Run complete visual flow under Xvfb
         env:
           LIBGL_ALWAYS_SOFTWARE: "1"
