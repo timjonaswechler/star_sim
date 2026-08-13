@@ -9,6 +9,8 @@ members = [
     ".",
     "apps/bevy_viewer",
     "apps/population_lab",
+    "crates/agent_cli",
+    "crates/agent_control",
     "crates/physics/units",
     "crates/simulation_core",
     "crates/utilities/name_generator",
@@ -33,6 +35,9 @@ paste = "1.0"
 # Local crates
 units = { path = "crates/physics/units", features = ["serde"] }
 name_generator = { path = "crates/utilities/name_generator" }
+
+[dev-dependencies]
+agent_control = { path = "crates/agent_control", features = ["render"] }
 
 [[example]]
 name = "black_body_color_lab"

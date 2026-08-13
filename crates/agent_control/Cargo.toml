@@ -1,0 +1,18 @@
+[package]
+name = "agent_control"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[features]
+default = []
+render = ["bevy/bevy_render", "bevy/png", "dep:image"]
+
+[dependencies]
+bevy = { version = "0.19.0", default-features = false, features = ["bevy_ui"] }
+image = { version = "0.25", default-features = false, features = ["png"], optional = true }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+[dev-dependencies]
+bevy = "0.19.0"

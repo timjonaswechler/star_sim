@@ -1,0 +1,80 @@
+name: Agent control
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  logical-headless:
+    name: Logical headless agent E2E
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Unit tests
+        run: cargo test -p agent_control -p star_sim_agent
+      - name: Prove deterministic logical output
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo run -q -p star_sim_agent -- logical > logical-1.json
+          cargo run -q -p star_sim_agent -- logical > logical-2.json
+          cmp logical-1.json logical-2.json
+          python3 - <<'PY'
+          import json
+          with open("logical-1.json", encoding="utf-8") as handle:
+              result = json.load(handle)
+          assert result["status"] == "passed"
+          assert result["mode"] == "logical"
+          assert result["state"]["seed"] == 42
+          assert result["state"]["simulation_ms"] == 150
+          PY
+
+  visual-linux:
+    name: Visual Linux agent E2E
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      WGPU_BACKEND: vulkan
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install X11 and Mesa Vulkan software rendering
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            xvfb libxkbcommon-x11-0 libxcb-xfixes0-dev libgl1-mesa-dri \
+            mesa-vulkan-drivers vulkan-tools
+      - name: Run complete visual flow under Xvfb
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+          WGPU_FORCE_FALLBACK_ADAPTER: "1"
+        run: |
+          mkdir -p artifacts/agent-ci
+          xvfb-run -a -s "-screen 0 1280x720x24" \
+            cargo run -q -p star_sim_agent -- visual --artifact-dir artifacts/agent-ci \
+            | tee artifacts/agent-ci/result.json
+          python3 - <<'PY'
+          import json, struct
+          from pathlib import Path
+          result = json.loads(Path("artifacts/agent-ci/result.json").read_text())
+          assert result["status"] == "passed"
+          for name, size in [("window.png", (640, 360)), ("camera.png", (320, 180))]:
+              data = Path("artifacts/agent-ci", name).read_bytes()
+              assert data[:8] == b"\x89PNG\r\n\x1a\n"
+              assert struct.unpack(">II", data[16:24]) == size
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: agent-control-visual-linux
+          path: artifacts/agent-ci/
+          if-no-files-found: error
