@@ -141,15 +141,15 @@ fn json_reader(stdout: ChildStdout) -> mpsc::Receiver<Result<Value, String>> {
     receiver
 }
 
-fn cargo_example(name: &str) -> Command {
+fn cargo_example(package: &str, name: &str) -> Command {
     let cargo = env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
     let mut command = Command::new(cargo);
-    command.args(["run", "-q", "-p", "star_sim", "--example", name, "--"]);
+    command.args(["run", "-q", "-p", package, "--example", name, "--"]);
     command
 }
 
 fn run_logical() -> Result<(), String> {
-    let mut command = cargo_example("agent_control_headless");
+    let mut command = cargo_example("agent_control", "agent_control_headless");
     command.args(["--agent", "--seed", "42"]);
     let mut client = Client::spawn(command)?;
     let ready = client.ready(&["pause", "step_frames", "step_simulation", "wait_until"])?;
@@ -185,7 +185,7 @@ fn run_visual(artifact_dir: PathBuf) -> Result<(), String> {
     let artifact_dir = artifact_dir
         .canonicalize()
         .map_err(|error| error.to_string())?;
-    let mut command = cargo_example("agent_control_prototype");
+    let mut command = cargo_example("star_sim", "agent_control_prototype");
     command.args(["--agent", "--artifact-dir"]);
     command.arg(&artifact_dir);
     let mut client = Client::spawn(command)?;
