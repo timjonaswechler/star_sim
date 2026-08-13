@@ -2,31 +2,24 @@
 
 use bevy::{
     app::{App, Plugin},
-    asset::{Asset, Handle, load_internal_asset, uuid_handle},
+    asset::Asset,
     color::{ColorToComponents, LinearRgba},
     pbr::{Material, MaterialPlugin, StandardMaterial},
     prelude::{Color, Vec4},
     reflect::TypePath,
     render::render_resource::{AsBindGroup, ShaderType},
-    shader::{Shader, ShaderRef},
+    shader::ShaderRef,
 };
 
 use crate::physics::thermodynamics::color_temperature::BlackBodyEmission;
 
-const STAR_SURFACE_SHADER_HANDLE: Handle<Shader> =
-    uuid_handle!("ea240342-d5b0-4d0c-bd67-619ef5ccb30a");
+const STAR_SURFACE_SHADER_PATH: &str = "shaders/star_surface.wgsl";
 
-/// Registers the embedded surface shader and its Bevy material pipeline.
+/// Registers the hot-reloadable surface shader material pipeline.
 pub struct StarSurfaceMaterialPlugin;
 
 impl Plugin for StarSurfaceMaterialPlugin {
     fn build(&self, app: &mut App) {
-        load_internal_asset!(
-            app,
-            STAR_SURFACE_SHADER_HANDLE,
-            "../../assets/shaders/star_surface.wgsl",
-            Shader::from_wgsl
-        );
         app.add_plugins(MaterialPlugin::<StarSurfaceMaterial>::default());
     }
 }
@@ -53,7 +46,7 @@ pub struct StarSurfaceMaterial {
 
 impl Material for StarSurfaceMaterial {
     fn fragment_shader() -> ShaderRef {
-        STAR_SURFACE_SHADER_HANDLE.clone().into()
+        STAR_SURFACE_SHADER_PATH.into()
     }
 }
 

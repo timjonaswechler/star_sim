@@ -1,7 +1,7 @@
 //! THROWAWAY PROTOTYPE: a bounded raymarched stellar-corona volume.
 
 use bevy::{
-    asset::{Asset, Handle, load_internal_asset, uuid_handle},
+    asset::Asset,
     mesh::MeshVertexBufferLayoutRef,
     pbr::{Material, MaterialPipeline, MaterialPipelineKey, MaterialPlugin},
     prelude::*,
@@ -9,23 +9,16 @@ use bevy::{
     render::render_resource::{
         AsBindGroup, RenderPipelineDescriptor, ShaderType, SpecializedMeshPipelineError,
     },
-    shader::{Shader, ShaderRef},
+    shader::ShaderRef,
 };
 
-const CORONA_VOLUME_SHADER_HANDLE: Handle<Shader> =
-    uuid_handle!("aa21a847-ed22-4c73-bad8-92dad70dc642");
+const CORONA_VOLUME_SHADER_PATH: &str = "shaders/corona_volume.wgsl";
 const CORONA_OUTER_RADIUS: f32 = 1.8;
 
 pub struct CoronaVolumePlugin;
 
 impl Plugin for CoronaVolumePlugin {
     fn build(&self, app: &mut App) {
-        load_internal_asset!(
-            app,
-            CORONA_VOLUME_SHADER_HANDLE,
-            "../../assets/shaders/corona_volume.wgsl",
-            Shader::from_wgsl
-        );
         app.add_plugins(MaterialPlugin::<CoronaVolumeMaterial>::default());
     }
 }
@@ -48,7 +41,7 @@ pub struct CoronaVolumeMaterial {
 
 impl Material for CoronaVolumeMaterial {
     fn fragment_shader() -> ShaderRef {
-        CORONA_VOLUME_SHADER_HANDLE.clone().into()
+        CORONA_VOLUME_SHADER_PATH.into()
     }
 
     fn alpha_mode(&self) -> AlphaMode {
@@ -122,11 +115,25 @@ pub fn update_corona_volume(
 }
 
 fn corona_material(surface_emissive: Vec4, mode: CoronaMode) -> CoronaVolumeMaterial {
+    // These names are the public tuning surface for the packed shader uniform.
+    // Fine-grained streamer/noise tuning lives in corona_volume.wgsl under
+    // "Streamer tuning", next to the implementation it controls.
+    let volume_intensity = mode.strength();
+    let density_falloff = 5.2;
+    let angular_noise_scale = 3.1;
+    let animation_speed = 0.018;
+    let stellar_radius = 0.99;
+
     CoronaVolumeMaterial {
         parameters: CoronaVolumeUniform {
             emissive: coronal_emissive(surface_emissive),
-            appearance: Vec4::new(mode.strength(), 5.2, 3.1, 0.018),
-            geometry: Vec4::new(1.0, CORONA_OUTER_RADIUS, 0.0, 0.0),
+            appearance: Vec4::new(
+                volume_intensity,
+                density_falloff,
+                angular_noise_scale,
+                animation_speed,
+            ),
+            geometry: Vec4::new(stellar_radius, CORONA_OUTER_RADIUS, 0.0, 0.0),
         },
     }
 }
