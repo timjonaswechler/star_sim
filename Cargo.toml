@@ -20,7 +20,7 @@ default-members = [
 ]
 
 [dependencies]
-bevy = { version = "0.19", features = ["bevy_feathers"] }
+bevy = { version = "0.19.0", features = ["bevy_feathers","free_camera"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 ron = "0.8"
@@ -35,5 +35,9 @@ units = { path = "crates/physics/units", features = ["serde"] }
 name_generator = { path = "crates/utilities/name_generator" }
 
 [[example]]
-name = "color"
-path = "examples/color.rs"
+name = "black_body_color_lab"
+path = "examples/black_body_color_lab.rs"
+
+[[example]]
+name = "star_sphere"
+path = "examples/star_sphere.rs"
