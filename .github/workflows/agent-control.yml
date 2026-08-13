@@ -16,6 +16,8 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: Unit tests
@@ -45,6 +47,8 @@ jobs:
       WGPU_BACKEND: vulkan
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: Install X11 and Mesa Vulkan software rendering
@@ -58,6 +62,7 @@ jobs:
           LIBGL_ALWAYS_SOFTWARE: "1"
           WGPU_FORCE_FALLBACK_ADAPTER: "1"
         run: |
+          set -euo pipefail
           mkdir -p artifacts/agent-ci
           xvfb-run -a -s "-screen 0 1280x720x24" \
             cargo run -q -p star_sim_agent -- visual --artifact-dir artifacts/agent-ci \
