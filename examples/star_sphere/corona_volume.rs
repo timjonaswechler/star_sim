@@ -122,11 +122,25 @@ pub fn update_corona_volume(
 }
 
 fn corona_material(surface_emissive: Vec4, mode: CoronaMode) -> CoronaVolumeMaterial {
+    // These names are the public tuning surface for the packed shader uniform.
+    // Fine-grained streamer/noise tuning lives in corona_volume.wgsl under
+    // "Streamer tuning", next to the implementation it controls.
+    let volume_intensity = mode.strength();
+    let density_falloff = 5.2;
+    let angular_noise_scale = 3.1;
+    let animation_speed = 0.018;
+    let stellar_radius = 1.0;
+
     CoronaVolumeMaterial {
         parameters: CoronaVolumeUniform {
             emissive: coronal_emissive(surface_emissive),
-            appearance: Vec4::new(mode.strength(), 5.2, 3.1, 0.018),
-            geometry: Vec4::new(1.0, CORONA_OUTER_RADIUS, 0.0, 0.0),
+            appearance: Vec4::new(
+                volume_intensity,
+                density_falloff,
+                angular_noise_scale,
+                animation_speed,
+            ),
+            geometry: Vec4::new(stellar_radius, CORONA_OUTER_RADIUS, 0.0, 0.0),
         },
     }
 }
