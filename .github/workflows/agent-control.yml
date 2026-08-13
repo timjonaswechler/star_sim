@@ -80,8 +80,18 @@ jobs:
           python3 - <<'PY'
           import json, struct
           from pathlib import Path
-          result = json.loads(Path("artifacts/agent-ci/result.json").read_text())
-          assert result["status"] == "passed"
+          lines = Path("artifacts/agent-ci/result.json").read_text().splitlines()
+          results = []
+          for line in lines:
+              try:
+                  value = json.loads(line)
+              except json.JSONDecodeError:
+                  continue
+              if isinstance(value, dict) and value.get("status") == "passed":
+                  results.append(value)
+          assert len(results) == 1, f"expected one successful result, got {results!r}"
+          result = results[0]
+          assert result["mode"] == "visual"
           for name, size in [("window.png", (640, 360)), ("camera.png", (320, 180))]:
               data = Path("artifacts/agent-ci", name).read_bytes()
               assert data[:8] == b"\x89PNG\r\n\x1a\n"
