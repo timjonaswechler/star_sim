@@ -245,13 +245,13 @@ The simulation core has public validated textual provenance identifiers:
 
 Source:
 
-- [`crates/simulation_core/src/provenance/identifiers.rs`](../../crates/simulation_core/src/provenance/identifiers.rs)
+- [`crates/simulation/src/core/provenance/identifiers.rs`](../../crates/simulation/src/core/provenance/identifiers.rs)
 
 The catalog implementation also contains deterministic numeric helper functions such as `stable_system_id`, `stable_member_id`, `stable_planet_host_id`, `stable_orbit_draw_id`, and `stable_explicit_planet_id`.
 
 Source:
 
-- [`crates/simulation_core/src/lib.rs`](../../crates/simulation_core/src/lib.rs)
+- [`crates/simulation/src/core/mod.rs`](../../crates/simulation/src/core/mod.rs)
 
 Important limitation: those numeric helper functions are currently private implementation details. They should not be coupled directly into a public viewer protocol merely because they are deterministic. Prefer an existing public `ObjectId`, or deliberately introduce a public stable domain identity in the simulation interface. Static UI targets remain explicit IDs such as `toolbar.generate`.
 

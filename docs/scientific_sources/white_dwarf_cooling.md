@@ -39,7 +39,7 @@ The official [Montréal cooling-model page](https://www.astro.umontreal.ca/~berg
 
 The official page requests acknowledgement of the site and the relevant publications for its colour tables. It does not display an explicit data/software licence for the cooling-sequence archive. Public download and scientific use are clearly intended, but redistribution of the source tables inside this repository is not explicitly licensed on the page. Therefore either (a) keep a deterministic downloader/reducer and require users to fetch the archive, or (b) obtain written permission before committing derived/full tables. In all outputs and documentation, cite Bédard et al. (2020) and the official site.
 
-This repository follows option (a). Run `tools/fetch_montreal_cooling.sh` to download the official archive and generate the ignored local file `config/white_dwarf_cooling.local.ron`. `population_lab` discovers that file automatically; without it, white dwarfs retain the explicit `WhiteDwarfCoolingNotBundled` quality flag.
+This repository follows option (a). Run `tools/fetch_montreal_cooling.sh` to download the official archive and generate the ignored local file `assets/scientific_models/white_dwarf_cooling.local.ron`. `population_lab` discovers that file automatically; without it, white dwarfs retain the explicit `WhiteDwarfCoolingNotBundled` quality flag.
 
 ## File format and units
 

@@ -14,6 +14,6 @@ rustc --edition 2024 "$script_dir/reduce_montreal_cooling.rs" \
     -o "$temporary_dir/reduce_montreal_cooling"
 "$temporary_dir/reduce_montreal_cooling" \
     "$temporary_dir" \
-    "$repository_dir/config/white_dwarf_cooling.local.ron"
+    "$repository_dir/assets/scientific_models/white_dwarf_cooling.local.ron"
 
-echo "Generated config/white_dwarf_cooling.local.ron from the official Montréal archive."
+echo "Generated assets/scientific_models/white_dwarf_cooling.local.ron from the official Montréal archive."

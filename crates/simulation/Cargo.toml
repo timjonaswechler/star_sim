@@ -1,0 +1,20 @@
+[package]
+name = "simulation"
+version = "0.1.0"
+edition = "2024"
+
+[features]
+default = []
+models = ["dep:ron"]
+
+[dependencies]
+blake3 = "1.8"
+rand = "0.8"
+rand_chacha = "0.3"
+rand_distr = "0.4"
+ron = { version = "0.8", optional = true }
+serde = { version = "1.0", features = ["derive"] }
+thiserror = "2.0"
+
+[dev-dependencies]
+ron = "0.8"

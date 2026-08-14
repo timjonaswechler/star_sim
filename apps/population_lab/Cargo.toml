@@ -5,5 +5,4 @@ edition = "2024"
 
 [dependencies]
 plotters = "0.3.7"
-ron = "0.8"
-simulation_core = { path = "../../crates/simulation_core" }
+simulation = { path = "../../crates/simulation", features = ["models"] }

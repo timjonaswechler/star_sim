@@ -66,7 +66,7 @@ jobs:
       - name: Build visual process binaries outside the protocol timeout
         run: |
           cargo build -p star_sim_agent
-          cargo build -p star_sim --example agent_control_prototype
+          cargo build -p bevy_viewer --example agent_control_prototype --features agent-control
       - name: Run complete visual flow under Xvfb
         env:
           LIBGL_ALWAYS_SOFTWARE: "1"

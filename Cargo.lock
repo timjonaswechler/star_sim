@@ -1766,7 +1766,9 @@ version = "0.1.0"
 dependencies = [
  "agent_control",
  "bevy",
- "simulation_core",
+ "name_generator",
+ "serde_json",
+ "simulation",
 ]
 
 [[package]]
@@ -4411,12 +4413,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "paste"
-version = "1.0.15"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
-
-[[package]]
 name = "pathfinder_geometry"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4594,8 +4590,7 @@ name = "population_lab"
 version = "0.1.0"
 dependencies = [
  "plotters",
- "ron 0.8.1",
- "simulation_core",
+ "simulation",
 ]
 
 [[package]]
@@ -5133,7 +5128,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e3a9fe34e3e7a50316060351f37187a3f546bce95496156754b601a5fa71b76e"
 
 [[package]]
-name = "simulation_core"
+name = "simulation"
 version = "0.1.0"
 dependencies = [
  "blake3",
@@ -5251,24 +5246,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "115beb9c69db2393ff10b75a1b8587a51716e5551d015001e55320ed279d32f9"
 dependencies = [
  "const_panic",
-]
-
-[[package]]
-name = "star_sim"
-version = "0.1.0"
-dependencies = [
- "agent_control",
- "bevy",
- "lazy_static",
- "name_generator",
- "once_cell",
- "paste",
- "rand 0.8.7",
- "rand_chacha",
- "ron 0.8.1",
- "serde",
- "serde_json",
- "units",
 ]
 
 [[package]]

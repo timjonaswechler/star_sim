@@ -6,4 +6,4 @@
 combined_source.md
 *.diff
 /output/
-config/white_dwarf_cooling.local.ron
+assets/scientific_models/white_dwarf_cooling.local.ron

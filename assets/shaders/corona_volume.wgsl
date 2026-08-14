@@ -12,7 +12,7 @@ const SAMPLE_COUNT: u32 = 40u;
 // Broad + medium layers use simplex noise for flowing, non-blocky shapes.
 // The fine layer deliberately keeps value noise for small, sharp structure.
 // Lower angular frequency = fewer, wider structures around the star.
-const BROAD_ANGULAR_FREQUENCY: f32 = 1.0;
+const BROAD_ANGULAR_FREQUENCY: f32 = 0.70;
 const MEDIUM_ANGULAR_FREQUENCY: f32 = 2.3;
 const FINE_ANGULAR_FREQUENCY: f32 = 5.1;
 const BROAD_NOISE_WEIGHT: f32 = 0.48;
@@ -32,8 +32,8 @@ const FINE_RADIAL_FADE_WIDTH: f32 = 0.14;
 // A smaller interval creates fewer, sharper radial streamer channels.
 const STREAMER_RIDGE_START: f32 = 0.50;
 const STREAMER_RIDGE_END: f32 = 0.72;
-const STREAMER_RIDGE_POWER: f32 = 2.4;
-const STREAMER_STRENGTH: f32 = 1.35;
+const STREAMER_RIDGE_POWER: f32 = 5.4;
+const STREAMER_STRENGTH: f32 = 5.35;
 const BACKGROUND_DENSITY: f32 = 0.22;
 
 // Makes streamers more prominent away from the stellar surface.

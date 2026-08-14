@@ -1,30 +1,52 @@
 # Workspace layout
 
-The existing root package remains intact as an archive of the early Bevy and astronomy experiments. Useful ideas can be migrated individually instead of being lost in a bulk rewrite. The package currently refers to an older interface of the physical-units experiment, so it is preserved but excluded from the default build.
+The repository root is a virtual Cargo workspace. Production functionality lives in reusable crates; executable packages compose those crates under `apps/`.
 
 ```text
-star_sim/                    existing experimental Bevy package
-crates/simulation_core/     new Bevy-independent scientific model
-crates/physics/units/       reusable physical units
-crates/utilities/name_generator/
-                             reusable IPA and language generator
-apps/population_lab/        plots and statistical validation
-apps/bevy_viewer/           interactive view of generated regions
+assets/scientific_models/       versioned RON inputs for the scientific models
+assets/shaders/                 Bevy shader assets
+crates/simulation/              simulation crate
+  src/core/                     Bevy-independent domain model and deterministic generation
+  src/models.rs                 feature-gated loading of scientific model inputs
+crates/physics/units/            reusable physical units
+crates/utilities/name_generator/ optional naming experiment
+crates/agent_control/            optional Bevy agent-control plugin and protocol
+apps/population_lab/             plots and statistical validation
+apps/bevy_viewer/                interactive Bevy viewer and visual examples
+apps/agent_cli/                  development CLI that drives agent-control examples
 ```
 
-Dependencies point in one direction: both applications may depend on `simulation_core`, while `simulation_core` must not depend on Bevy or either application.
+Dependencies point inward:
+
+```text
+population_lab ──> simulation [feature: models]
+bevy_viewer ─────> simulation [core only]
+bevy_viewer ──(agent-control feature)──> agent_control
+agent_cli ──drives──> agent_control / bevy_viewer examples
+```
+
+`simulation::core` must not depend on Bevy, an application, or the RON loader. The `models` feature adds the RON adapter and bundled data only for consumers that request it. Applications should contain composition and presentation, not reusable simulation behavior.
 
 ## Commands
 
 ```bash
 cargo check
-cargo test -p simulation_core
+cargo test -p simulation --features models
 cargo run -p population_lab -- --seed 42
 cargo run -p bevy_viewer
 ```
 
-`population_lab` reads the versioned scientific inputs from `config/`, including the reduced MIST stellar-evolution grid, the static stellar-orbital hierarchy model, the empirical S-type planetary-stability model, the empirical planet-occurrence model, and the explicit-planet realization model. Its generated catalog always covers the local 10-parsec sphere. It writes `output/population_lab/stellar-evolution.png` for stellar evolution, `output/population_lab/stellar-orbital-hierarchy.png` for companion scales and hierarchy coverage, `output/population_lab/planetary-stability-zones.png` for circumstellar critical semimajor axes, and `output/population_lab/explicit-planets.png` for accepted and rejected explicit candidates.
+Optional development functionality is activated at the consuming edge:
 
-The official Montréal cooling sequences are not redistributed because their download page does not state a redistribution licence. Run `tools/fetch_montreal_cooling.sh` once to generate the ignored local file `config/white_dwarf_cooling.local.ron`; `population_lab` loads it automatically.
+```bash
+cargo run -p bevy_viewer --features agent-control -- --agent
+cargo run -p bevy_viewer --example agent_control_prototype --features agent-control -- --agent
+cargo run -p bevy_viewer --example name_generator_lab --features name-generation
+cargo run -p star_sim_agent -- logical
+```
 
-The legacy package can be addressed explicitly with `-p star_sim`. It is not expected to compile until its old unit types are either restored or migrated.
+The name generator remains in the repository but is excluded from workspace-wide builds. It is only compiled as the optional dependency of the feature-gated viewer example. This keeps its standalone experimental targets out of normal `cargo check`, `cargo test --workspace`, and application builds.
+
+`population_lab` obtains the bundled inputs through `simulation::models`. Its generated catalog always covers the local 10-parsec sphere and it writes plots below `output/population_lab/`.
+
+The official Montréal cooling sequences are not redistributed because their download page does not state a redistribution licence. Run `tools/fetch_montreal_cooling.sh` once to generate the ignored local file `assets/scientific_models/white_dwarf_cooling.local.ron`; `simulation::models` discovers it automatically.

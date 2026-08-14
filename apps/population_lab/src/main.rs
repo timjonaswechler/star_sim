@@ -5,26 +5,21 @@ use plotters::{
     coord::{Shift, types::RangedCoordf64},
     prelude::*,
 };
-use simulation_core::{
-    CircumstellarSTypeStabilityZone, EvolutionaryState, ExplicitPlanetModel,
-    ExplicitPlanetProperties, ExplicitPlanetSourceChannel, GalacticLocationSampler,
-    GalacticPosition, GalacticSamplingVolume, GalaxyModel, GeneratedStellarCatalog,
-    PlanetOccurrenceError, PlanetOccurrenceModel, PlanetaryStabilityError, PlanetaryStabilityModel,
-    PopulationHistoryModel, PopulationHistorySampler, QuadrupleTopology,
-    RejectedPlanetCandidateReason, SmallPlanetOccurrence, StellarBirthMassModel,
-    StellarBirthMassSampler, StellarCatalogGenerator, StellarCatalogMember, StellarChemistry,
-    StellarEvolutionError, StellarEvolutionEvaluator, StellarEvolutionModel,
-    StellarEvolutionQualityFlag, StellarEvolutionSnapshot, StellarOrbitalHierarchyError,
-    StellarOrbitalHierarchyModel, StellarOrbitalHierarchyQualityFlag, StellarPopulation,
-    StellarPopulationHistory, UnresolvedPlanetPopulation, WhiteDwarfCoolingModel,
+use simulation::models::{
+    SimulationModels, load_local_white_dwarf_cooling, local_white_dwarf_cooling_path,
+    scientific_models_directory,
 };
-use std::{
-    env,
-    error::Error,
-    fs::{self, File},
-    io::BufReader,
-    path::PathBuf,
+use simulation::{
+    CircumstellarSTypeStabilityZone, EvolutionaryState, ExplicitPlanetProperties,
+    ExplicitPlanetSourceChannel, GalacticLocationSampler, GalacticPosition, GalacticSamplingVolume,
+    GalaxyModel, GeneratedStellarCatalog, PlanetOccurrenceError, PlanetaryStabilityError,
+    PopulationHistorySampler, QuadrupleTopology, RejectedPlanetCandidateReason,
+    SmallPlanetOccurrence, StellarBirthMassSampler, StellarCatalogMember, StellarChemistry,
+    StellarEvolutionError, StellarEvolutionEvaluator, StellarEvolutionQualityFlag,
+    StellarEvolutionSnapshot, StellarOrbitalHierarchyError, StellarOrbitalHierarchyQualityFlag,
+    StellarPopulation, StellarPopulationHistory, UnresolvedPlanetPopulation,
 };
+use std::{env, error::Error, fs};
 
 const MAP_HALF_WIDTH_PC: f64 = 20_000.0;
 const MAP_HALF_HEIGHT_PC: f64 = 10_000.0;
@@ -76,63 +71,22 @@ impl DensityField {
 
 fn main() -> Result<(), Box<dyn Error>> {
     let seed = parse_seed()?;
-    let config_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../config/milky_way.ron");
-    let galaxy: GalaxyModel = ron::de::from_reader(BufReader::new(File::open(&config_path)?))?;
-    galaxy.validate()?;
-    let birth_mass_path =
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../config/stellar_birth_masses.ron");
-    let birth_mass_model: StellarBirthMassModel =
-        ron::de::from_reader(BufReader::new(File::open(&birth_mass_path)?))?;
-    let birth_mass_sampler = StellarBirthMassSampler::new(birth_mass_model.clone())?;
-    let history_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../config/stellar_population_history.ron");
-    let history_model: PopulationHistoryModel =
-        ron::de::from_reader(BufReader::new(File::open(&history_path)?))?;
-    let history_sampler = PopulationHistorySampler::new(history_model)?;
-    let evolution_path =
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../config/stellar_evolution.ron");
-    let evolution_model: StellarEvolutionModel =
-        ron::de::from_reader(BufReader::new(File::open(&evolution_path)?))?;
-    let evolution_evaluator = StellarEvolutionEvaluator::new(evolution_model.clone())?;
-    let planet_occurrence_path =
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../config/planet_occurrence.ron");
-    let planet_occurrence_model: PlanetOccurrenceModel =
-        ron::de::from_reader(BufReader::new(File::open(&planet_occurrence_path)?))?;
-    let orbital_hierarchy_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../config/stellar_orbital_hierarchy.ron");
-    let orbital_hierarchy_model: StellarOrbitalHierarchyModel =
-        ron::de::from_reader(BufReader::new(File::open(&orbital_hierarchy_path)?))?;
-    let planetary_stability_path =
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../config/planetary_stability.ron");
-    let planetary_stability_model: PlanetaryStabilityModel =
-        ron::de::from_reader(BufReader::new(File::open(&planetary_stability_path)?))?;
-    let explicit_planet_path =
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../config/explicit_planets.ron");
-    let explicit_planet_model: ExplicitPlanetModel =
-        ron::de::from_reader(BufReader::new(File::open(&explicit_planet_path)?))?;
+    let models = SimulationModels::bundled()?;
+    let galaxy = models.galaxy;
+    let birth_mass_sampler = StellarBirthMassSampler::new(models.stellar_birth_masses.clone())?;
+    let history_sampler = PopulationHistorySampler::new(models.stellar_population_history)?;
+    let evolution_evaluator = StellarEvolutionEvaluator::new(models.stellar_evolution.clone())?;
     let sampler = GalacticLocationSampler::new(galaxy, GalacticSamplingVolume::default())?;
     let sampled = sampler.sample(seed);
     let selected = sampled.position;
-    let cooling_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../config/white_dwarf_cooling.local.ron");
-    let catalog_generator = StellarCatalogGenerator::new(
-        birth_mass_model,
-        history_model,
-        evolution_model,
-        planet_occurrence_model,
-        orbital_hierarchy_model,
-        planetary_stability_model,
-        explicit_planet_model,
-    )?;
-    let (catalog_generator, cooling_model_loaded) = if cooling_path.is_file() {
-        let cooling_model: WhiteDwarfCoolingModel =
-            ron::de::from_reader(BufReader::new(File::open(&cooling_path)?))?;
-        (
-            catalog_generator.with_white_dwarf_cooling(cooling_model)?,
+    let cooling_path = local_white_dwarf_cooling_path();
+    let catalog_generator = models.catalog_generator()?;
+    let (catalog_generator, cooling_model_loaded) = match load_local_white_dwarf_cooling()? {
+        Some(cooling) => (
+            catalog_generator.with_white_dwarf_cooling(cooling.model)?,
             true,
-        )
-    } else {
-        (catalog_generator, false)
+        ),
+        None => (catalog_generator, false),
     };
     let catalog = catalog_generator.generate(seed, sampled)?;
     let evolved_members: Vec<_> = catalog
@@ -175,11 +129,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     render_explicit_planets(&explicit_planets_plot_path, &catalog)?;
 
     let density = galaxy.stellar_number_density_at(selected);
-    println!("Loaded {}", config_path.display());
-    println!("Loaded {}", planet_occurrence_path.display());
-    println!("Loaded {}", orbital_hierarchy_path.display());
-    println!("Loaded {}", planetary_stability_path.display());
-    println!("Loaded {}", explicit_planet_path.display());
+    println!(
+        "Loaded bundled scientific models from {}",
+        scientific_models_directory().display()
+    );
     if cooling_model_loaded {
         println!("Loaded {}", cooling_path.display());
     } else {
