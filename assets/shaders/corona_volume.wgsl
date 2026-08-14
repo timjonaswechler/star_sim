@@ -1,3 +1,6 @@
+// this shader should only greate fine streamer like in polar lights https://gameuidatabase.com/gameData.php?id=175&autoload=6476
+// goal also is to create over exposure streams like in https://gameuidatabase.com/gameData.php?id=1880&autoload=75464
+
 #import bevy_pbr::{
     forward_io::VertexOutput,
     mesh_view_bindings::{globals, view},
