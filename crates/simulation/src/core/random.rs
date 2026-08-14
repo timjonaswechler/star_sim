@@ -8,10 +8,15 @@ use std::{
     thread::{self, JoinHandle},
 };
 
+use rand::{Rng, SeedableRng};
+use rand_chacha::ChaCha8Rng;
+
 use super::{ObjectId, ProvenanceError, RandomDrawAddress};
 
 const ALGORITHM: &str = "blake3-xof";
 const ALGORITHM_VERSION: &str = "1";
+const INDEXED_CHACHA8_ALGORITHM: &str = "blake3-seeded-chacha8-indexed";
+const INDEXED_CHACHA8_ALGORITHM_VERSION: &str = "1";
 const DERIVE_KEY_CONTEXT: &str = "star_sim deterministic uniform draws blake3-xof v1";
 const F64_UNIT_SCALE: f64 = 1.0 / ((1_u64 << 53) as f64);
 const PREFETCHED_CHUNK_CAPACITY: usize = 2;
@@ -72,19 +77,27 @@ impl DeterministicDraws {
 
     /// Returns the uniform draw assigned to `address` in the half-open interval `[0, 1)`.
     ///
-    /// Panics when the address names an algorithm other than `blake3-xof` version `1`.
+    /// Panics when the address names an unsupported algorithm or malformed indexed object.
     pub fn uniform(&self, address: &RandomDrawAddress) -> f64 {
-        assert!(
-            address.algorithm == ALGORITHM && address.algorithm_version == ALGORITHM_VERSION,
-            "unsupported random draw algorithm {} {}",
-            address.algorithm,
-            address.algorithm_version
-        );
-        let mut output = address_hasher(self.seed, address).finalize_xof();
-        output.set_position(u64::from(address.bounded_attempt_index) * 8);
-        let mut bytes = [0_u8; 8];
-        output.fill(&mut bytes);
-        uniform_from_bytes(bytes)
+        match (
+            address.algorithm.as_str(),
+            address.algorithm_version.as_str(),
+        ) {
+            (ALGORITHM, ALGORITHM_VERSION) => {
+                let mut output = address_hasher(self.seed, address).finalize_xof();
+                output.set_position(u64::from(address.bounded_attempt_index) * 8);
+                let mut bytes = [0_u8; 8];
+                output.fill(&mut bytes);
+                uniform_from_bytes(bytes)
+            }
+            (INDEXED_CHACHA8_ALGORITHM, INDEXED_CHACHA8_ALGORITHM_VERSION) => {
+                indexed_chacha8_uniform(self.seed, address)
+            }
+            _ => panic!(
+                "unsupported random draw algorithm {} {}",
+                address.algorithm, address.algorithm_version
+            ),
+        }
     }
 
     /// Creates an indexed stream with two chunks prepared on a background CPU thread.
@@ -182,6 +195,26 @@ impl Drop for PrefetchedDrawStream {
             let _ = worker.join();
         }
     }
+}
+
+fn indexed_chacha8_uniform(seed: u64, address: &RandomDrawAddress) -> f64 {
+    let index = address
+        .stable_object_id
+        .as_str()
+        .strip_prefix("indexed-u64-le:")
+        .and_then(|value| value.split('/').next())
+        .and_then(|value| u64::from_str_radix(value, 16).ok())
+        .expect("indexed ChaCha8 draw object must start with indexed-u64-le:<hex>");
+    let mut input = Vec::with_capacity(64);
+    input.extend_from_slice(b"star_sim/");
+    input.extend_from_slice(address.prescription_namespace.as_bytes());
+    input.extend_from_slice(&seed.to_le_bytes());
+    input.extend_from_slice(&index.to_le_bytes());
+    let mut rng = ChaCha8Rng::from_seed(*blake3::hash(&input).as_bytes());
+    (0..=address.bounded_attempt_index)
+        .map(|_| rng.gen_range(0.0..1.0))
+        .last()
+        .expect("bounded draw range contains its endpoint")
 }
 
 fn address_hasher(seed: u64, address: &RandomDrawAddress) -> blake3::Hasher {

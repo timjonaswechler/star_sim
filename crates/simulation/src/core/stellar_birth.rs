@@ -2,6 +2,15 @@
 
 use super::*;
 
+pub(crate) const PRIMARY_MASS_PRESCRIPTION_NAMESPACE: &str = "stellar_birth/primary_mass/v1";
+pub(crate) const INITIAL_STELLAR_MASS_CLAIM_KEY: &str = "initial_stellar_mass_msolar";
+
+pub(crate) fn primary_member_object_id(system_id: u64, member_id: u64) -> ObjectId {
+    ObjectId::from(format!(
+        "indexed-u64-le:{system_id:016x}/stellar-member:{member_id:016x}"
+    ))
+}
+
 /// Two-segment stellar initial mass function, dN/dm proportional to m^-alpha.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct KroupaInitialMassFunction {

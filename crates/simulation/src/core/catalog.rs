@@ -53,6 +53,28 @@ pub struct GeneratedStellarCatalog {
     pub systems: Vec<StellarCatalogSystem>,
 }
 
+/// Heterogeneous stellar values published through the catalog provenance seam.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub enum StellarClaimValue {
+    /// Initial stellar mass relative to the Sun.
+    InitialStellarMassMsolar(f64),
+}
+
+/// A generated catalog paired with its validated scientific provenance graph.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ProvenanceBearingStellarCatalog {
+    pub catalog: GeneratedStellarCatalog,
+    pub provenance: ProvenanceDocument<StellarClaimValue>,
+}
+
+#[derive(Debug, Error)]
+pub enum StellarCatalogGenerationError {
+    #[error(transparent)]
+    GenerateCatalog(#[from] StellarRegionError),
+    #[error(transparent)]
+    BuildProvenance(#[from] ProvenanceError),
+}
+
 #[derive(Debug, Error)]
 pub enum StellarCatalogModelError {
     #[error(transparent)]
@@ -74,6 +96,7 @@ pub enum StellarCatalogModelError {
 /// Generates one coherent present-day stellar catalog for the local 10-parsec sphere.
 #[derive(Debug, Clone)]
 pub struct StellarCatalogGenerator {
+    birth_mass_model: StellarBirthMassModel,
     region_generator: StellarRegionGenerator,
     history_sampler: PopulationHistorySampler,
     evolution_evaluator: StellarEvolutionEvaluator,
@@ -94,6 +117,7 @@ impl StellarCatalogGenerator {
         explicit_planet_model: ExplicitPlanetModel,
     ) -> Result<Self, StellarCatalogModelError> {
         Ok(Self {
+            birth_mass_model: birth_mass_model.clone(),
             region_generator: StellarRegionGenerator::new(birth_mass_model)?,
             history_sampler: PopulationHistorySampler::new(population_history_model)?,
             evolution_evaluator: StellarEvolutionEvaluator::new(evolution_model)?,
@@ -114,6 +138,23 @@ impl StellarCatalogGenerator {
     ) -> Result<Self, WhiteDwarfCoolingError> {
         self.evolution_evaluator = self.evolution_evaluator.with_white_dwarf_cooling(model)?;
         Ok(self)
+    }
+
+    /// Generates a catalog and publishes claim-level provenance at the catalog seam.
+    ///
+    /// Internal generators remain provenance-agnostic; this method translates their
+    /// domain outputs into claims after ordinary catalog generation has completed.
+    pub fn generate_with_provenance(
+        &self,
+        seed: u64,
+        location: SampledGalacticLocation,
+    ) -> Result<ProvenanceBearingStellarCatalog, StellarCatalogGenerationError> {
+        let catalog = self.generate(seed, location)?;
+        let provenance = initial_stellar_mass_provenance(seed, &catalog, &self.birth_mass_model)?;
+        Ok(ProvenanceBearingStellarCatalog {
+            catalog,
+            provenance,
+        })
     }
 
     pub fn generate(
@@ -261,6 +302,156 @@ impl StellarCatalogGenerator {
             systems,
         })
     }
+}
+
+fn initial_stellar_mass_provenance(
+    seed: u64,
+    catalog: &GeneratedStellarCatalog,
+    birth_mass_model: &StellarBirthMassModel,
+) -> Result<ProvenanceDocument<StellarClaimValue>, ProvenanceError> {
+    const SOURCE_ID: &str = "source.kroupa-2001-canonical-imf";
+    const PRESCRIPTION_ID: &str = "prescription.stellar-birth-primary-mass-proxy-v1";
+
+    let source_reference = ScientificSourceReference {
+        source_id: SourceId::from(SOURCE_ID),
+        locator: Some("canonical stellar IMF, equations 1-2".into()),
+    };
+    let mut source =
+        ScientificSource::new(SOURCE_ID, "On the variation of the initial mass function")?;
+    source.authors = vec!["Pavel Kroupa".into()];
+    source.publication = Some("Monthly Notices of the Royal Astronomical Society".into());
+    source.publication_year = Some(2001);
+    source.doi = Some("10.1046/j.1365-8711.2001.04022.x".into());
+    source.url = Some("https://arxiv.org/abs/astro-ph/0009005".into());
+    source.validate()?;
+
+    let prescription = GeneratingPrescription::new(
+        PRESCRIPTION_ID,
+        PRIMARY_MASS_PRESCRIPTION_NAMESPACE,
+        "1",
+        EvidenceLevel::PhysicalProxy,
+        "Samples the configured Kroupa-form IMF as a system-primary mass proxy",
+        vec![source_reference.clone()],
+    )?;
+    let imf = birth_mass_model.initial_mass_function;
+    let model_fingerprint = primary_mass_model_fingerprint(imf);
+    let model_realization_id = ModelRealizationId::from(format!(
+        "model-realization.stellar-primary-mass-v1.{model_fingerprint}.seed-{seed}"
+    ));
+    let model_realization = ModelRealization {
+        id: model_realization_id.clone(),
+        version: "1".into(),
+        seed,
+        description: format!(
+            "Configured two-segment primary-mass proxy: bounds [{}, {}, {}] M_sun, exponents [{}, {}]",
+            imf.minimum_mass_msun,
+            imf.break_mass_msun,
+            imf.maximum_mass_msun,
+            imf.low_mass_exponent,
+            imf.high_mass_exponent,
+        ),
+    };
+    let source_catalog = ScientificSourceCatalog::new(
+        seed,
+        vec![source],
+        vec![prescription],
+        vec![model_realization],
+        vec![],
+    )?;
+
+    let mut outcomes = Vec::with_capacity(catalog.systems.len());
+    for system in &catalog.systems {
+        let Some(primary) = system.members.first() else {
+            continue;
+        };
+        let object_id = primary_member_object_id(system.id, primary.birth.id);
+        let claim_id = ClaimId::from(format!("{object_id}/{INITIAL_STELLAR_MASS_CLAIM_KEY}"));
+        let draw_address = RandomDrawAddress::new(
+            "blake3-seeded-chacha8-indexed",
+            "1",
+            PRIMARY_MASS_PRESCRIPTION_NAMESPACE,
+            object_id.clone(),
+            INITIAL_STELLAR_MASS_CLAIM_KEY,
+            0,
+        )?;
+        let aleatory = AleatoryVariation::new(UncertaintyRepresentation::parametric_distribution(
+            "configured two-segment power law",
+            std::collections::BTreeMap::from([
+                ("minimum_mass_msolar".into(), imf.minimum_mass_msun),
+                ("break_mass_msolar".into(), imf.break_mass_msun),
+                ("maximum_mass_msolar".into(), imf.maximum_mass_msun),
+                ("low_mass_exponent".into(), imf.low_mass_exponent),
+                ("high_mass_exponent".into(), imf.high_mass_exponent),
+            ]),
+        )?)?;
+        let epistemic = EpistemicUncertainty::new(
+            UncertaintyRepresentation::not_quantified(
+                "the primary-mass proxy is not a closed system-primary IMF",
+            )?,
+            Some(model_realization_id.clone()),
+            None,
+        )?;
+        let provenance = ClaimProvenance::new(
+            object_id,
+            INITIAL_STELLAR_MASS_CLAIM_KEY,
+            EvidenceLevel::PhysicalProxy,
+            PRESCRIPTION_ID,
+            vec![source_reference.clone()],
+            ClaimApplicability::inside_domain(
+                "configured stellar primary-mass proxy support",
+                std::collections::BTreeMap::from([(
+                    "initial_stellar_mass_msolar".into(),
+                    primary.birth.initial_mass_msun,
+                )]),
+            )?,
+            ClaimUncertainty::new(Some(aleatory), Some(epistemic))?,
+            None,
+            Some(draw_address),
+        )?;
+        let claim = ScientificClaim::new(
+            claim_id,
+            StellarClaimValue::InitialStellarMassMsolar(primary.birth.initial_mass_msun),
+            provenance,
+        )?;
+        let receipt = ValidationReceipt::new(
+            "stellar-birth-primary-mass-support",
+            "1",
+            vec![],
+            vec![ConstraintEvaluation::passed(
+                "inside-configured-mass-support",
+                Some(primary.birth.initial_mass_msun),
+                None,
+                None,
+                Some("the sampled primary mass is inside the validated model support"),
+            )?],
+        )?;
+        outcomes.push(ClaimOutcome::Accepted(claim, receipt));
+    }
+
+    let object_ids = outcomes
+        .iter()
+        .map(|outcome| outcome.provenance().object_id.clone())
+        .collect::<Vec<_>>();
+    let object_summaries = object_ids
+        .into_iter()
+        .map(|object_id| ObjectEvidenceSummary::from_outcomes(object_id, &outcomes))
+        .collect::<Result<Vec<_>, _>>()?;
+    ProvenanceDocument::new(source_catalog, outcomes, object_summaries)
+}
+
+fn primary_mass_model_fingerprint(imf: KroupaInitialMassFunction) -> String {
+    let mut hasher = blake3::Hasher::new();
+    hasher.update(b"star_sim/stellar_primary_mass_model/v1");
+    for value in [
+        imf.minimum_mass_msun,
+        imf.break_mass_msun,
+        imf.maximum_mass_msun,
+        imf.low_mass_exponent,
+        imf.high_mass_exponent,
+    ] {
+        hasher.update(&value.to_bits().to_le_bytes());
+    }
+    hasher.finalize().to_hex()[..16].to_owned()
 }
 
 #[derive(Debug, Error)]
