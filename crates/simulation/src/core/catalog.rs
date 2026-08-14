@@ -2,6 +2,8 @@
 
 use super::*;
 
+mod provenance;
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct GeneratedStellarSystem {
     pub id: u64,
@@ -56,8 +58,40 @@ pub struct GeneratedStellarCatalog {
 /// Heterogeneous stellar values published through the catalog provenance seam.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum StellarClaimValue {
+    /// The geometrical Stellar Population assigned to a generated system.
+    Population(StellarPopulation),
+    /// Elapsed time since the system formed.
+    StellarAgeGyr(f64),
+    /// Sampled logarithmic iron abundance relative to the Sun.
+    IronAbundanceFeH(f64),
+    /// Sampled alpha-element enhancement relative to iron.
+    AlphaEnhancementAlphaFe(f64),
+    /// Coherent initial Stellar Chemistry derived for a system.
+    StellarChemistry(StellarChemistry),
     /// Initial stellar mass relative to the Sun.
     InitialStellarMassMsolar(f64),
+    /// Companion-to-primary initial-mass ratio.
+    CompanionMassRatio(f64),
+    /// Number of stellar members selected for a birth system.
+    StellarMemberCount(u8),
+    /// A member's role in the stellar birth system.
+    MemberRole(StellarMemberRole),
+    /// Present Evolutionary State from the bundled track evaluation.
+    EvolutionaryState(EvolutionaryState),
+    EvolutionQualityFlag(StellarEvolutionQualityFlag),
+    CurrentStellarMassMsolar(f64),
+    SourceMetallicityCoordinateMh(f64),
+    ZeroAgeMainSequenceAgeGyr(f64),
+    TerminalAgeMainSequenceAgeGyr(f64),
+    MainSequenceLifetimeGyr(f64),
+    FractionalMainSequenceAge(f64),
+    WhiteDwarfHandoffAgeGyr(f64),
+    WhiteDwarfCoolingAgeGyr(f64),
+    RemnantMassMsolar(f64),
+    LuminosityLsolar(f64),
+    RadiusRsolar(f64),
+    EffectiveTemperatureK(f64),
+    SurfaceGravityLog10Cgs(f64),
 }
 
 /// A generated catalog paired with its validated scientific provenance graph.
@@ -99,7 +133,9 @@ pub struct StellarCatalogGenerator {
     birth_mass_model: StellarBirthMassModel,
     region_generator: StellarRegionGenerator,
     history_sampler: PopulationHistorySampler,
+    population_history_model: PopulationHistoryModel,
     evolution_evaluator: StellarEvolutionEvaluator,
+    evolution_model_fingerprint: String,
     planet_occurrence_sampler: PlanetOccurrenceSampler,
     orbital_hierarchy_sampler: StellarOrbitalHierarchySampler,
     planetary_stability_evaluator: PlanetaryStabilityEvaluator,
@@ -116,11 +152,14 @@ impl StellarCatalogGenerator {
         planetary_stability_model: PlanetaryStabilityModel,
         explicit_planet_model: ExplicitPlanetModel,
     ) -> Result<Self, StellarCatalogModelError> {
+        let evolution_model_fingerprint = scientific_model_fingerprint(&evolution_model);
         Ok(Self {
             birth_mass_model: birth_mass_model.clone(),
             region_generator: StellarRegionGenerator::new(birth_mass_model)?,
             history_sampler: PopulationHistorySampler::new(population_history_model)?,
+            population_history_model,
             evolution_evaluator: StellarEvolutionEvaluator::new(evolution_model)?,
+            evolution_model_fingerprint,
             planet_occurrence_sampler: PlanetOccurrenceSampler::new(planet_occurrence_model)?,
             orbital_hierarchy_sampler: StellarOrbitalHierarchySampler::new(
                 orbital_hierarchy_model,
@@ -136,6 +175,8 @@ impl StellarCatalogGenerator {
         mut self,
         model: WhiteDwarfCoolingModel,
     ) -> Result<Self, WhiteDwarfCoolingError> {
+        self.evolution_model_fingerprint =
+            scientific_model_fingerprint(&(self.evolution_model_fingerprint.as_str(), &model));
         self.evolution_evaluator = self.evolution_evaluator.with_white_dwarf_cooling(model)?;
         Ok(self)
     }
@@ -150,7 +191,13 @@ impl StellarCatalogGenerator {
         location: SampledGalacticLocation,
     ) -> Result<ProvenanceBearingStellarCatalog, StellarCatalogGenerationError> {
         let catalog = self.generate(seed, location)?;
-        let provenance = initial_stellar_mass_provenance(seed, &catalog, &self.birth_mass_model)?;
+        let provenance = provenance::generate(
+            seed,
+            &catalog,
+            &self.birth_mass_model,
+            &self.population_history_model,
+            &self.evolution_model_fingerprint,
+        )?;
         Ok(ProvenanceBearingStellarCatalog {
             catalog,
             provenance,
@@ -304,153 +351,9 @@ impl StellarCatalogGenerator {
     }
 }
 
-fn initial_stellar_mass_provenance(
-    seed: u64,
-    catalog: &GeneratedStellarCatalog,
-    birth_mass_model: &StellarBirthMassModel,
-) -> Result<ProvenanceDocument<StellarClaimValue>, ProvenanceError> {
-    const SOURCE_ID: &str = "source.kroupa-2001-canonical-imf";
-    const PRESCRIPTION_ID: &str = "prescription.stellar-birth-primary-mass-proxy-v1";
-
-    let source_reference = ScientificSourceReference {
-        source_id: SourceId::from(SOURCE_ID),
-        locator: Some("canonical stellar IMF, equations 1-2".into()),
-    };
-    let mut source =
-        ScientificSource::new(SOURCE_ID, "On the variation of the initial mass function")?;
-    source.authors = vec!["Pavel Kroupa".into()];
-    source.publication = Some("Monthly Notices of the Royal Astronomical Society".into());
-    source.publication_year = Some(2001);
-    source.doi = Some("10.1046/j.1365-8711.2001.04022.x".into());
-    source.url = Some("https://arxiv.org/abs/astro-ph/0009005".into());
-    source.validate()?;
-
-    let prescription = GeneratingPrescription::new(
-        PRESCRIPTION_ID,
-        PRIMARY_MASS_PRESCRIPTION_NAMESPACE,
-        "1",
-        EvidenceLevel::PhysicalProxy,
-        "Samples the configured Kroupa-form IMF as a system-primary mass proxy",
-        vec![source_reference.clone()],
-    )?;
-    let imf = birth_mass_model.initial_mass_function;
-    let model_fingerprint = primary_mass_model_fingerprint(imf);
-    let model_realization_id = ModelRealizationId::from(format!(
-        "model-realization.stellar-primary-mass-v1.{model_fingerprint}.seed-{seed}"
-    ));
-    let model_realization = ModelRealization {
-        id: model_realization_id.clone(),
-        version: "1".into(),
-        seed,
-        description: format!(
-            "Configured two-segment primary-mass proxy: bounds [{}, {}, {}] M_sun, exponents [{}, {}]",
-            imf.minimum_mass_msun,
-            imf.break_mass_msun,
-            imf.maximum_mass_msun,
-            imf.low_mass_exponent,
-            imf.high_mass_exponent,
-        ),
-    };
-    let source_catalog = ScientificSourceCatalog::new(
-        seed,
-        vec![source],
-        vec![prescription],
-        vec![model_realization],
-        vec![],
-    )?;
-
-    let mut outcomes = Vec::with_capacity(catalog.systems.len());
-    for system in &catalog.systems {
-        let Some(primary) = system.members.first() else {
-            continue;
-        };
-        let object_id = primary_member_object_id(system.id, primary.birth.id);
-        let claim_id = ClaimId::from(format!("{object_id}/{INITIAL_STELLAR_MASS_CLAIM_KEY}"));
-        let draw_address = RandomDrawAddress::new(
-            "blake3-seeded-chacha8-indexed",
-            "1",
-            PRIMARY_MASS_PRESCRIPTION_NAMESPACE,
-            object_id.clone(),
-            INITIAL_STELLAR_MASS_CLAIM_KEY,
-            0,
-        )?;
-        let aleatory = AleatoryVariation::new(UncertaintyRepresentation::parametric_distribution(
-            "configured two-segment power law",
-            std::collections::BTreeMap::from([
-                ("minimum_mass_msolar".into(), imf.minimum_mass_msun),
-                ("break_mass_msolar".into(), imf.break_mass_msun),
-                ("maximum_mass_msolar".into(), imf.maximum_mass_msun),
-                ("low_mass_exponent".into(), imf.low_mass_exponent),
-                ("high_mass_exponent".into(), imf.high_mass_exponent),
-            ]),
-        )?)?;
-        let epistemic = EpistemicUncertainty::new(
-            UncertaintyRepresentation::not_quantified(
-                "the primary-mass proxy is not a closed system-primary IMF",
-            )?,
-            Some(model_realization_id.clone()),
-            None,
-        )?;
-        let provenance = ClaimProvenance::new(
-            object_id,
-            INITIAL_STELLAR_MASS_CLAIM_KEY,
-            EvidenceLevel::PhysicalProxy,
-            PRESCRIPTION_ID,
-            vec![source_reference.clone()],
-            ClaimApplicability::inside_domain(
-                "configured stellar primary-mass proxy support",
-                std::collections::BTreeMap::from([(
-                    "initial_stellar_mass_msolar".into(),
-                    primary.birth.initial_mass_msun,
-                )]),
-            )?,
-            ClaimUncertainty::new(Some(aleatory), Some(epistemic))?,
-            None,
-            Some(draw_address),
-        )?;
-        let claim = ScientificClaim::new(
-            claim_id,
-            StellarClaimValue::InitialStellarMassMsolar(primary.birth.initial_mass_msun),
-            provenance,
-        )?;
-        let receipt = ValidationReceipt::new(
-            "stellar-birth-primary-mass-support",
-            "1",
-            vec![],
-            vec![ConstraintEvaluation::passed(
-                "inside-configured-mass-support",
-                Some(primary.birth.initial_mass_msun),
-                None,
-                None,
-                Some("the sampled primary mass is inside the validated model support"),
-            )?],
-        )?;
-        outcomes.push(ClaimOutcome::Accepted(claim, receipt));
-    }
-
-    let object_ids = outcomes
-        .iter()
-        .map(|outcome| outcome.provenance().object_id.clone())
-        .collect::<Vec<_>>();
-    let object_summaries = object_ids
-        .into_iter()
-        .map(|object_id| ObjectEvidenceSummary::from_outcomes(object_id, &outcomes))
-        .collect::<Result<Vec<_>, _>>()?;
-    ProvenanceDocument::new(source_catalog, outcomes, object_summaries)
-}
-
-fn primary_mass_model_fingerprint(imf: KroupaInitialMassFunction) -> String {
+fn scientific_model_fingerprint(model: &impl std::fmt::Debug) -> String {
     let mut hasher = blake3::Hasher::new();
-    hasher.update(b"star_sim/stellar_primary_mass_model/v1");
-    for value in [
-        imf.minimum_mass_msun,
-        imf.break_mass_msun,
-        imf.maximum_mass_msun,
-        imf.low_mass_exponent,
-        imf.high_mass_exponent,
-    ] {
-        hasher.update(&value.to_bits().to_le_bytes());
-    }
+    hasher.update(format!("{model:?}").as_bytes());
     hasher.finalize().to_hex()[..16].to_owned()
 }
 
@@ -518,11 +421,17 @@ impl StellarRegionGenerator {
                 distance * sin_theta * phi.sin(),
                 distance * cos_theta,
             ];
-            let population = sample_population(
-                location.local_density,
-                &mut domain_rng(seed, b"stellar_region/system_population/v1", Some(index)),
-            );
             let system_id = stable_system_id(seed, index);
+            let population_draw_scope = RandomDrawScope::new(
+                "stellar_region/system_population/v1",
+                ObjectId::from(format!("indexed-u64-le:{system_id:016x}/stellar-system")),
+                "stellar_population",
+            )
+            .expect("static Stellar Population draw identity is valid");
+            let population = sample_population_from_uniform(
+                location.local_density,
+                DeterministicDraws::new(seed).uniform(&population_draw_scope.at(0)),
+            );
             let birth_masses = self.birth_mass_sampler.sample(seed, system_id);
 
             systems.push(GeneratedStellarSystem {
@@ -542,8 +451,11 @@ impl StellarRegionGenerator {
     }
 }
 
-fn sample_population(density: PopulationDensity, rng: &mut ChaCha8Rng) -> StellarPopulation {
-    let draw = rng.gen_range(0.0..density.total());
+fn sample_population_from_uniform(
+    density: PopulationDensity,
+    uniform_draw: f64,
+) -> StellarPopulation {
+    let draw = uniform_draw * density.total();
     if draw < density.thin_disk {
         StellarPopulation::ThinDisk
     } else if draw < density.thin_disk + density.thick_disk {

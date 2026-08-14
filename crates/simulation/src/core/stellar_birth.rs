@@ -3,9 +3,13 @@
 use super::*;
 
 pub(crate) const PRIMARY_MASS_PRESCRIPTION_NAMESPACE: &str = "stellar_birth/primary_mass/v1";
+pub(crate) const COMPANION_MASS_RATIO_PRESCRIPTION_NAMESPACE: &str =
+    "stellar_birth/companion_mass_ratio/v1";
 pub(crate) const INITIAL_STELLAR_MASS_CLAIM_KEY: &str = "initial_stellar_mass_msolar";
+pub(crate) const COMPANION_MASS_RATIO_CLAIM_KEY: &str = "companion_mass_ratio";
+pub(crate) const STELLAR_MEMBER_ROLE_CLAIM_KEY: &str = "stellar_member_role";
 
-pub(crate) fn primary_member_object_id(system_id: u64, member_id: u64) -> ObjectId {
+pub(crate) fn stellar_member_object_id(system_id: u64, member_id: u64) -> ObjectId {
     ObjectId::from(format!(
         "indexed-u64-le:{system_id:016x}/stellar-member:{member_id:016x}"
     ))
@@ -148,20 +152,22 @@ impl StellarBirthMassSampler {
             multiplicity.representative_higher_order_members
         };
 
-        let mut companion_mass_ratios = (1..member_count)
+        let companion_mass_ratios = (1..member_count)
             .map(|rank| {
                 let minimum_q = multiplicity
                     .minimum_mass_ratio
                     .max(self.model.minimum_companion_mass_msun / primary_mass_msun);
-                let mut rng = domain_rng(
-                    seed,
-                    b"stellar_birth/companion_mass_ratio/v1",
-                    Some(stable_member_id(system_id, rank)),
-                );
-                sample_power_law(minimum_q, 1.0, -multiplicity.mass_ratio_power, &mut rng)
+                let member_id = stable_member_id(system_id, rank);
+                let draw_scope = RandomDrawScope::new(
+                    COMPANION_MASS_RATIO_PRESCRIPTION_NAMESPACE,
+                    stellar_member_object_id(system_id, member_id),
+                    COMPANION_MASS_RATIO_CLAIM_KEY,
+                )
+                .expect("static companion draw identity is valid");
+                let draw = DeterministicDraws::new(seed).uniform(&draw_scope.at(0));
+                sample_power_law_from_uniform(minimum_q, 1.0, -multiplicity.mass_ratio_power, draw)
             })
             .collect::<Vec<_>>();
-        companion_mass_ratios.sort_by(|left, right| right.total_cmp(left));
 
         let mut members = Vec::with_capacity(usize::from(member_count));
         members.push(StellarBirthMember {
@@ -310,7 +316,10 @@ fn power_law_integral(minimum: f64, maximum: f64, exponent: f64) -> f64 {
 }
 
 fn sample_power_law(minimum: f64, maximum: f64, exponent: f64, rng: &mut ChaCha8Rng) -> f64 {
-    let draw = rng.gen_range(0.0..1.0);
+    sample_power_law_from_uniform(minimum, maximum, exponent, rng.gen_range(0.0..1.0))
+}
+
+fn sample_power_law_from_uniform(minimum: f64, maximum: f64, exponent: f64, draw: f64) -> f64 {
     if (exponent - 1.0).abs() < 1e-12 {
         minimum * (maximum / minimum).powf(draw)
     } else {

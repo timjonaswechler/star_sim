@@ -135,7 +135,14 @@ pub enum ClaimApplicability {
         /// Input values used for this evaluation.
         evaluated_inputs: BTreeMap<String, f64>,
     },
-    /// At least one input lies outside the calibration domain.
+    /// At least one input lies outside the domain and no value was generated.
+    OutsideDomain {
+        /// Name or versioned identity of the unavailable model domain.
+        calibrated_domain: String,
+        /// Input values used for the unsupported evaluation.
+        evaluated_inputs: BTreeMap<String, f64>,
+    },
+    /// At least one input lies outside the calibration domain and a proxy value was generated.
     Extrapolated(ClaimExtrapolation),
     /// Presentation-only variation has no scientific calibration domain.
     PresentationOnly,
@@ -144,6 +151,10 @@ pub enum ClaimApplicability {
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 enum ClaimApplicabilityWire {
     InsideDomain {
+        calibrated_domain: String,
+        evaluated_inputs: BTreeMap<String, f64>,
+    },
+    OutsideDomain {
         calibrated_domain: String,
         evaluated_inputs: BTreeMap<String, f64>,
     },
@@ -165,6 +176,19 @@ impl ClaimApplicability {
         Ok(applicability)
     }
 
+    /// Creates an outside-domain record for an unsupported evaluation.
+    pub fn outside_domain(
+        calibrated_domain: impl Into<String>,
+        evaluated_inputs: BTreeMap<String, f64>,
+    ) -> Result<Self, ProvenanceError> {
+        let applicability = Self::OutsideDomain {
+            calibrated_domain: calibrated_domain.into(),
+            evaluated_inputs,
+        };
+        applicability.validate()?;
+        Ok(applicability)
+    }
+
     /// Creates an applicability record for explicit extrapolation.
     pub fn extrapolated(extrapolation: ClaimExtrapolation) -> Result<Self, ProvenanceError> {
         let applicability = Self::Extrapolated(extrapolation);
@@ -176,6 +200,13 @@ impl ClaimApplicability {
     pub fn validate(&self) -> Result<(), ProvenanceError> {
         match self {
             Self::InsideDomain {
+                calibrated_domain,
+                evaluated_inputs,
+            } => {
+                validate_text(calibrated_domain, "calibrated domain")?;
+                validate_finite_map(evaluated_inputs, "evaluated input")?;
+            }
+            Self::OutsideDomain {
                 calibrated_domain,
                 evaluated_inputs,
             } => {
@@ -208,6 +239,13 @@ impl TryFrom<ClaimApplicabilityWire> for ClaimApplicability {
                 calibrated_domain,
                 evaluated_inputs,
             } => Self::InsideDomain {
+                calibrated_domain,
+                evaluated_inputs,
+            },
+            ClaimApplicabilityWire::OutsideDomain {
+                calibrated_domain,
+                evaluated_inputs,
+            } => Self::OutsideDomain {
                 calibrated_domain,
                 evaluated_inputs,
             },
