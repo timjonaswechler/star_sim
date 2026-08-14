@@ -18,7 +18,7 @@ The repository uses a single-context domain documentation layout. See `docs/agen
 
 ## Commits
 
-- Use Conventional Commits: `<type>[optional scope][!]: <description>`.
+- Use Conventional Commits: `<type>[optional scope][!]: <description> (<issue>)`.
 - Use `feat`, `fix`, `docs`, `refactor`, `test`, `perf`, `build`, `ci`, `chore`, `style`, or `revert`.
 - Keep commits atomic, independently buildable and testable; separate unrelated changes.
 - Write a lowercase description without a trailing period; keep the header within 100 characters.
