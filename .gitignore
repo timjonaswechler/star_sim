@@ -2,7 +2,7 @@
 /examples/color_preview/target/
 .DS_Store
 *.py
-!tools/demo_agent_control_prototype.py
+!tools/demo_automation_control_prototype.py
 combined_source.md
 *.diff
 /output/

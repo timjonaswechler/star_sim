@@ -37,7 +37,7 @@ impl JsonLinesInput {
     pub fn try_recv(&self) -> Result<Input, TryRecvError> {
         self.receiver
             .lock()
-            .expect("agent input mutex poisoned")
+            .expect("automation input mutex poisoned")
             .try_recv()
     }
 }

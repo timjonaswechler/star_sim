@@ -5,19 +5,19 @@ edition = "2024"
 
 [features]
 default = []
-agent-control = ["dep:agent_control", "dep:serde_json"]
+automation-control = ["dep:automation_control", "dep:serde_json"]
 name-generation = ["dep:name_generator"]
 
 [dependencies]
 bevy = { version = "0.19.0", features = ["bevy_feathers", "free_camera", "file_watcher"] }
 simulation = { path = "../../crates/simulation" }
-agent_control = { path = "../../crates/agent_control", optional = true, features = ["render"] }
+automation_control = { path = "../../crates/automation_control", optional = true, features = ["render"] }
 name_generator = { path = "../../crates/utilities/name_generator", optional = true }
 serde_json = { version = "1.0", optional = true }
 
 [[example]]
-name = "agent_control_prototype"
-required-features = ["agent-control"]
+name = "automation_control_prototype"
+required-features = ["automation-control"]
 
 [[example]]
 name = "name_generator_lab"

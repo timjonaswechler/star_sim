@@ -1,7 +1,7 @@
 //! Optional development tooling for controlling a Bevy application over JSON Lines.
 //!
 //! This crate owns protocol, transport, target discovery, and observation. It deliberately does
-//! not own application actions: the host polls [`AgentRequest`] and calls its normal operation.
+//! not own application actions: the host polls [`AutomationRequest`] and calls its normal operation.
 
 #[cfg(feature = "render")]
 mod artifact;
@@ -25,7 +25,7 @@ pub use protocol::{
     Request, Response, ResponseStatus, RunMode, ScreenshotSource, WaitCondition, decode_request,
 };
 pub use target::{
-    AgentTarget, Bounds, Observations, RegistryLookupError, TargetObservation, TargetRegistry,
+    AutomationTarget, Bounds, Observations, RegistryLookupError, TargetObservation, TargetRegistry,
 };
 pub use transport::{Input, JsonLinesInput, Output, StdoutOutput};
 
@@ -34,7 +34,7 @@ use serde_json::json;
 use std::{collections::HashSet, sync::Arc, sync::mpsc::TryRecvError};
 
 #[derive(Clone)]
-pub struct AgentControlPlugin {
+pub struct AutomationControlPlugin {
     capabilities: Vec<String>,
     mode: RunMode,
     seed: u64,
@@ -44,10 +44,10 @@ pub struct AgentControlPlugin {
     input_factory: Arc<dyn Fn() -> JsonLinesInput + Send + Sync>,
 }
 
-impl std::fmt::Debug for AgentControlPlugin {
+impl std::fmt::Debug for AutomationControlPlugin {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter
-            .debug_struct("AgentControlPlugin")
+            .debug_struct("AutomationControlPlugin")
             .field("capabilities", &self.capabilities)
             .field("mode", &self.mode)
             .field("seed", &self.seed)
@@ -57,7 +57,7 @@ impl std::fmt::Debug for AgentControlPlugin {
     }
 }
 
-impl Default for AgentControlPlugin {
+impl Default for AutomationControlPlugin {
     fn default() -> Self {
         Self::stdio([
             "inspect_ui",
@@ -81,7 +81,7 @@ impl Default for AgentControlPlugin {
     }
 }
 
-impl AgentControlPlugin {
+impl AutomationControlPlugin {
     pub fn stdio(capabilities: impl IntoIterator<Item = impl Into<String>>) -> Self {
         let input_capacity = 64;
         Self {
@@ -120,7 +120,7 @@ impl AgentControlPlugin {
     }
 }
 
-impl Plugin for AgentControlPlugin {
+impl Plugin for AutomationControlPlugin {
     fn build(&self, app: &mut App) {
         if self.mode == RunMode::Logical {
             app.init_schedule(FixedUpdate);
@@ -136,7 +136,7 @@ impl Plugin for AgentControlPlugin {
             output: Arc::clone(&self.output),
         })
         .insert_resource(Capabilities(self.capabilities.clone()))
-        .insert_resource(AgentConfiguration {
+        .insert_resource(AutomationConfiguration {
             mode: self.mode,
             seed: self.seed,
             fixed_step_ms: self.fixed_step_ms,
@@ -144,7 +144,7 @@ impl Plugin for AgentControlPlugin {
         .insert_resource(RunState::new(self.seed, self.fixed_step_ms))
         .init_resource::<TargetRegistry>()
         .init_resource::<Observations>()
-        .init_resource::<AgentRequests>()
+        .init_resource::<AutomationRequests>()
         .init_resource::<CompletedRequests>()
         .init_resource::<PendingWaits>()
         .add_systems(Startup, emit_ready)
@@ -171,7 +171,7 @@ struct Transport {
 struct Capabilities(Vec<String>);
 
 #[derive(Clone, Copy, Resource)]
-struct AgentConfiguration {
+struct AutomationConfiguration {
     mode: RunMode,
     seed: u64,
     fixed_step_ms: u32,
@@ -188,18 +188,18 @@ struct PendingWait {
 struct PendingWaits(Vec<PendingWait>);
 
 #[derive(Clone, Debug)]
-pub struct AgentRequest(pub Request);
+pub struct AutomationRequest(pub Request);
 
 #[derive(Default, Resource)]
-pub struct AgentRequests(Vec<AgentRequest>);
+pub struct AutomationRequests(Vec<AutomationRequest>);
 
-impl AgentRequests {
-    pub fn drain(&mut self) -> impl Iterator<Item = AgentRequest> + '_ {
+impl AutomationRequests {
+    pub fn drain(&mut self) -> impl Iterator<Item = AutomationRequest> + '_ {
         self.0.drain(..)
     }
 
     /// Returns a request to the crate for built-in handling later in the frame.
-    pub fn defer(&mut self, request: AgentRequest) {
+    pub fn defer(&mut self, request: AutomationRequest) {
         self.0.push(request);
     }
 }
@@ -225,7 +225,7 @@ pub fn complete_request(world: &mut World, response: Response) -> bool {
 
 fn write_response(world: &World, response: Response) -> bool {
     if let Err(error) = world.resource::<Transport>().output.response(&response) {
-        eprintln!("agent-control response failed: {error}");
+        eprintln!("automation-control response failed: {error}");
         return false;
     }
     true
@@ -234,7 +234,7 @@ fn write_response(world: &World, response: Response) -> bool {
 fn emit_ready(
     transport: Res<Transport>,
     capabilities: Res<Capabilities>,
-    configuration: Res<AgentConfiguration>,
+    configuration: Res<AutomationConfiguration>,
 ) {
     if let Err(error) = transport.output.ready(&Ready::new(
         capabilities.0.clone(),
@@ -242,7 +242,7 @@ fn emit_ready(
         configuration.seed,
         configuration.fixed_step_ms,
     )) {
-        eprintln!("agent-control ready failed: {error}");
+        eprintln!("automation-control ready failed: {error}");
     }
 }
 
@@ -255,9 +255,9 @@ fn receive_requests(world: &mut World) {
         match input {
             Ok(Input::Line(line)) => match decode_request(&line) {
                 Ok(request) => world
-                    .resource_mut::<AgentRequests>()
+                    .resource_mut::<AutomationRequests>()
                     .0
-                    .push(AgentRequest(request)),
+                    .push(AutomationRequest(request)),
                 Err(response) => {
                     complete_request(world, response);
                 }
@@ -278,8 +278,8 @@ fn receive_requests(world: &mut World) {
 }
 
 fn complete_builtin_requests(world: &mut World) {
-    let requests: Vec<_> = world.resource_mut::<AgentRequests>().drain().collect();
-    for AgentRequest(request) in requests {
+    let requests: Vec<_> = world.resource_mut::<AutomationRequests>().drain().collect();
+    for AutomationRequest(request) in requests {
         match request.command {
             Command::InspectUi
             | Command::InspectScene
@@ -375,13 +375,13 @@ fn complete_builtin_requests(world: &mut World) {
                     ),
                     Ok(entity) => {
                         let supports = world
-                            .get::<AgentTarget>(entity)
+                            .get::<AutomationTarget>(entity)
                             .is_some_and(|metadata| metadata.supports("click"));
                         if supports {
                             world
-                                .resource_mut::<AgentRequests>()
+                                .resource_mut::<AutomationRequests>()
                                 .0
-                                .push(AgentRequest(Request {
+                                .push(AutomationRequest(Request {
                                     version: request.version,
                                     id: request.id,
                                     command: Command::Click { target },
@@ -426,9 +426,9 @@ fn complete_builtin_requests(world: &mut World) {
                     );
                 } else {
                     world
-                        .resource_mut::<AgentRequests>()
+                        .resource_mut::<AutomationRequests>()
                         .0
-                        .push(AgentRequest(request));
+                        .push(AutomationRequest(request));
                 }
             }
         }
@@ -501,7 +501,7 @@ mod tests {
         let plugin_output: Arc<dyn Output> = output.clone();
         let mut app = App::new();
         app.add_plugins(MinimalPlugins);
-        app.add_plugins(AgentControlPlugin::with_io(
+        app.add_plugins(AutomationControlPlugin::with_io(
             ["inspect_ui", "click", "shutdown"],
             move || JsonLinesInput::from_receiver(receiver.lock().unwrap().take().unwrap()),
             plugin_output,
@@ -527,22 +527,29 @@ mod tests {
         let (mut app, _sender, _output) = test_app();
         let one = app
             .world_mut()
-            .spawn(AgentTarget::new("one", "scene", "One", [] as [&str; 0]))
+            .spawn(AutomationTarget::new(
+                "one",
+                "scene",
+                "One",
+                [] as [&str; 0],
+            ))
             .id();
         app.update();
         assert!(app.world().resource::<TargetRegistry>().contains("one"));
-        app.world_mut().entity_mut(one).insert(AgentTarget::new(
-            "two",
-            "scene",
-            "Two",
-            [] as [&str; 0],
-        ));
+        app.world_mut()
+            .entity_mut(one)
+            .insert(AutomationTarget::new(
+                "two",
+                "scene",
+                "Two",
+                [] as [&str; 0],
+            ));
         app.update();
         assert!(!app.world().resource::<TargetRegistry>().contains("one"));
         assert!(app.world().resource::<TargetRegistry>().contains("two"));
         let duplicate = app
             .world_mut()
-            .spawn(AgentTarget::new(
+            .spawn(AutomationTarget::new(
                 "two",
                 "scene",
                 "Duplicate",

@@ -1,8 +1,8 @@
-//! Logical headless agent demonstration for issue #36. No window, renderer, GPU or display server.
+//! Logical headless automation demonstration for issue #36. No window, renderer, GPU or display server.
 
-use agent_control::{
-    AgentControlPlugin, AgentRequest, AgentRequests, AgentTarget, Command, Response, RunMode,
-    RunState, complete_request,
+use automation_control::{
+    AutomationControlPlugin, AutomationRequest, AutomationRequests, AutomationTarget, Command,
+    Response, RunMode, RunState, complete_request,
 };
 use bevy::prelude::*;
 use serde_json::json;
@@ -12,8 +12,8 @@ struct ClickCount(u32);
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
-    if !args.iter().any(|value| value == "--agent") {
-        eprintln!("logical demonstration requires --agent");
+    if !args.iter().any(|value| value == "--automation") {
+        eprintln!("logical demonstration requires --automation");
         std::process::exit(2);
     }
     let seed = argument(&args, "--seed")
@@ -23,7 +23,7 @@ fn main() {
     App::new()
         .add_plugins(MinimalPlugins)
         .add_plugins(
-            AgentControlPlugin::stdio([
+            AutomationControlPlugin::stdio([
                 "inspect_ui",
                 "inspect_scene",
                 "click",
@@ -52,13 +52,13 @@ fn argument<'a>(args: &'a [String], key: &str) -> Option<&'a str> {
 
 fn setup(mut commands: Commands, mut state: ResMut<RunState>) {
     state.active_screen = Some("prototype".into());
-    commands.spawn(AgentTarget::new(
+    commands.spawn(AutomationTarget::new(
         "toolbar.generate",
         "ui",
         "Generate",
         ["click"],
     ));
-    commands.spawn(AgentTarget::new(
+    commands.spawn(AutomationTarget::new(
         "scene.prototype_star",
         "scene",
         "Prototype star",
@@ -67,8 +67,9 @@ fn setup(mut commands: Commands, mut state: ResMut<RunState>) {
 }
 
 fn logical_adapter(world: &mut World) {
-    let requests: Vec<AgentRequest> = world.resource_mut::<AgentRequests>().drain().collect();
-    for AgentRequest(request) in requests {
+    let requests: Vec<AutomationRequest> =
+        world.resource_mut::<AutomationRequests>().drain().collect();
+    for AutomationRequest(request) in requests {
         match request.command {
             Command::Click { target } if target == "toolbar.generate" => {
                 world.resource_mut::<ClickCount>().0 += 1;
@@ -97,8 +98,8 @@ fn logical_adapter(world: &mut World) {
                 );
             }
             _ => world
-                .resource_mut::<AgentRequests>()
-                .defer(AgentRequest(request)),
+                .resource_mut::<AutomationRequests>()
+                .defer(AutomationRequest(request)),
         }
     }
 }

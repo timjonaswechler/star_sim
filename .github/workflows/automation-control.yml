@@ -1,4 +1,4 @@
-name: Agent control
+name: Automation control
 
 on:
   push:
@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   logical-headless:
-    name: Logical headless agent E2E
+    name: Logical headless automation E2E
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -21,17 +21,17 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: Unit tests
-        run: cargo test -p agent_control -p star_sim_agent
+        run: cargo test -p automation_control -p star_sim_debug
       - name: Build logical process binaries outside the protocol timeout
         run: |
-          cargo build -p star_sim_agent
-          cargo build -p agent_control --example agent_control_headless
+          cargo build -p star_sim_debug
+          cargo build -p automation_control --example automation_control_headless
       - name: Prove deterministic logical output
         shell: bash
         run: |
           set -euo pipefail
-          cargo run -q -p star_sim_agent -- logical > logical-1.json
-          cargo run -q -p star_sim_agent -- logical > logical-2.json
+          cargo run -q -p star_sim_debug -- logical > logical-1.json
+          cargo run -q -p star_sim_debug -- logical > logical-2.json
           cmp logical-1.json logical-2.json
           python3 - <<'PY'
           import json
@@ -44,7 +44,7 @@ jobs:
           PY
 
   visual-linux:
-    name: Visual Linux agent E2E
+    name: Visual Linux automation E2E
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
@@ -65,22 +65,22 @@ jobs:
             mesa-vulkan-drivers vulkan-tools
       - name: Build visual process binaries outside the protocol timeout
         run: |
-          cargo build -p star_sim_agent
-          cargo build -p bevy_viewer --example agent_control_prototype --features agent-control
+          cargo build -p star_sim_debug
+          cargo build -p bevy_viewer --example automation_control_prototype --features automation-control
       - name: Run complete visual flow under Xvfb
         env:
           LIBGL_ALWAYS_SOFTWARE: "1"
           WGPU_FORCE_FALLBACK_ADAPTER: "1"
         run: |
           set -euo pipefail
-          mkdir -p artifacts/agent-ci
+          mkdir -p artifacts/debug-ci
           xvfb-run -a -s "-screen 0 1280x720x24" \
-            cargo run -q -p star_sim_agent -- visual --artifact-dir artifacts/agent-ci \
-            | tee artifacts/agent-ci/result.json
+            cargo run -q -p star_sim_debug -- visual --artifact-dir artifacts/debug-ci \
+            | tee artifacts/debug-ci/result.json
           python3 - <<'PY'
           import json, struct
           from pathlib import Path
-          lines = Path("artifacts/agent-ci/result.json").read_text().splitlines()
+          lines = Path("artifacts/debug-ci/result.json").read_text().splitlines()
           results = []
           for line in lines:
               try:
@@ -93,13 +93,13 @@ jobs:
           result = results[0]
           assert result["mode"] == "visual"
           for name, size in [("window.png", (640, 360)), ("camera.png", (320, 180))]:
-              data = Path("artifacts/agent-ci", name).read_bytes()
+              data = Path("artifacts/debug-ci", name).read_bytes()
               assert data[:8] == b"\x89PNG\r\n\x1a\n"
               assert struct.unpack(">II", data[16:24]) == size
           PY
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: agent-control-visual-linux
-          path: artifacts/agent-ci/
+          name: automation-control-visual-linux
+          path: artifacts/debug-ci/
           if-no-files-found: warn

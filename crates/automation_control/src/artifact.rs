@@ -127,7 +127,7 @@ mod tests {
     use super::*;
 
     fn temporary_root(name: &str) -> PathBuf {
-        std::env::temp_dir().join(format!("agent-control-{name}-{}", std::process::id()))
+        std::env::temp_dir().join(format!("automation-control-{name}-{}", std::process::id()))
     }
 
     #[test]

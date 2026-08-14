@@ -1,9 +1,10 @@
-//! Development demonstration for issues #34/#35. Run with `tools/demo_agent_control_prototype.py`.
+//! Development demonstration for issues #34/#35. Run with `tools/demo_automation_control_prototype.py`.
 
-use agent_control::{
-    AgentControlPlugin, AgentRequest, AgentRequests, AgentTarget, ArtifactRoot, CameraPose,
-    Command, Coordinate, DeterministicAnimation, OperationMode, Response, RunMode, RunState,
-    ScreenshotSource, complete_request, focus_pose, orbit_pose, viewport_pixels, zoom_pose,
+use automation_control::{
+    ArtifactRoot, AutomationControlPlugin, AutomationRequest, AutomationRequests, AutomationTarget,
+    CameraPose, Command, Coordinate, DeterministicAnimation, OperationMode, Response, RunMode,
+    RunState, ScreenshotSource, complete_request, focus_pose, orbit_pose, viewport_pixels,
+    zoom_pose,
 };
 use bevy::{
     asset::RenderAssetUsages,
@@ -50,8 +51,8 @@ struct PendingCamera {
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
-    if !args.iter().any(|argument| argument == "--agent") {
-        eprintln!("This demonstration only runs with --agent");
+    if !args.iter().any(|argument| argument == "--automation") {
+        eprintln!("This demonstration only runs with --automation");
         std::process::exit(2);
     }
     let artifact_dir = args
@@ -59,19 +60,19 @@ fn main() {
         .position(|value| value == "--artifact-dir")
         .and_then(|index| args.get(index + 1))
         .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("artifacts/agent-prototype"));
+        .unwrap_or_else(|| PathBuf::from("artifacts/automation-prototype"));
     let artifacts = ArtifactRoot::new(artifact_dir).expect("create artifact root");
 
     App::new()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
-                title: "Agent Control #35".into(),
+                title: "Automation Control #35".into(),
                 resolution: (640, 360).into(),
                 ..default()
             }),
             ..default()
         }))
-        .add_plugins(AgentControlPlugin::default().configured(RunMode::Rendered, 42, 50))
+        .add_plugins(AutomationControlPlugin::default().configured(RunMode::Rendered, 42, 50))
         .insert_resource(DemoArtifacts(artifacts))
         .insert_resource(CameraState { target: Vec3::ZERO })
         .init_resource::<ClickCount>()
@@ -80,7 +81,7 @@ fn main() {
             Update,
             (
                 human_button_interaction,
-                agent_adapter,
+                automation_adapter,
                 advance_camera,
                 sync_capture_camera,
             )
@@ -96,7 +97,7 @@ fn setup(
     mut images: ResMut<Assets<Image>>,
     window: Single<Entity, With<PrimaryWindow>>,
 ) {
-    commands.entity(*window).insert(AgentTarget::new(
+    commands.entity(*window).insert(AutomationTarget::new(
         "window.primary",
         "window",
         "Primary window",
@@ -120,7 +121,7 @@ fn setup(
         transform,
         ControlledCamera,
         CameraCapture(capture.clone()),
-        AgentTarget::new(
+        AutomationTarget::new(
             "camera.main",
             "camera",
             "Main camera",
@@ -145,7 +146,7 @@ fn setup(
         })),
         Transform::from_xyz(0.0, 0.5, 0.0),
         FocusTarget { radius: 0.8 },
-        AgentTarget::new("scene.prototype_star", "scene", "Prototype star", ["focus"]),
+        AutomationTarget::new("scene.prototype_star", "scene", "Prototype star", ["focus"]),
     ));
     commands.spawn((
         PointLight {
@@ -166,7 +167,7 @@ fn setup(
             },
             BackgroundColor(Color::srgb(0.15, 0.25, 0.45)),
             PrototypeButton,
-            AgentTarget::new("toolbar.generate", "button", "Generate", ["click"]),
+            AutomationTarget::new("toolbar.generate", "button", "Generate", ["click"]),
         ))
         .with_child((Text::new("Generate (0)"), TextColor(Color::WHITE)));
 }
@@ -185,13 +186,14 @@ fn human_button_interaction(
     }
 }
 
-fn agent_adapter(world: &mut World) {
+fn automation_adapter(world: &mut World) {
     if world.contains_resource::<PendingCamera>() {
         return;
     }
-    let requests: Vec<AgentRequest> = world.resource_mut::<AgentRequests>().drain().collect();
+    let requests: Vec<AutomationRequest> =
+        world.resource_mut::<AutomationRequests>().drain().collect();
     let mut deferred = Vec::new();
-    for AgentRequest(request) in requests {
+    for AutomationRequest(request) in requests {
         match request.command.clone() {
             Command::Click { target } if target == "toolbar.generate" => {
                 handle_click(world, request.id, target)
@@ -261,15 +263,15 @@ fn agent_adapter(world: &mut World) {
                 path,
                 overwrite,
             } => handle_screenshot(world, request.id, source, path, overwrite),
-            _ => deferred.push(AgentRequest(request)),
+            _ => deferred.push(AutomationRequest(request)),
         }
         if world.contains_resource::<PendingCamera>() {
-            deferred.extend(world.resource_mut::<AgentRequests>().drain());
+            deferred.extend(world.resource_mut::<AutomationRequests>().drain());
             break;
         }
     }
     for request in deferred {
-        world.resource_mut::<AgentRequests>().defer(request);
+        world.resource_mut::<AutomationRequests>().defer(request);
     }
 }
 
@@ -277,18 +279,18 @@ type AdapterResult = Result<(), (&'static str, String)>;
 
 fn unique_target(world: &World, id: &str, role: &str) -> Result<Entity, (&'static str, String)> {
     let entity = world
-        .resource::<agent_control::TargetRegistry>()
+        .resource::<automation_control::TargetRegistry>()
         .entity(id)
         .map_err(|error| match error {
-            agent_control::RegistryLookupError::Unknown(_) => {
+            automation_control::RegistryLookupError::Unknown(_) => {
                 ("unknown_target", format!("unknown target: {id}"))
             }
-            agent_control::RegistryLookupError::Duplicate(_) => {
+            automation_control::RegistryLookupError::Duplicate(_) => {
                 ("ambiguous_target", format!("ambiguous target: {id}"))
             }
         })?;
     let actual = world
-        .get::<AgentTarget>(entity)
+        .get::<AutomationTarget>(entity)
         .map(|target| target.role.as_str());
     (actual == Some(role))
         .then_some(entity)
@@ -546,7 +548,7 @@ fn generate(count: &mut ClickCount) -> u32 {
 mod tests {
     use super::*;
     #[test]
-    fn normal_operation_does_not_require_agent_transport() {
+    fn normal_operation_does_not_require_automation_transport() {
         let mut count = ClickCount::default();
         assert_eq!(generate(&mut count), 1);
     }

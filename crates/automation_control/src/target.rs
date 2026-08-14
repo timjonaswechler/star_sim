@@ -3,14 +3,14 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 #[derive(Component, Clone, Debug, PartialEq, Eq)]
-pub struct AgentTarget {
+pub struct AutomationTarget {
     pub id: String,
     pub role: String,
     pub label: String,
     pub actions: Vec<String>,
 }
 
-impl AgentTarget {
+impl AutomationTarget {
     pub fn new(
         id: impl Into<String>,
         role: impl Into<String>,
@@ -73,7 +73,7 @@ pub enum RegistryLookupError {
 
 pub(crate) fn sync_registry(
     mut registry: ResMut<TargetRegistry>,
-    targets: Query<(Entity, &AgentTarget)>,
+    targets: Query<(Entity, &AutomationTarget)>,
 ) {
     registry.by_id.clear();
     registry.by_entity.clear();
@@ -116,13 +116,15 @@ pub struct Observations {
     pub camera: Vec<TargetObservation>,
 }
 
+type ObservableTarget<'a> = (
+    &'a AutomationTarget,
+    Option<&'a ComputedNode>,
+    Option<&'a InheritedVisibility>,
+    Option<&'a bevy::ui::InteractionDisabled>,
+);
+
 pub(crate) fn observe_targets(
-    targets: Query<(
-        &AgentTarget,
-        Option<&ComputedNode>,
-        Option<&InheritedVisibility>,
-        Option<&bevy::ui::InteractionDisabled>,
-    )>,
+    targets: Query<ObservableTarget<'_>>,
     mut observations: ResMut<Observations>,
 ) {
     *observations = Observations::default();

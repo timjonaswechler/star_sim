@@ -142,7 +142,7 @@ pub fn evaluate_wait(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{AgentTarget, TargetObservation};
+    use crate::{AutomationTarget, TargetObservation};
 
     #[test]
     fn pause_and_steps_are_explicit_and_repeatable() {
@@ -166,7 +166,7 @@ mod tests {
         app.add_plugins(MinimalPlugins);
         app.init_resource::<TargetRegistry>();
         app.world_mut()
-            .spawn(AgentTarget::new("target", "ui", "Target", ["click"]));
+            .spawn(AutomationTarget::new("target", "ui", "Target", ["click"]));
         app.add_systems(Update, crate::target::sync_registry);
         app.update();
         let mut observations = Observations::default();

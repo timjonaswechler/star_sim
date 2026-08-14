@@ -1,10 +1,10 @@
 [workspace]
 resolver = "3"
 members = [
-    "apps/agent_cli",
+    "apps/star_sim_debug",
     "apps/bevy_viewer",
     "apps/population_lab",
-    "crates/agent_control",
+    "crates/automation_control",
     "crates/physics/units",
     "crates/simulation",
 ]

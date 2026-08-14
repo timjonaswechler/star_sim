@@ -1,10 +1,10 @@
-# Bevy 0.19 seams for an agent-controlled viewer
+# Bevy 0.19 seams for an automation-controlled viewer
 
 Research for [#32](https://github.com/timjonaswechler/star_sim/issues/32), supporting the Wayfinder map [#31](https://github.com/timjonaswechler/star_sim/issues/31).
 
 ## Conclusion
 
-Bevy 0.19 provides the rendering, UI layout, accessibility, fixed-time, and screenshot primitives needed by the proposed viewer. It does not provide an agent protocol, semantic target registry, or complete user-facing UI observation tree. Those belong in an application-owned `AgentControlPlugin`:
+Bevy 0.19 provides the rendering, UI layout, accessibility, fixed-time, and screenshot primitives needed by the proposed viewer. It does not provide an automation protocol, semantic target registry, or complete user-facing UI observation tree. Those belong in an application-owned `AutomationControlPlugin`:
 
 ```text
 JSONL ingress
@@ -18,7 +18,7 @@ JSONL ingress
 Use separate runtime configurations:
 
 - **Logical headless:** `MinimalPlugins`, manually controlled updates, no real screenshots.
-- **Rendered agent mode:** renderer enabled, either a normal window or an externally driven windowless image target.
+- **Rendered automation mode:** renderer enabled, either a normal window or an externally driven windowless image target.
 
 The first prototype in #33 should compile-check and exercise the exact APIs identified below.
 
@@ -51,9 +51,9 @@ Sources:
 
 ### What remains application-owned
 
-Bevy does not automatically produce the complete public tree promised in #31. `AgentControlPlugin` must define:
+Bevy does not automatically produce the complete public tree promised in #31. `AutomationControlPlugin` must define:
 
-- stable `AgentTarget` identity;
+- stable `AutomationTarget` identity;
 - user-facing label and semantic action names;
 - policy for enabled and visible state;
 - which authored/computed properties are public;
@@ -76,7 +76,7 @@ app.add_systems(
 );
 ```
 
-Query only entities carrying `AgentTarget`; join their UI, text, accessibility, disabled, layout, visibility, and hierarchy data into the public schema. Never serialize Bevy `Entity` values.
+Query only entities carrying `AutomationTarget`; join their UI, text, accessibility, disabled, layout, visibility, and hierarchy data into the public schema. Never serialize Bevy `Entity` values.
 
 ## 2. Shared semantic actions
 
@@ -152,7 +152,7 @@ Sources:
 Recommended modes:
 
 ```text
-logical headless: MinimalPlugins + app-owned state/agent plugins
+logical headless: MinimalPlugins + app-owned state/automation plugins
 rendered window:  DefaultPlugins + WinitPlugin + primary window
 rendered offscreen: DefaultPlugins, no primary window, WinitPlugin disabled,
                     camera -> Image, externally pumped updates
@@ -170,7 +170,7 @@ app.insert_resource(Time::<Fixed>::from_hz(60.0));
 
 Both `Time::<Fixed>::from_hz` and `from_duration` exist in Bevy 0.19. Put deterministic simulation in `FixedUpdate`.
 
-For externally driven tests and agent stepping, `TimeUpdateStrategy::FixedTimesteps(n)` guarantees that each `App::update()` advances by the fixed timestep multiplied by `n` and runs the fixed loop exactly `n` times. `ScheduleRunnerPlugin` pacing alone does not provide this guarantee.
+For externally driven tests and automation stepping, `TimeUpdateStrategy::FixedTimesteps(n)` guarantees that each `App::update()` advances by the fixed timestep multiplied by `n` and runs the fixed loop exactly `n` times. `ScheduleRunnerPlugin` pacing alone does not provide this guarantee.
 
 Sources:
 
@@ -261,9 +261,9 @@ The current `apps/bevy_viewer` only starts `DefaultPlugins`; it does not yet mat
 
 Build the prototype around these verified seams:
 
-1. Add a small application-owned target registry and static `AgentTarget` values.
+1. Add a small application-owned target registry and static `AutomationTarget` values.
 2. Read stdin on a worker thread and pass decoded requests through a channel.
-3. Translate both a real Bevy button and the agent command into one `ViewerAction` message.
+3. Translate both a real Bevy button and the automation command into one `ViewerAction` message.
 4. Observe UI after `UiSystems::PostLayout`.
 5. Use `TimeUpdateStrategy::FixedTimesteps` and explicit `Time<Fixed>` for deterministic stepping tests.
 6. Capture the primary window with `Screenshot::primary_window` and an application-owned `ScreenshotCaptured` observer.

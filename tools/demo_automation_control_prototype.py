@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the issue #35 optional agent-control camera/screenshot demonstration."""
+"""Run the issue #35 optional automation-control camera/screenshot demonstration."""
 from __future__ import annotations
 import json, shutil, struct, subprocess, sys, tempfile, time
 from pathlib import Path
@@ -26,8 +26,8 @@ def png_size(path):
 def completed(response): assert response["status"]=="completed", response; return response
 
 def main():
-    artifact=Path(tempfile.mkdtemp(prefix="star-sim-agent-35-"))
-    process=subprocess.Popen(["cargo","run","-q","-p","bevy_viewer","--example","agent_control_prototype","--features","agent-control","--","--agent","--artifact-dir",str(artifact)],cwd=ROOT,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,bufsize=1)
+    artifact=Path(tempfile.mkdtemp(prefix="star-sim-debug-35-"))
+    process=subprocess.Popen(["cargo","run","-q","-p","bevy_viewer","--example","automation_control_prototype","--features","automation-control","--","--automation","--artifact-dir",str(artifact)],cwd=ROOT,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,bufsize=1)
     assert process.stdin and process.stdout and process.stderr
     try:
         ready=read_json_line(process,60); assert ready["type"]=="ready"
