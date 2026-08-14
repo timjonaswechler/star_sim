@@ -18,10 +18,14 @@ The repository uses a single-context domain documentation layout. See `docs/agen
 
 ## Commits
 
-- Use Conventional Commits: `<type>[optional scope][!]: <description> (<issue>)`.
+- Use Conventional Commits: `<type>[optional scope][!]: <description>`.
 - Use `feat`, `fix`, `docs`, `refactor`, `test`, `perf`, `build`, `ci`, `chore`, `style`, or `revert`.
 - Keep commits atomic, independently buildable and testable; separate unrelated changes.
 - Write a lowercase description without a trailing period; keep the header within 100 characters.
 - Mark breaking changes with `!` and explain them in a `BREAKING CHANGE:` footer.
+- Reference an issue only when the commit implements, fixes, or directly follows up on it.
+- Put issue references in the commit footer, for example `Refs #31`.
+- Use `Fixes #42` or `Closes #42` only when merging the commit should close that open issue.
+- A genuine follow-up may reference a closed issue with `Refs #31`.
+- Omit the issue reference when no issue directly applies.
 - Only create commits when explicitly requested.
-- If a code changes is content of an issue, reference it in the commit message.
