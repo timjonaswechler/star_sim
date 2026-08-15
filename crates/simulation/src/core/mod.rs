@@ -37,8 +37,7 @@ pub use stellar_orbits::*;
 pub(crate) use explicit_planets::ExplicitPlanetGenerator;
 pub(crate) use planetary_stability::PlanetaryStabilityEvaluator;
 pub(crate) use stellar_orbits::{
-    StellarOrbitMemberInput, StellarOrbitMemberProvenance, low_mass_contact_radius_input,
-    semimajor_axis_from_period_days,
+    StellarOrbitMemberInput, low_mass_contact_radius_input, semimajor_axis_from_period_days,
 };
 
 const fn population_index(population: StellarPopulation) -> usize {

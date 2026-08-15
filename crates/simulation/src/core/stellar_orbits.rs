@@ -120,13 +120,13 @@ impl Default for StellarOrbitalHierarchyModel {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum QuadrupleTopology {
     TwoPlusTwo,
     ThreePlusOne,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct RelativeStellarOrbit {
     pub semimajor_axis_au: f64,
     pub period_days: f64,
@@ -142,6 +142,7 @@ pub enum StellarOrbitNode {
     },
     RelativeOrbit {
         orbit: RelativeStellarOrbit,
+        sampling_slot: u8,
         left: Box<StellarOrbitNode>,
         right: Box<StellarOrbitNode>,
     },
@@ -187,7 +188,10 @@ impl StellarOrbitNode {
     }
 
     fn collect_relative_orbits(&self, output: &mut Vec<RelativeStellarOrbit>) {
-        if let Self::RelativeOrbit { orbit, left, right } = self {
+        if let Self::RelativeOrbit {
+            orbit, left, right, ..
+        } = self
+        {
             output.push(*orbit);
             left.collect_relative_orbits(output);
             right.collect_relative_orbits(output);
@@ -200,7 +204,9 @@ impl StellarOrbitNode {
                 member_id: candidate,
                 ..
             } => (*candidate == member_id).then_some(f64::INFINITY),
-            Self::RelativeOrbit { orbit, left, right } => {
+            Self::RelativeOrbit {
+                orbit, left, right, ..
+            } => {
                 let child = if left.contains_member(member_id) {
                     left
                 } else if right.contains_member(member_id) {
@@ -219,7 +225,10 @@ impl StellarOrbitNode {
     }
 
     pub(crate) fn direct_parent_companion(&self, member_id: u64) -> Option<DirectParentCompanion> {
-        let Self::RelativeOrbit { orbit, left, right } = self else {
+        let Self::RelativeOrbit {
+            orbit, left, right, ..
+        } = self
+        else {
             return None;
         };
         if matches!(left.as_ref(), Self::Member { member_id: id, .. } if *id == member_id) {
@@ -253,7 +262,7 @@ pub(crate) struct DirectParentCompanion {
     pub(crate) companion_is_subtree: bool,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum StellarOrbitalHierarchyQualityFlag {
     MSeparationShapeDecoupledFromMassRatio,
     LowMassExtrapolation,
@@ -273,9 +282,51 @@ pub enum StellarOrbitalHierarchyQualityFlag {
 #[derive(Debug, Clone, PartialEq)]
 pub struct StellarOrbitalHierarchy {
     pub model_version: StellarOrbitalHierarchyModelVersion,
+    /// Accepted bounded sampling attempt; absent for a one-member hierarchy.
+    pub sampling_attempt: Option<u16>,
     pub root: StellarOrbitNode,
     pub quadruple_topology: Option<QuadrupleTopology>,
     pub quality_flags: Vec<StellarOrbitalHierarchyQualityFlag>,
+}
+
+/// One constraint evaluated for an immutable bounded hierarchy attempt.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub enum StellarOrbitalHierarchyAttemptConstraint {
+    OrbitalScaleCalibration {
+        sampling_slot: u8,
+        passed: bool,
+    },
+    StellarContact {
+        sampling_slot: u8,
+        periastron_au: f64,
+        minimum_separation_au: f64,
+        passed: bool,
+    },
+    HierarchicalStability {
+        outer_sampling_slot: u8,
+        semimajor_axis_ratio: f64,
+        critical_ratio: f64,
+        passed: bool,
+    },
+}
+
+impl StellarOrbitalHierarchyAttemptConstraint {
+    pub fn passed(self) -> bool {
+        match self {
+            Self::OrbitalScaleCalibration { passed, .. }
+            | Self::StellarContact { passed, .. }
+            | Self::HierarchicalStability { passed, .. } => passed,
+        }
+    }
+}
+
+/// Immutable diagnostic retained for one rejected bounded placement attempt.
+#[derive(Debug, Clone, PartialEq)]
+pub struct StellarOrbitalHierarchyAttemptDiagnostic {
+    pub attempt: u16,
+    /// Complete candidate structure when every required scale draw was in-domain.
+    pub candidate: Option<StellarOrbitNode>,
+    pub constraints: Vec<StellarOrbitalHierarchyAttemptConstraint>,
 }
 
 impl StellarOrbitalHierarchy {
@@ -318,13 +369,20 @@ pub enum StellarOrbitalHierarchyError {
     StableHierarchySamplingExhausted,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum StellarOrbitMemberProvenance {
-    EvolutionSnapshot,
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum StellarOrbitMemberProvenance {
+    CurrentMassAndRadiusFromEvolution,
+    SingleMemberInitialMass,
     LowMassContactRadiusProxy {
         solar_composition_proxy: bool,
         hydrogen_burning_boundary_ambiguous: bool,
     },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct StellarOrbitMemberInputProvenance {
+    pub member_id: u64,
+    pub input_source: StellarOrbitMemberProvenance,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -362,28 +420,53 @@ impl StellarOrbitalHierarchySampler {
         Ok(Self { model })
     }
 
+    #[allow(dead_code)]
     pub(crate) fn generate(
         &self,
         seed: u64,
         system_id: u64,
         members: &[StellarOrbitMemberInput],
     ) -> Result<StellarOrbitalHierarchy, StellarOrbitalHierarchyError> {
+        self.generate_with_diagnostics(seed, system_id, members).0
+    }
+
+    pub(crate) fn generate_with_diagnostics(
+        &self,
+        seed: u64,
+        system_id: u64,
+        members: &[StellarOrbitMemberInput],
+    ) -> (
+        Result<StellarOrbitalHierarchy, StellarOrbitalHierarchyError>,
+        Vec<StellarOrbitalHierarchyAttemptDiagnostic>,
+    ) {
         if members.is_empty() || members.len() > 4 {
-            return Err(StellarOrbitalHierarchyError::UnsupportedMemberCount);
+            return (
+                Err(StellarOrbitalHierarchyError::UnsupportedMemberCount),
+                Vec::new(),
+            );
         }
         if members.len() == 1 {
-            return Ok(StellarOrbitalHierarchy {
-                model_version: self.model.model_version,
-                root: member_orbit_node(members[0]),
-                quadruple_topology: None,
-                quality_flags: Vec::new(),
-            });
+            return (
+                Ok(StellarOrbitalHierarchy {
+                    model_version: self.model.model_version,
+                    sampling_attempt: None,
+                    root: member_orbit_node(members[0]),
+                    quadruple_topology: None,
+                    quality_flags: Vec::new(),
+                }),
+                Vec::new(),
+            );
         }
-        let primary = members
+        let Some(primary) = members
             .iter()
             .find(|member| member.role == StellarMemberRole::Primary)
-            .ok_or(StellarOrbitalHierarchyError::InvalidModel)?;
-        let (regime, mut quality_flags) = self.scale_regime(primary.mass_msun)?;
+        else {
+            return (Err(StellarOrbitalHierarchyError::InvalidModel), Vec::new());
+        };
+        let (regime, mut quality_flags) = match self.scale_regime(primary.mass_msun) {
+            Ok(value) => value,
+            Err(error) => return (Err(error), Vec::new()),
+        };
         for member in members {
             if let StellarOrbitMemberProvenance::LowMassContactRadiusProxy {
                 solar_composition_proxy,
@@ -414,7 +497,10 @@ impl StellarOrbitalHierarchySampler {
         }
         if regime == OrbitalScaleRegime::MDwarf {
             if !self.model.eccentricity.m_dwarf_uses_solar_proxy {
-                return Err(StellarOrbitalHierarchyError::OutsideEccentricityCalibration);
+                return (
+                    Err(StellarOrbitalHierarchyError::OutsideEccentricityCalibration),
+                    Vec::new(),
+                );
             }
             quality_flags.push(StellarOrbitalHierarchyQualityFlag::SolarEccentricityProxyForMDwarf);
         }
@@ -443,19 +529,34 @@ impl StellarOrbitalHierarchySampler {
             quality_flags.push(StellarOrbitalHierarchyQualityFlag::TopologyMassExtrapolation);
         }
 
+        let mut failed_attempts = Vec::new();
         for attempt in 0..self.model.stability.maximum_sampling_attempts {
-            if let Some(root) =
-                self.sample_candidate(seed, system_id, attempt, members, regime, topology)
+            let diagnostic = self
+                .sample_candidate_diagnostic(seed, system_id, attempt, members, regime, topology);
+            if diagnostic
+                .constraints
+                .iter()
+                .all(|constraint| constraint.passed())
             {
-                return Ok(StellarOrbitalHierarchy {
-                    model_version: self.model.model_version,
-                    root,
-                    quadruple_topology: topology,
-                    quality_flags,
-                });
+                return (
+                    Ok(StellarOrbitalHierarchy {
+                        model_version: self.model.model_version,
+                        sampling_attempt: Some(attempt),
+                        root: diagnostic
+                            .candidate
+                            .expect("a successful attempt has a complete candidate"),
+                        quadruple_topology: topology,
+                        quality_flags,
+                    }),
+                    failed_attempts,
+                );
             }
+            failed_attempts.push(diagnostic);
         }
-        Err(StellarOrbitalHierarchyError::StableHierarchySamplingExhausted)
+        (
+            Err(StellarOrbitalHierarchyError::StableHierarchySamplingExhausted),
+            failed_attempts,
+        )
     }
 
     fn scale_regime(
@@ -493,6 +594,7 @@ impl StellarOrbitalHierarchySampler {
         Err(StellarOrbitalHierarchyError::OutsideOrbitalScaleCalibration { primary_mass_msun })
     }
 
+    #[cfg(test)]
     fn sample_candidate(
         &self,
         seed: u64,
@@ -502,104 +604,170 @@ impl StellarOrbitalHierarchySampler {
         regime: OrbitalScaleRegime,
         topology: Option<QuadrupleTopology>,
     ) -> Option<StellarOrbitNode> {
+        let diagnostic =
+            self.sample_candidate_diagnostic(seed, system_id, attempt, members, regime, topology);
+        diagnostic
+            .constraints
+            .iter()
+            .all(|constraint| constraint.passed())
+            .then_some(diagnostic.candidate)
+            .flatten()
+    }
+
+    fn sample_candidate_diagnostic(
+        &self,
+        seed: u64,
+        system_id: u64,
+        attempt: u16,
+        members: &[StellarOrbitMemberInput],
+        regime: OrbitalScaleRegime,
+        topology: Option<QuadrupleTopology>,
+    ) -> StellarOrbitalHierarchyAttemptDiagnostic {
         let context = OrbitSamplingContext {
             seed,
             system_id,
             attempt,
         };
-        let required_orbits = members.len() - 1;
-        let mut scales: Vec<_> = (0..required_orbits)
-            .map(|slot| self.sample_orbital_scale(seed, system_id, attempt, slot as u8, regime))
-            .collect::<Option<_>>()?;
-        scales.sort_by(f64::total_cmp);
-
-        match (members.len(), topology) {
+        let mut constraints = Vec::new();
+        let mut scales = Vec::new();
+        for slot in 0..(members.len() - 1) as u8 {
+            let sampled = self.sample_orbital_scale(seed, system_id, attempt, slot, regime);
+            constraints.push(
+                StellarOrbitalHierarchyAttemptConstraint::OrbitalScaleCalibration {
+                    sampling_slot: slot,
+                    passed: sampled.is_some(),
+                },
+            );
+            if let Some(scale) = sampled {
+                scales.push((slot, scale));
+            }
+        }
+        if scales.len() != members.len() - 1 {
+            return StellarOrbitalHierarchyAttemptDiagnostic {
+                attempt,
+                candidate: None,
+                constraints,
+            };
+        }
+        scales.sort_by(|left, right| left.1.total_cmp(&right.1));
+        let mut leaf = |slot: u8,
+                        left: StellarOrbitMemberInput,
+                        right: StellarOrbitMemberInput,
+                        semimajor_axis_au: f64| {
+            let orbit = self.sample_orbit(
+                seed,
+                system_id,
+                attempt,
+                slot,
+                semimajor_axis_au,
+                left.mass_msun + right.mass_msun,
+            );
+            let minimum_separation_au = (left.radius_rsun + right.radius_rsun) * 0.004_650_467_3;
+            let periastron_au = orbit.semimajor_axis_au * (1.0 - orbit.eccentricity);
+            constraints.push(StellarOrbitalHierarchyAttemptConstraint::StellarContact {
+                sampling_slot: slot,
+                periastron_au,
+                minimum_separation_au,
+                passed: periastron_au > minimum_separation_au,
+            });
+            StellarOrbitNode::RelativeOrbit {
+                orbit,
+                sampling_slot: slot,
+                left: Box::new(member_orbit_node(left)),
+                right: Box::new(member_orbit_node(right)),
+            }
+        };
+        let candidate = match (members.len(), topology) {
             (2, _) => {
-                let pair_mass = members[0].mass_msun + members[1].mass_msun;
-                self.make_leaf_orbit(
-                    context,
-                    0,
+                let mass = members[0].mass_msun + members[1].mass_msun;
+                leaf(
+                    scales[0].0,
                     members[0],
                     members[1],
-                    resolve_semimajor_axis_au(scales[0], pair_mass, regime),
+                    resolve_semimajor_axis_au(scales[0].1, mass, regime),
                 )
             }
             (3, _) => {
                 let inner_mass = members[0].mass_msun + members[1].mass_msun;
-                let total_mass = inner_mass + members[2].mass_msun;
-                let inner = self.make_leaf_orbit(
-                    context,
-                    0,
+                let inner = leaf(
+                    scales[0].0,
                     members[0],
                     members[1],
-                    resolve_semimajor_axis_au(scales[0], inner_mass, regime),
-                )?;
-                let outer = self.make_relative_orbit(
+                    resolve_semimajor_axis_au(scales[0].1, inner_mass, regime),
+                );
+                self.make_relative_orbit(
                     context,
-                    1,
+                    scales[1].0,
                     inner,
                     member_orbit_node(members[2]),
-                    resolve_semimajor_axis_au(scales[1], total_mass, regime),
-                );
-                self.nested_pair_is_stable(&outer).then_some(outer)
+                    resolve_semimajor_axis_au(
+                        scales[1].1,
+                        inner_mass + members[2].mass_msun,
+                        regime,
+                    ),
+                )
             }
             (4, Some(QuadrupleTopology::ThreePlusOne)) => {
                 let inner_mass = members[0].mass_msun + members[1].mass_msun;
-                let middle_mass = inner_mass + members[2].mass_msun;
-                let total_mass = middle_mass + members[3].mass_msun;
-                let inner = self.make_leaf_orbit(
-                    context,
-                    0,
+                let inner = leaf(
+                    scales[0].0,
                     members[0],
                     members[1],
-                    resolve_semimajor_axis_au(scales[0], inner_mass, regime),
-                )?;
+                    resolve_semimajor_axis_au(scales[0].1, inner_mass, regime),
+                );
                 let middle = self.make_relative_orbit(
                     context,
-                    1,
+                    scales[1].0,
                     inner,
                     member_orbit_node(members[2]),
-                    resolve_semimajor_axis_au(scales[1], middle_mass, regime),
+                    resolve_semimajor_axis_au(
+                        scales[1].1,
+                        inner_mass + members[2].mass_msun,
+                        regime,
+                    ),
                 );
-                if !self.nested_pair_is_stable(&middle) {
-                    return None;
-                }
-                let outer = self.make_relative_orbit(
+                self.make_relative_orbit(
                     context,
-                    2,
+                    scales[2].0,
                     middle,
                     member_orbit_node(members[3]),
-                    resolve_semimajor_axis_au(scales[2], total_mass, regime),
-                );
-                self.nested_pair_is_stable(&outer).then_some(outer)
+                    resolve_semimajor_axis_au(
+                        scales[2].1,
+                        members.iter().map(|member| member.mass_msun).sum(),
+                        regime,
+                    ),
+                )
             }
             (4, Some(QuadrupleTopology::TwoPlusTwo)) => {
                 let left_mass = members[0].mass_msun + members[1].mass_msun;
                 let right_mass = members[2].mass_msun + members[3].mass_msun;
-                let left = self.make_leaf_orbit(
-                    context,
-                    0,
+                let left = leaf(
+                    scales[0].0,
                     members[0],
                     members[1],
-                    resolve_semimajor_axis_au(scales[0], left_mass, regime),
-                )?;
-                let right = self.make_leaf_orbit(
-                    context,
-                    1,
+                    resolve_semimajor_axis_au(scales[0].1, left_mass, regime),
+                );
+                let right = leaf(
+                    scales[1].0,
                     members[2],
                     members[3],
-                    resolve_semimajor_axis_au(scales[1], right_mass, regime),
-                )?;
-                let outer = self.make_relative_orbit(
+                    resolve_semimajor_axis_au(scales[1].1, right_mass, regime),
+                );
+                self.make_relative_orbit(
                     context,
-                    2,
+                    scales[2].0,
                     left,
                     right,
-                    resolve_semimajor_axis_au(scales[2], left_mass + right_mass, regime),
-                );
-                self.two_plus_two_is_stable(&outer).then_some(outer)
+                    resolve_semimajor_axis_au(scales[2].1, left_mass + right_mass, regime),
+                )
             }
-            _ => None,
+            _ => unreachable!("validated member count and topology"),
+        };
+        self.collect_stability_constraints(&candidate, &mut constraints);
+        StellarOrbitalHierarchyAttemptDiagnostic {
+            attempt,
+            candidate: Some(candidate),
+            constraints,
         }
     }
 
@@ -640,32 +808,6 @@ impl StellarOrbitalHierarchySampler {
         }
     }
 
-    fn make_leaf_orbit(
-        &self,
-        context: OrbitSamplingContext,
-        slot: u8,
-        left: StellarOrbitMemberInput,
-        right: StellarOrbitMemberInput,
-        semimajor_axis_au: f64,
-    ) -> Option<StellarOrbitNode> {
-        let orbit = self.sample_orbit(
-            context.seed,
-            context.system_id,
-            context.attempt,
-            slot,
-            semimajor_axis_au,
-            left.mass_msun + right.mass_msun,
-        );
-        let minimum_separation_au = (left.radius_rsun + right.radius_rsun) * 0.004_650_467_3;
-        (orbit.semimajor_axis_au * (1.0 - orbit.eccentricity) > minimum_separation_au).then(|| {
-            StellarOrbitNode::RelativeOrbit {
-                orbit,
-                left: Box::new(member_orbit_node(left)),
-                right: Box::new(member_orbit_node(right)),
-            }
-        })
-    }
-
     fn make_relative_orbit(
         &self,
         context: OrbitSamplingContext,
@@ -676,6 +818,7 @@ impl StellarOrbitalHierarchySampler {
     ) -> StellarOrbitNode {
         let combined_mass_msun = left.mass_msun() + right.mass_msun();
         StellarOrbitNode::RelativeOrbit {
+            sampling_slot: slot,
             orbit: self.sample_orbit(
                 context.seed,
                 context.system_id,
@@ -723,67 +866,79 @@ impl StellarOrbitalHierarchySampler {
         }
     }
 
-    fn nested_pair_is_stable(&self, node: &StellarOrbitNode) -> bool {
+    fn collect_stability_constraints(
+        &self,
+        node: &StellarOrbitNode,
+        constraints: &mut Vec<StellarOrbitalHierarchyAttemptConstraint>,
+    ) {
         let StellarOrbitNode::RelativeOrbit {
             orbit: outer,
+            sampling_slot,
             left,
             right,
         } = node
         else {
-            return false;
+            return;
         };
-        let (inner, outer_child_mass) = match (&**left, &**right) {
-            (StellarOrbitNode::RelativeOrbit { orbit, .. }, other) => (orbit, other.mass_msun()),
-            (other, StellarOrbitNode::RelativeOrbit { orbit, .. }) => (orbit, other.mass_msun()),
-            _ => return true,
-        };
-        self.passes_stability(inner, outer, outer_child_mass / inner.combined_mass_msun)
+        self.collect_stability_constraints(left, constraints);
+        self.collect_stability_constraints(right, constraints);
+        match (&**left, &**right) {
+            (
+                StellarOrbitNode::RelativeOrbit { orbit: inner, .. },
+                StellarOrbitNode::RelativeOrbit { orbit: other, .. },
+            ) => {
+                self.push_stability_constraint(
+                    inner,
+                    outer,
+                    other.combined_mass_msun / inner.combined_mass_msun,
+                    *sampling_slot,
+                    constraints,
+                );
+                self.push_stability_constraint(
+                    other,
+                    outer,
+                    inner.combined_mass_msun / other.combined_mass_msun,
+                    *sampling_slot,
+                    constraints,
+                );
+            }
+            (StellarOrbitNode::RelativeOrbit { orbit: inner, .. }, other)
+            | (other, StellarOrbitNode::RelativeOrbit { orbit: inner, .. }) => {
+                self.push_stability_constraint(
+                    inner,
+                    outer,
+                    other.mass_msun() / inner.combined_mass_msun,
+                    *sampling_slot,
+                    constraints,
+                );
+            }
+            _ => {}
+        }
     }
 
-    fn two_plus_two_is_stable(&self, node: &StellarOrbitNode) -> bool {
-        let StellarOrbitNode::RelativeOrbit {
-            orbit: outer,
-            left,
-            right,
-        } = node
-        else {
-            return false;
-        };
-        let (
-            StellarOrbitNode::RelativeOrbit {
-                orbit: left_inner, ..
-            },
-            StellarOrbitNode::RelativeOrbit {
-                orbit: right_inner, ..
-            },
-        ) = (&**left, &**right)
-        else {
-            return false;
-        };
-        self.passes_stability(
-            left_inner,
-            outer,
-            right_inner.combined_mass_msun / left_inner.combined_mass_msun,
-        ) && self.passes_stability(
-            right_inner,
-            outer,
-            left_inner.combined_mass_msun / right_inner.combined_mass_msun,
-        )
-    }
-
-    fn passes_stability(
+    fn push_stability_constraint(
         &self,
         inner: &RelativeStellarOrbit,
         outer: &RelativeStellarOrbit,
         outer_mass_ratio: f64,
-    ) -> bool {
+        outer_sampling_slot: u8,
+        constraints: &mut Vec<StellarOrbitalHierarchyAttemptConstraint>,
+    ) {
         let model = self.model.stability;
         let critical_ratio = model.mardling_aarseth_coefficient
             * (1.0 + outer_mass_ratio).powf(2.0 / 5.0)
             * (1.0 + outer.eccentricity).powf(2.0 / 5.0)
             / (1.0 - outer.eccentricity).powf(6.0 / 5.0)
             * (1.0 - 0.3 * model.mutual_inclination_rad / std::f64::consts::PI);
-        outer.semimajor_axis_au / inner.semimajor_axis_au > critical_ratio
+        let semimajor_axis_ratio = outer.semimajor_axis_au / inner.semimajor_axis_au;
+        constraints.push(
+            StellarOrbitalHierarchyAttemptConstraint::HierarchicalStability {
+                outer_sampling_slot,
+                semimajor_axis_ratio,
+                critical_ratio,
+                passed: semimajor_axis_ratio > critical_ratio,
+            },
+        );
     }
 }
 
@@ -820,11 +975,14 @@ fn resolve_semimajor_axis_au(
     }
 }
 
-fn period_days_from_semimajor_axis(semimajor_axis_au: f64, combined_mass_msun: f64) -> f64 {
+pub(crate) fn period_days_from_semimajor_axis(
+    semimajor_axis_au: f64,
+    combined_mass_msun: f64,
+) -> f64 {
     365.25 * (semimajor_axis_au.powi(3) / combined_mass_msun).sqrt()
 }
 
-fn stable_orbit_draw_id(system_id: u64, attempt: u16, slot: u8) -> u64 {
+pub(crate) fn stable_orbit_draw_id(system_id: u64, attempt: u16, slot: u8) -> u64 {
     let mut input = Vec::with_capacity(56);
     input.extend_from_slice(b"star_sim/stellar_orbit_draw/v1");
     input.extend_from_slice(&system_id.to_le_bytes());
@@ -833,6 +991,20 @@ fn stable_orbit_draw_id(system_id: u64, attempt: u16, slot: u8) -> u64 {
     let hash = blake3::hash(&input);
     u64::from_le_bytes(
         hash.as_bytes()[..8]
+            .try_into()
+            .expect("eight-byte hash prefix"),
+    )
+}
+
+pub(crate) fn stable_barycentre_id(system_id: u64, member_ids: &[u64]) -> u64 {
+    let mut hasher = blake3::Hasher::new();
+    hasher.update(b"star_sim/stellar_barycentre_id/v1");
+    hasher.update(&system_id.to_le_bytes());
+    for member_id in member_ids {
+        hasher.update(&member_id.to_le_bytes());
+    }
+    u64::from_le_bytes(
+        hasher.finalize().as_bytes()[..8]
             .try_into()
             .expect("eight-byte hash prefix"),
     )
@@ -935,4 +1107,229 @@ pub(crate) fn low_mass_contact_radius_input(
             hydrogen_burning_boundary_ambiguous: birth.initial_mass_msun <= model.minimum_mass_msun,
         },
     })
+}
+
+#[cfg(test)]
+mod provenance_regression_tests {
+    use super::*;
+
+    fn collect_slots(node: &StellarOrbitNode, output: &mut Vec<(u8, RelativeStellarOrbit)>) {
+        if let StellarOrbitNode::RelativeOrbit {
+            orbit,
+            sampling_slot,
+            left,
+            right,
+        } = node
+        {
+            output.push((*sampling_slot, *orbit));
+            collect_slots(left, output);
+            collect_slots(right, output);
+        }
+    }
+
+    fn orbital_draw_address(
+        system_id: u64,
+        attempt: u16,
+        slot: u8,
+        namespace: &str,
+        claim_key: &str,
+    ) -> RandomDrawAddress {
+        let draw_id = stable_orbit_draw_id(system_id, attempt, slot);
+        RandomDrawAddress::new(
+            "blake3-seeded-chacha8-indexed",
+            "1",
+            namespace,
+            format!("indexed-u64-le:{draw_id:016x}/test-orbit"),
+            claim_key,
+            0,
+        )
+        .expect("test address is valid")
+    }
+
+    #[test]
+    fn sorted_hierarchy_scales_retain_their_original_rng_slots() {
+        let sampler = StellarOrbitalHierarchySampler::new(StellarOrbitalHierarchyModel::default())
+            .expect("default hierarchy model is valid");
+        let member = |id, role, mass_msun| StellarOrbitMemberInput {
+            id,
+            role,
+            mass_msun,
+            radius_rsun: 0.01,
+            provenance: StellarOrbitMemberProvenance::CurrentMassAndRadiusFromEvolution,
+        };
+        let members = [
+            member(1, StellarMemberRole::Primary, 1.0),
+            member(2, StellarMemberRole::Companion, 0.8),
+            member(3, StellarMemberRole::Companion, 0.6),
+            member(4, StellarMemberRole::Companion, 0.4),
+        ];
+        let system_id = 17;
+
+        for seed in 0..512 {
+            let Some(root) = sampler.sample_candidate(
+                seed,
+                system_id,
+                0,
+                &members,
+                OrbitalScaleRegime::SolarType,
+                Some(QuadrupleTopology::ThreePlusOne),
+            ) else {
+                continue;
+            };
+            let sampled = (0..3)
+                .map(|slot| {
+                    sampler
+                        .sample_orbital_scale(
+                            seed,
+                            system_id,
+                            0,
+                            slot,
+                            OrbitalScaleRegime::SolarType,
+                        )
+                        .map(|scale| (slot, scale))
+                })
+                .collect::<Option<Vec<_>>>();
+            let Some(sampled) = sampled else { continue };
+            let mut sorted = sampled.clone();
+            sorted.sort_by(|left, right| left.1.total_cmp(&right.1));
+            if sampled
+                .iter()
+                .map(|item| item.0)
+                .eq(sorted.iter().map(|item| item.0))
+            {
+                continue;
+            }
+
+            let mut retained = Vec::new();
+            collect_slots(&root, &mut retained);
+            assert_eq!(retained.len(), 3);
+            for (slot, orbit) in retained {
+                let sampled_period_days = sampled
+                    .iter()
+                    .find(|candidate| candidate.0 == slot)
+                    .expect("retained slot was sampled")
+                    .1;
+                let replayed_semimajor_axis =
+                    semimajor_axis_from_period_days(sampled_period_days, orbit.combined_mass_msun);
+                assert!((replayed_semimajor_axis - orbit.semimajor_axis_au).abs() < 1e-12);
+            }
+            return;
+        }
+        panic!("fixture search found no accepted reordered hierarchy scales");
+    }
+
+    #[test]
+    fn retry_orbit_draw_addresses_replay_scale_and_stochastic_eccentricity() {
+        let sampler = StellarOrbitalHierarchySampler::new(StellarOrbitalHierarchyModel::default())
+            .expect("default hierarchy model is valid");
+        let member = |id, role, mass_msun| StellarOrbitMemberInput {
+            id,
+            role,
+            mass_msun,
+            radius_rsun: 0.01,
+            provenance: StellarOrbitMemberProvenance::CurrentMassAndRadiusFromEvolution,
+        };
+        let members = [
+            member(1, StellarMemberRole::Primary, 1.0),
+            member(2, StellarMemberRole::Companion, 0.8),
+            member(3, StellarMemberRole::Companion, 0.6),
+            member(4, StellarMemberRole::Companion, 0.4),
+        ];
+        let system_id = 29;
+        for seed in 0..4096 {
+            let first = sampler.sample_candidate_diagnostic(
+                seed,
+                system_id,
+                0,
+                &members,
+                OrbitalScaleRegime::SolarType,
+                Some(QuadrupleTopology::ThreePlusOne),
+            );
+            if first
+                .constraints
+                .iter()
+                .all(|constraint| constraint.passed())
+            {
+                continue;
+            }
+            let retry = sampler.sample_candidate_diagnostic(
+                seed,
+                system_id,
+                1,
+                &members,
+                OrbitalScaleRegime::SolarType,
+                Some(QuadrupleTopology::ThreePlusOne),
+            );
+            if !retry
+                .constraints
+                .iter()
+                .all(|constraint| constraint.passed())
+            {
+                continue;
+            }
+            let root = retry
+                .candidate
+                .expect("successful retry retains its candidate");
+            let mut retained = Vec::new();
+            collect_slots(&root, &mut retained);
+            if !retained.iter().any(|(_, orbit)| orbit.eccentricity > 0.0) {
+                continue;
+            }
+            for (slot, orbit) in retained {
+                let scale_address = orbital_draw_address(
+                    system_id,
+                    1,
+                    slot,
+                    "stellar_orbit/scale/v1",
+                    "relative_stellar_orbit_scale",
+                );
+                assert_eq!(scale_address.bounded_attempt_index, 0);
+                let draw_id = scale_address
+                    .stable_object_id
+                    .as_str()
+                    .strip_prefix("indexed-u64-le:")
+                    .and_then(|value| value.split('/').next())
+                    .and_then(|value| u64::from_str_radix(value, 16).ok())
+                    .expect("published scale address retains its indexed entity");
+                assert_eq!(draw_id, stable_orbit_draw_id(system_id, 1, slot));
+                let mut replay_rng = domain_rng(
+                    seed,
+                    scale_address.prescription_namespace.as_bytes(),
+                    Some(draw_id),
+                );
+                let scale_model = sampler.model.solar_type_scale;
+                let normal = Normal::new(
+                    scale_model.log10_period_days_mean,
+                    scale_model.log10_period_days_standard_deviation,
+                )
+                .expect("validated scale distribution");
+                let replayed_period_days = 10_f64.powf(normal.sample(&mut replay_rng));
+                let sampled_period_days = sampler
+                    .sample_orbital_scale(seed, system_id, 1, slot, OrbitalScaleRegime::SolarType)
+                    .expect("accepted retry scale is in-domain");
+                assert_eq!(replayed_period_days, sampled_period_days);
+
+                if orbit.eccentricity > 0.0 {
+                    let eccentricity_address = orbital_draw_address(
+                        system_id,
+                        1,
+                        slot,
+                        "stellar_orbit/eccentricity/v1",
+                        "relative_stellar_orbit_eccentricity",
+                    );
+                    assert_eq!(eccentricity_address.bounded_attempt_index, 0);
+                    let maximum = sampler
+                        .model
+                        .eccentricity
+                        .absolute_maximum
+                        .min(1.0 - (orbit.period_days / 2.0).powf(-2.0 / 3.0));
+                    let replayed =
+                        DeterministicDraws::new(seed).uniform(&eccentricity_address) * maximum;
+                    assert!((replayed - orbit.eccentricity).abs() < 1e-15);
+                }
+            }
+            return;
+        }
+        panic!("fixture search found no accepted stochastic retry after attempt zero");
+    }
 }

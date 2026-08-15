@@ -3,6 +3,9 @@
 use super::*;
 
 mod provenance;
+mod provenance_values;
+
+pub use provenance_values::*;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct GeneratedStellarSystem {
@@ -44,6 +47,10 @@ pub struct StellarCatalogSystem {
     /// Formation age and chemistry shared by all coeval members of the system.
     pub history: StellarPopulationHistory,
     pub orbital_hierarchy: Result<StellarOrbitalHierarchy, StellarOrbitalHierarchyError>,
+    /// Every immutable bounded placement attempt rejected before the accepted result or exhaustion.
+    pub orbital_hierarchy_failed_attempts: Vec<StellarOrbitalHierarchyAttemptDiagnostic>,
+    /// Inputs actually supplied to orbital hierarchy generation when construction reached that seam.
+    pub orbital_member_inputs: Vec<StellarOrbitMemberInputProvenance>,
     pub members: Vec<StellarCatalogMember>,
 }
 
@@ -53,45 +60,6 @@ pub struct GeneratedStellarCatalog {
     pub radius_pc: f64,
     pub expected_system_count: f64,
     pub systems: Vec<StellarCatalogSystem>,
-}
-
-/// Heterogeneous stellar values published through the catalog provenance seam.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-pub enum StellarClaimValue {
-    /// The geometrical Stellar Population assigned to a generated system.
-    Population(StellarPopulation),
-    /// Elapsed time since the system formed.
-    StellarAgeGyr(f64),
-    /// Sampled logarithmic iron abundance relative to the Sun.
-    IronAbundanceFeH(f64),
-    /// Sampled alpha-element enhancement relative to iron.
-    AlphaEnhancementAlphaFe(f64),
-    /// Coherent initial Stellar Chemistry derived for a system.
-    StellarChemistry(StellarChemistry),
-    /// Initial stellar mass relative to the Sun.
-    InitialStellarMassMsolar(f64),
-    /// Companion-to-primary initial-mass ratio.
-    CompanionMassRatio(f64),
-    /// Number of stellar members selected for a birth system.
-    StellarMemberCount(u8),
-    /// A member's role in the stellar birth system.
-    MemberRole(StellarMemberRole),
-    /// Present Evolutionary State from the bundled track evaluation.
-    EvolutionaryState(EvolutionaryState),
-    EvolutionQualityFlag(StellarEvolutionQualityFlag),
-    CurrentStellarMassMsolar(f64),
-    SourceMetallicityCoordinateMh(f64),
-    ZeroAgeMainSequenceAgeGyr(f64),
-    TerminalAgeMainSequenceAgeGyr(f64),
-    MainSequenceLifetimeGyr(f64),
-    FractionalMainSequenceAge(f64),
-    WhiteDwarfHandoffAgeGyr(f64),
-    WhiteDwarfCoolingAgeGyr(f64),
-    RemnantMassMsolar(f64),
-    LuminosityLsolar(f64),
-    RadiusRsolar(f64),
-    EffectiveTemperatureK(f64),
-    SurfaceGravityLog10Cgs(f64),
 }
 
 /// A generated catalog paired with its validated scientific provenance graph.
@@ -136,9 +104,13 @@ pub struct StellarCatalogGenerator {
     population_history_model: PopulationHistoryModel,
     evolution_evaluator: StellarEvolutionEvaluator,
     evolution_model_fingerprint: String,
+    planet_occurrence_model: PlanetOccurrenceModel,
     planet_occurrence_sampler: PlanetOccurrenceSampler,
+    orbital_hierarchy_model: StellarOrbitalHierarchyModel,
     orbital_hierarchy_sampler: StellarOrbitalHierarchySampler,
+    planetary_stability_model: PlanetaryStabilityModel,
     planetary_stability_evaluator: PlanetaryStabilityEvaluator,
+    explicit_planet_model: ExplicitPlanetModel,
     explicit_planet_generator: ExplicitPlanetGenerator,
 }
 
@@ -160,13 +132,17 @@ impl StellarCatalogGenerator {
             population_history_model,
             evolution_evaluator: StellarEvolutionEvaluator::new(evolution_model)?,
             evolution_model_fingerprint,
+            planet_occurrence_model,
             planet_occurrence_sampler: PlanetOccurrenceSampler::new(planet_occurrence_model)?,
+            orbital_hierarchy_model,
             orbital_hierarchy_sampler: StellarOrbitalHierarchySampler::new(
                 orbital_hierarchy_model,
             )?,
+            planetary_stability_model,
             planetary_stability_evaluator: PlanetaryStabilityEvaluator::new(
                 planetary_stability_model,
             )?,
+            explicit_planet_model: explicit_planet_model.clone(),
             explicit_planet_generator: ExplicitPlanetGenerator::new(explicit_planet_model)?,
         })
     }
@@ -197,6 +173,10 @@ impl StellarCatalogGenerator {
             &self.birth_mass_model,
             &self.population_history_model,
             &self.evolution_model_fingerprint,
+            &self.orbital_hierarchy_model,
+            &self.planetary_stability_model,
+            &self.planet_occurrence_model,
+            &self.explicit_planet_model,
         )?;
         Ok(ProvenanceBearingStellarCatalog {
             catalog,
@@ -249,7 +229,7 @@ impl StellarCatalogGenerator {
                                 role: birth.role,
                                 mass_msun: birth.initial_mass_msun,
                                 radius_rsun: 0.0,
-                                provenance: StellarOrbitMemberProvenance::EvolutionSnapshot,
+                                provenance: StellarOrbitMemberProvenance::SingleMemberInitialMass,
                             });
                         }
                         let snapshot = match evolution.as_ref() {
@@ -278,14 +258,28 @@ impl StellarCatalogGenerator {
                             radius_rsun: snapshot
                                 .radius_rsun
                                 .ok_or(StellarOrbitalHierarchyError::MissingStellarRadius)?,
-                            provenance: StellarOrbitMemberProvenance::EvolutionSnapshot,
+                            provenance:
+                                StellarOrbitMemberProvenance::CurrentMassAndRadiusFromEvolution,
                         })
                     })
                     .collect();
-                let orbital_hierarchy = orbit_inputs.and_then(|inputs| {
-                    self.orbital_hierarchy_sampler
-                        .generate(seed, system.id, &inputs)
-                });
+                let (orbital_member_inputs, orbital_hierarchy, orbital_hierarchy_failed_attempts) =
+                    match orbit_inputs {
+                        Ok(inputs) => {
+                            let provenance = inputs
+                                .iter()
+                                .map(|input| StellarOrbitMemberInputProvenance {
+                                    member_id: input.id,
+                                    input_source: input.provenance,
+                                })
+                                .collect();
+                            let (hierarchy, failed_attempts) = self
+                                .orbital_hierarchy_sampler
+                                .generate_with_diagnostics(seed, system.id, &inputs);
+                            (provenance, hierarchy, failed_attempts)
+                        }
+                        Err(error) => (Vec::new(), Err(error), Vec::new()),
+                    };
                 let members = evolved_births
                     .into_iter()
                     .map(|(birth, evolution)| {
@@ -337,6 +331,8 @@ impl StellarCatalogGenerator {
                     population: system.population,
                     history,
                     orbital_hierarchy,
+                    orbital_hierarchy_failed_attempts,
+                    orbital_member_inputs,
                     members,
                 }
             })

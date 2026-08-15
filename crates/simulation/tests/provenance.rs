@@ -118,6 +118,53 @@ fn accepted_claim_document_round_trips_through_ron() {
 }
 
 #[test]
+fn object_summary_rejects_a_malformed_unrelated_outcome() {
+    let target = ClaimOutcome::Accepted(
+        ScientificClaim::new("star-1/radius", 1.4_f64, empirical_provenance("radius"))
+            .expect("target claim is valid"),
+        successful_receipt(),
+    );
+    let other_object = ObjectId::from("star-2");
+    let other_key = "radius";
+    let other_provenance = ClaimProvenance::new(
+        other_object.clone(),
+        other_key,
+        EvidenceLevel::Empirical,
+        PrescriptionId::from("prescription.kepler-radius"),
+        vec![ScientificSourceReference {
+            source_id: SourceId::from("source.kepler-2019"),
+            locator: Some("Table 2, radius bin 1".into()),
+        }],
+        ClaimApplicability::inside_domain(
+            "Kepler FGK host and radius calibration",
+            BTreeMap::new(),
+        )
+        .expect("applicability is valid"),
+        ClaimUncertainty::not_quantified("no interval").expect("uncertainty is valid"),
+        None,
+        Some(
+            RandomDrawAddress::new("ChaCha8", "1", "planet/radius", other_object, other_key, 0)
+                .expect("address is valid"),
+        ),
+    )
+    .expect("provenance is valid");
+    let mut malformed_other = ClaimOutcome::Accepted(
+        ScientificClaim::new("star-2/radius", 1.2_f64, other_provenance)
+            .expect("other claim is valid"),
+        successful_receipt(),
+    );
+    let ClaimOutcome::Accepted(_, receipt) = &mut malformed_other else {
+        unreachable!()
+    };
+    receipt.constraints.clear();
+
+    assert!(
+        ObjectEvidenceSummary::from_outcomes(ObjectId::from("star-1"), &[target, malformed_other])
+            .is_err()
+    );
+}
+
+#[test]
 fn empirical_claims_require_sources_and_inside_domain_applicability() {
     let mut provenance = empirical_provenance("radius");
     provenance.source_references.clear();

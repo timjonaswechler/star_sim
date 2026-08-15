@@ -4,19 +4,49 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use serde::{Deserialize, Serialize};
 
-use super::claims::ClaimProvenance;
+use super::claims::{ClaimProvenance, ScientificClaim};
 use super::error::ProvenanceError;
-use super::identifiers::{ClaimId, EvidenceLevel, validate_unique};
+use super::identifiers::{ClaimId, EvidenceLevel, ObjectId, validate_unique};
 use super::outcomes::ClaimOutcome;
 use super::sources::ScientificSourceCatalog;
 use super::summaries::ObjectEvidenceSummary;
 use super::validation::ValidationReceipt;
 
+/// Validation hook for domain claim payloads stored in a provenance document.
+pub trait ProvenanceValue {
+    fn validate_claim_value(
+        &self,
+        claim: &ScientificClaim<Self>,
+        realized_claims: &BTreeMap<ClaimId, &ScientificClaim<Self>>,
+        known_objects: &BTreeSet<ObjectId>,
+    ) -> Result<(), ProvenanceError>
+    where
+        Self: Sized;
+}
+
+impl ProvenanceValue for f64 {
+    fn validate_claim_value(
+        &self,
+        claim: &ScientificClaim<Self>,
+        _realized_claims: &BTreeMap<ClaimId, &ScientificClaim<Self>>,
+        _known_objects: &BTreeSet<ObjectId>,
+    ) -> Result<(), ProvenanceError> {
+        if self.is_finite() {
+            Ok(())
+        } else {
+            Err(ProvenanceError::InvalidClaimValue {
+                claim: claim.id.to_string(),
+                detail: "floating-point payload must be finite".into(),
+            })
+        }
+    }
+}
+
 /// A serializable provenance graph with all cross-reference invariants checked.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(
     try_from = "ProvenanceDocumentWire<T>",
-    bound(deserialize = "T: Deserialize<'de>")
+    bound(deserialize = "T: Deserialize<'de> + ProvenanceValue")
 )]
 pub struct ProvenanceDocument<T> {
     /// Deduplicated sources, prescriptions, model realizations, seed, and groups.
@@ -34,7 +64,7 @@ struct ProvenanceDocumentWire<T> {
     object_summaries: Vec<ObjectEvidenceSummary>,
 }
 
-impl<T> ProvenanceDocument<T> {
+impl<T: ProvenanceValue> ProvenanceDocument<T> {
     /// Creates a document and performs all local and cross-reference validation.
     pub fn new(
         catalog: ScientificSourceCatalog,
@@ -54,18 +84,30 @@ impl<T> ProvenanceDocument<T> {
     pub fn validate(&self) -> Result<(), ProvenanceError> {
         self.catalog.validate()?;
 
-        let mut claims = BTreeMap::new();
+        let known_objects = self
+            .outcomes
+            .iter()
+            .map(|outcome| outcome.provenance().object_id.clone())
+            .collect::<BTreeSet<_>>();
+        let mut realized_claims = BTreeMap::new();
         for outcome in &self.outcomes {
             outcome.validate()?;
             if let Some(claim) = outcome.claim()
-                && claims
-                    .insert(claim.id.clone(), claim.provenance.evidence_level)
-                    .is_some()
+                && realized_claims.insert(claim.id.clone(), claim).is_some()
             {
                 return Err(ProvenanceError::DuplicateClaimOutcome {
                     claim: claim.id.to_string(),
                 });
             }
+        }
+        let claims = realized_claims
+            .iter()
+            .map(|(id, claim)| (id.clone(), claim.provenance.evidence_level))
+            .collect::<BTreeMap<_, _>>();
+        for claim in realized_claims.values() {
+            claim
+                .value
+                .validate_claim_value(claim, &realized_claims, &known_objects)?;
         }
 
         let mut derivations = BTreeMap::new();
@@ -128,10 +170,12 @@ impl<T> ProvenanceDocument<T> {
                 .to_string();
             return Err(ProvenanceError::InvalidObjectEvidenceSummary { object });
         }
+        let expected_summaries = ObjectEvidenceSummary::from_all_outcomes(&self.outcomes)?
+            .into_iter()
+            .map(|summary| (summary.object_id.clone(), summary))
+            .collect::<BTreeMap<_, _>>();
         for summary in &self.object_summaries {
-            let expected =
-                ObjectEvidenceSummary::from_outcomes(summary.object_id.clone(), &self.outcomes)?;
-            if &expected != summary {
+            if expected_summaries.get(&summary.object_id) != Some(summary) {
                 return Err(ProvenanceError::InvalidObjectEvidenceSummary {
                     object: summary.object_id.to_string(),
                 });
@@ -227,18 +271,11 @@ impl<T> ProvenanceDocument<T> {
 
     /// Recomputes summaries from outcomes without mutating the document.
     pub fn derived_object_summaries(&self) -> Result<Vec<ObjectEvidenceSummary>, ProvenanceError> {
-        let mut object_ids = BTreeSet::new();
-        for outcome in &self.outcomes {
-            object_ids.insert(outcome.provenance().object_id.clone());
-        }
-        object_ids
-            .into_iter()
-            .map(|object_id| ObjectEvidenceSummary::from_outcomes(object_id, &self.outcomes))
-            .collect()
+        ObjectEvidenceSummary::from_all_outcomes(&self.outcomes)
     }
 }
 
-impl<T> TryFrom<ProvenanceDocumentWire<T>> for ProvenanceDocument<T> {
+impl<T: ProvenanceValue> TryFrom<ProvenanceDocumentWire<T>> for ProvenanceDocument<T> {
     type Error = ProvenanceError;
 
     fn try_from(value: ProvenanceDocumentWire<T>) -> Result<Self, Self::Error> {

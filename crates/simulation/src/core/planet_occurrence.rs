@@ -137,7 +137,7 @@ pub enum PlanetOccurrenceError {
     MultiplicitySeparationRequired,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PlanetOccurrenceQualityFlag {
     PoissonIndependenceApproximation,
     HostAgeDependenceNotModeled,
@@ -148,6 +148,8 @@ pub enum PlanetOccurrenceQualityFlag {
 #[derive(Debug, Clone, PartialEq)]
 pub struct PlanetPopulationSummary {
     pub model_version: PlanetOccurrenceModelVersion,
+    /// Applied close-binary suppression factor, when the transferred Kraus step was used.
+    pub close_binary_occurrence_factor: Option<f64>,
     pub small_planets: Result<SmallPlanetOccurrence, PlanetOccurrenceError>,
     pub giant_planets: Result<GiantPlanetOccurrence, PlanetOccurrenceError>,
     pub quality_flags: Vec<PlanetOccurrenceQualityFlag>,
@@ -206,12 +208,17 @@ impl PlanetOccurrenceSampler {
                 Err(PlanetOccurrenceError::MultiplicitySeparationRequired)
             }
         };
+        let close_binary_occurrence_factor = quality_flags
+            .contains(&PlanetOccurrenceQualityFlag::MultiplicitySuppressionExtrapolated)
+            .then(|| factor.as_ref().ok().copied())
+            .flatten();
         let (small_planets, giant_planets) = match factor {
             Err(error) => (Err(error.clone()), Err(error)),
             Ok(factor) => {
                 let Ok(snapshot) = evolution else {
                     return PlanetPopulationSummary {
                         model_version: self.model.model_version,
+                        close_binary_occurrence_factor,
                         small_planets: Err(PlanetOccurrenceError::MissingStellarEvolution),
                         giant_planets: Err(PlanetOccurrenceError::MissingStellarEvolution),
                         quality_flags,
@@ -239,6 +246,7 @@ impl PlanetOccurrenceSampler {
         }
         PlanetPopulationSummary {
             model_version: self.model.model_version,
+            close_binary_occurrence_factor,
             small_planets,
             giant_planets,
             quality_flags,
@@ -367,7 +375,7 @@ fn sample_poisson_count(mean: f64, rng: &mut ChaCha8Rng) -> u32 {
         .sample(rng) as u32
 }
 
-fn stable_planet_host_id(system_id: u64, member_id: u64) -> u64 {
+pub(crate) fn stable_planet_host_id(system_id: u64, member_id: u64) -> u64 {
     let mut input = Vec::with_capacity(56);
     input.extend_from_slice(b"star_sim/planet_occurrence_host/v1");
     input.extend_from_slice(&system_id.to_le_bytes());

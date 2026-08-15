@@ -129,7 +129,7 @@ fn default_m_dwarf_occurrence_cells() -> Vec<ExplicitPlanetOccurrenceCell> {
         .collect()
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ExplicitPlanetSourceChannel {
     FgkWarmSuperEarth,
     FgkWarmSubNeptune,
@@ -156,7 +156,7 @@ pub enum ExplicitPlanetProperties {
     DopplerMinimumMass { minimum_mass_mjup: f64 },
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ExplicitPlanetQualityFlag {
     WithinBinLogUniformApproximation,
     FgkHostTemperatureProxy,
@@ -172,6 +172,9 @@ pub struct ExplicitPlanetCandidate {
     pub id: u64,
     pub host_member_id: u64,
     pub source_channel: ExplicitPlanetSourceChannel,
+    /// Selected measured occurrence cell for gridded M-dwarf channels.
+    pub source_cell_index: Option<u32>,
+    pub source_cell_count: Option<u32>,
     pub properties: ExplicitPlanetProperties,
     pub period_days: f64,
     pub semimajor_axis_au: f64,
@@ -372,6 +375,8 @@ impl ExplicitPlanetGenerator {
                 id,
                 host_member_id,
                 source_channel: channel,
+                source_cell_index: None,
+                source_cell_count: None,
                 properties: ExplicitPlanetProperties::TransitRadius { radius_rearth },
                 period_days,
                 semimajor_axis_au: semimajor_axis_from_period_days(
@@ -416,6 +421,8 @@ impl ExplicitPlanetGenerator {
             id,
             host_member_id,
             source_channel: channel,
+            source_cell_index: None,
+            source_cell_count: None,
             properties: ExplicitPlanetProperties::DopplerMinimumMass { minimum_mass_mjup },
             period_days,
             semimajor_axis_au: semimajor_axis_from_period_days(period_days, host_mass_msun),
@@ -452,22 +459,16 @@ impl ExplicitPlanetGenerator {
             let draw = domain_rng(seed, b"explicit_planet/m_dwarf_cell/v1", Some(id))
                 .gen_range(0.0..total_weight);
             let mut cumulative = 0.0;
-            let cell = self
+            let source_cell_index = self
                 .model
                 .m_dwarf_occurrence_cells
                 .iter()
-                .find(|cell| {
+                .position(|cell| {
                     cumulative += cell.occurrence_weight_percent;
                     draw < cumulative
                 })
-                .copied()
-                .unwrap_or_else(|| {
-                    *self
-                        .model
-                        .m_dwarf_occurrence_cells
-                        .last()
-                        .expect("validated non-empty occurrence grid")
-                });
+                .unwrap_or(self.model.m_dwarf_occurrence_cells.len() - 1);
+            let cell = self.model.m_dwarf_occurrence_cells[source_cell_index];
             let radius_rearth = sample_log_uniform_for_entity(
                 seed,
                 b"explicit_planet/m_dwarf_radius/v1",
@@ -486,6 +487,8 @@ impl ExplicitPlanetGenerator {
                 id,
                 host_member_id,
                 source_channel: channel,
+                source_cell_index: Some(source_cell_index as u32),
+                source_cell_count: Some(self.model.m_dwarf_occurrence_cells.len() as u32),
                 properties: ExplicitPlanetProperties::TransitRadius { radius_rearth },
                 period_days,
                 semimajor_axis_au: semimajor_axis_from_period_days(
@@ -524,14 +527,14 @@ impl ExplicitPlanetGenerator {
             let draw = domain_rng(seed, b"explicit_planet/m_dwarf_sub_earth_cell/v1", Some(id))
                 .gen_range(0.0..total_weight);
             let mut cumulative = 0.0;
-            let cell = cells
+            let source_cell_index = cells
                 .iter()
-                .find(|cell| {
+                .position(|cell| {
                     cumulative += cell.occurrence_weight_percent;
                     draw < cumulative
                 })
-                .copied()
-                .unwrap_or_else(|| *cells.last().expect("validated non-empty occurrence grid"));
+                .unwrap_or(cells.len() - 1);
+            let cell = cells[source_cell_index];
             let radius_rearth = sample_log_uniform_for_entity(
                 seed,
                 b"explicit_planet/m_dwarf_sub_earth_radius/v1",
@@ -550,6 +553,8 @@ impl ExplicitPlanetGenerator {
                 id,
                 host_member_id,
                 source_channel: channel,
+                source_cell_index: Some(source_cell_index as u32),
+                source_cell_count: Some(cells.len() as u32),
                 properties: ExplicitPlanetProperties::TransitRadius { radius_rearth },
                 period_days,
                 semimajor_axis_au: semimajor_axis_from_period_days(

@@ -80,4 +80,6 @@ pub enum ProvenanceError {
     DuplicateClaimOutcome { claim: String },
     #[error("object evidence summary for `{object}` is inconsistent with its claims")]
     InvalidObjectEvidenceSummary { object: String },
+    #[error("claim `{claim}` contains an invalid value: {detail}")]
+    InvalidClaimValue { claim: String, detail: String },
 }

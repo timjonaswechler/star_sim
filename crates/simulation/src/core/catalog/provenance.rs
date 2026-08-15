@@ -3,12 +3,19 @@
 use super::super::*;
 use super::{GeneratedStellarCatalog, StellarClaimValue};
 
+mod orbital_planetary;
+
+#[allow(clippy::too_many_arguments)]
 pub(super) fn generate(
     seed: u64,
     catalog: &GeneratedStellarCatalog,
     birth_mass_model: &StellarBirthMassModel,
     population_history_model: &PopulationHistoryModel,
     evolution_model_fingerprint: &str,
+    orbital_hierarchy_model: &StellarOrbitalHierarchyModel,
+    planetary_stability_model: &PlanetaryStabilityModel,
+    planet_occurrence_model: &PlanetOccurrenceModel,
+    explicit_planet_model: &ExplicitPlanetModel,
 ) -> Result<ProvenanceDocument<StellarClaimValue>, ProvenanceError> {
     const SOURCE_ID: &str = "source.kroupa-2001-canonical-imf";
     const COMPANION_SOURCE_ID: &str = "source.reggiani-meyer-2013-mass-ratios";
@@ -190,39 +197,48 @@ pub(super) fn generate(
         birth_mass_model,
         population_history_model,
         evolution_model_fingerprint,
+        orbital_hierarchy_model,
+        planetary_stability_model,
+        planet_occurrence_model,
+        explicit_planet_model,
     );
     let model_realization_id = ModelRealizationId::from(format!(
-        "model-realization.stellar-catalog-v1.{model_fingerprint}.seed-{seed}"
+        "model-realization.stellar-catalog-v2.{model_fingerprint}.seed-{seed}"
     ));
     let model_realization = ModelRealization {
         id: model_realization_id.clone(),
-        version: "1".into(),
+        version: "2".into(),
         seed,
         description: format!(
-            "Coherent birth, population-history, chemistry, and evolution configuration; primary-mass bounds [{}, {}, {}] M_sun; evolution fingerprint {}",
+            "Coherent birth, population-history, chemistry, evolution, orbital, stability, occurrence, and explicit-planet configuration; primary-mass bounds [{}, {}, {}] M_sun; evolution fingerprint {}",
             imf.minimum_mass_msun,
             imf.break_mass_msun,
             imf.maximum_mass_msun,
             evolution_model_fingerprint,
         ),
     };
+    let mut sources = vec![source, companion_source, evolution_source, cooling_source];
+    let mut prescriptions = vec![
+        prescription,
+        companion_ratio_prescription,
+        companion_mass_prescription,
+        member_count_prescription,
+        member_role_prescription,
+        population_prescription,
+        age_prescription,
+        iron_prescription,
+        alpha_prescription,
+        chemistry_prescription,
+        evolution_prescription,
+        cooling_prescription,
+    ];
+    let registrations = orbital_planetary::registrations()?;
+    sources.extend(registrations.sources);
+    prescriptions.extend(registrations.prescriptions);
     let source_catalog = ScientificSourceCatalog::new(
         seed,
-        vec![source, companion_source, evolution_source, cooling_source],
-        vec![
-            prescription,
-            companion_ratio_prescription,
-            companion_mass_prescription,
-            member_count_prescription,
-            member_role_prescription,
-            population_prescription,
-            age_prescription,
-            iron_prescription,
-            alpha_prescription,
-            chemistry_prescription,
-            evolution_prescription,
-            cooling_prescription,
-        ],
+        sources,
+        prescriptions,
         vec![model_realization],
         vec![],
     )?;
@@ -1406,14 +1422,16 @@ pub(super) fn generate(
         }
     }
 
-    let object_ids = outcomes
-        .iter()
-        .map(|outcome| outcome.provenance().object_id.clone())
-        .collect::<std::collections::BTreeSet<_>>();
-    let object_summaries = object_ids
-        .into_iter()
-        .map(|object_id| ObjectEvidenceSummary::from_outcomes(object_id, &outcomes))
-        .collect::<Result<Vec<_>, _>>()?;
+    orbital_planetary::append_outcomes(
+        seed,
+        catalog,
+        orbital_hierarchy_model,
+        planetary_stability_model,
+        &model_realization_id,
+        &mut outcomes,
+    )?;
+
+    let object_summaries = ObjectEvidenceSummary::from_all_outcomes(&outcomes)?;
     ProvenanceDocument::new(source_catalog, outcomes, object_summaries)
 }
 
@@ -1444,15 +1462,24 @@ fn stellar_evolution_unsupported_reason(
     UnsupportedReason::new(code, error.to_string())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn catalog_model_fingerprint(
     birth_mass_model: &StellarBirthMassModel,
     population_history_model: &PopulationHistoryModel,
     evolution_model_fingerprint: &str,
+    orbital_hierarchy_model: &StellarOrbitalHierarchyModel,
+    planetary_stability_model: &PlanetaryStabilityModel,
+    planet_occurrence_model: &PlanetOccurrenceModel,
+    explicit_planet_model: &ExplicitPlanetModel,
 ) -> String {
     let mut hasher = blake3::Hasher::new();
-    hasher.update(b"star_sim/stellar_catalog_model/v1");
+    hasher.update(b"star_sim/stellar_catalog_model/v2");
     hasher.update(format!("{birth_mass_model:?}").as_bytes());
     hasher.update(format!("{population_history_model:?}").as_bytes());
     hasher.update(evolution_model_fingerprint.as_bytes());
+    hasher.update(format!("{orbital_hierarchy_model:?}").as_bytes());
+    hasher.update(format!("{planetary_stability_model:?}").as_bytes());
+    hasher.update(format!("{planet_occurrence_model:?}").as_bytes());
+    hasher.update(format!("{explicit_planet_model:?}").as_bytes());
     hasher.finalize().to_hex()[..16].to_owned()
 }

@@ -49,7 +49,7 @@ impl Default for PlanetaryStabilityModel {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CircumstellarStabilityQualityFlag {
     MasslessTestParticleApproximation,
     CircularCoplanarProgradePlanetAssumption,

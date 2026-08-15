@@ -58,6 +58,40 @@ impl ObjectEvidenceSummary {
         outcomes: &[ClaimOutcome<T>],
     ) -> Result<Self, ProvenanceError> {
         let object_id = object_id.into();
+        for outcome in outcomes {
+            outcome.validate()?;
+        }
+        Self::from_matching_outcomes(
+            object_id.clone(),
+            outcomes
+                .iter()
+                .filter(|outcome| outcome.provenance().object_id == object_id),
+        )
+    }
+
+    /// Derives every object summary in one linear grouping pass.
+    pub(crate) fn from_all_outcomes<T>(
+        outcomes: &[ClaimOutcome<T>],
+    ) -> Result<Vec<Self>, ProvenanceError> {
+        let mut grouped = BTreeMap::<ObjectId, Vec<&ClaimOutcome<T>>>::new();
+        for outcome in outcomes {
+            grouped
+                .entry(outcome.provenance().object_id.clone())
+                .or_default()
+                .push(outcome);
+        }
+        grouped
+            .into_iter()
+            .map(|(object_id, outcomes)| {
+                Self::from_matching_outcomes(object_id, outcomes.into_iter())
+            })
+            .collect()
+    }
+
+    fn from_matching_outcomes<'a, T: 'a>(
+        object_id: ObjectId,
+        outcomes: impl Iterator<Item = &'a ClaimOutcome<T>>,
+    ) -> Result<Self, ProvenanceError> {
         let mut counts = BTreeMap::from([
             (EvidenceLevel::Empirical, 0),
             (EvidenceLevel::PhysicalProxy, 0),
@@ -71,9 +105,6 @@ impl ObjectEvidenceSummary {
         for outcome in outcomes {
             outcome.validate()?;
             let provenance = outcome.provenance();
-            if provenance.object_id != object_id {
-                continue;
-            }
             *counts.entry(provenance.evidence_level).or_default() += 1;
             if provenance.applicability.is_extrapolated() {
                 extrapolated_claim_count += 1;
