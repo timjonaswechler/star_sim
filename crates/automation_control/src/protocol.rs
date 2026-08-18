@@ -13,14 +13,14 @@ fn default_duration_ms() -> u32 {
     DEFAULT_CAMERA_DURATION_MS
 }
 
-#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Request {
     pub version: u32,
     pub id: String,
     pub command: Command,
 }
 
-#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Command {
     InspectUi,
@@ -105,7 +105,7 @@ pub enum WaitCondition {
     FramesElapsed { count: u64 },
 }
 
-#[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ScreenshotSource {
     Window { target: String },
@@ -116,7 +116,7 @@ pub enum ScreenshotSource {
 pub struct Ready {
     pub version: u32,
     #[serde(rename = "type")]
-    pub kind: &'static str,
+    pub kind: String,
     pub capabilities: Vec<String>,
     pub mode: RunMode,
     pub seed: u64,
@@ -139,7 +139,7 @@ impl Ready {
     ) -> Self {
         Self {
             version: PROTOCOL_VERSION,
-            kind: "ready",
+            kind: "ready".into(),
             capabilities: capabilities.into_iter().map(Into::into).collect(),
             mode,
             seed,

@@ -1,114 +1,96 @@
 # `star_sim_debug`
 
-`star_sim_debug` is a development and debugging driver for the repository's automation-controlled Bevy examples. It runs deterministic checks against a fixed example; it is not a general-purpose Bevy debugger or an interactive application controller.
+`star_sim_debug` is the repository-specific command-line driver for deterministic logical and visual checks. The reusable automation protocol, Bevy plugin, process session, diagnostics, and artifact primitives live in [`crates/automation_control`](../../crates/automation_control/README.md).
 
-## When to use it
+This app owns only scenario orchestration, its default configuration location, and executable dispatch. Reusable failure-artifact loading, Markdown issue-draft generation, and authenticated GitHub CLI publishing live in [`automation_control::driver`](../../crates/automation_control/README.md).
 
-Use the CLI when a task needs one of these checks:
+## Configuration
 
-- verify logical Bevy behavior without a window or GPU;
-- reproduce deterministic stepping, selection, and run-state behavior;
-- validate rendered output through screenshots.
+The default configuration is [`debug.toml`](config/automation/debug.toml). It is loaded when the CLI starts, not at compile time. It describes the application launch specification, session policy, and report attribution:
 
-Choose `logical` for state and behavior checks. Choose `visual` when the rendered image or camera output matters.
+- the Cargo package, target kind, target name, features, and arguments to launch;
+- the controller session timeout;
+- the optional name included in generated issue-report footers.
+
+Scenario targets, protocol capabilities, screenshot paths, and expected dimensions are selected by the scenario at runtime rather than by the launch configuration.
+
+Select another file with `--config`:
+
+```bash
+cargo run -q -p star_sim_debug -- \
+  --config path/to/debug.toml logical
+```
+
+`--artifact-dir` and `--record` are command-line overrides. Relative artifact and recording paths are interpreted by the current working directory. The driver uses `--artifact-dir` as its artifact root and supplies the selected root to the child through `AUTOMATION_CONTROL_ARTIFACT_DIR`; it does not append an application-specific artifact argument.
+
+The checked-in configuration targets the `apps/app` binary with its `automation-control` feature. The app registers the stable targets `window.primary`, `camera.main`, and `menu.tab.gym`, `menu.tab.museum`, and `menu.tab.zoo` when launched with `--automation`. The test configuration in [`config/automation/test-rendered.toml`](config/automation/test-rendered.toml) is an equivalent explicit app configuration; reusable headless coverage remains in `automation_control` tests.
 
 ## Logical mode
 
-Logical mode runs the headless `automation_control` example. It does not require a display, window, renderer, or GPU.
+The logical scenario validates the state-oriented capabilities it uses against the checked-in `apps/app` target. It requires a usable display because the real app uses Bevy's rendered window pipeline:
 
 ```bash
-cargo run -q -p star_sim_debug -- logical
+cargo run -q -p star_sim_debug -- \
+  --config apps/star_sim_debug/config/automation/debug.toml logical
 ```
 
-The command pauses the run, advances frames and simulation time, clicks the generate target, waits for the expected selection, inspects the run state, and shuts the child down. A successful run prints one JSON object with `status: "passed"` and `mode: "logical"`.
+The app scenario inspects the real menu, activates the Museum tab through the same UI activation seam used by a human click, waits for `active_screen: "museum"`, inspects run state, and shuts down the child. A successful run prints one JSON object with `status: "passed"` and `mode: "logical"`. Reusable headless driver coverage lives in `automation_control` integration tests and does not depend on this app-specific scenario.
 
-Add `--record` to save the complete protocol session as ordered JSON Lines:
+Record the ordered protocol session when diagnosing the app run:
 
 ```bash
-cargo run -q -p star_sim_debug -- logical \
+cargo run -q -p star_sim_debug -- \
+  --config apps/star_sim_debug/config/automation/debug.toml logical \
   --record artifacts/debug-run/logical-session.jsonl
-```
-
-If the first run times out while Cargo is compiling the child example, build it once before running the CLI:
-
-```bash
-cargo build -p star_sim_debug
-cargo build -p automation_control --example automation_control_headless
-cargo run -q -p star_sim_debug -- logical
 ```
 
 ## Visual mode
 
-Visual mode runs the rendered `bevy_viewer` prototype, focuses the main camera on the prototype star, captures a window screenshot and a camera screenshot, and validates both PNG files.
+Visual mode launches the selected rendered target, captures the primary window beneath the selected artifact root, and validates its PNG dimensions:
 
 ```bash
-cargo run -q -p star_sim_debug -- visual \
+cargo run -q -p star_sim_debug -- \
+  --config apps/star_sim_debug/config/automation/debug.toml visual \
   --artifact-dir artifacts/debug-run
 ```
 
-The default artifact directory is `artifacts/debug-ci`. Pass `--artifact-dir` to keep debugging output separate. The current prototype produces:
-
-- `window.png` at `640x360`;
-- `camera.png` at `320x180`.
-
-Visual mode requires a usable display and graphics backend. CI runs it with Xvfb and software Vulkan rendering. If the first run times out while Cargo is compiling the example, build it once first:
+It requires a usable display and graphics backend. CI runs it with Xvfb and software Vulkan rendering. Build the target independently when the first protocol timeout is caused by Cargo compilation:
 
 ```bash
 cargo build -p star_sim_debug
-cargo build -p app --example automation_control_prototype --features render-example
-cargo run -q -p star_sim_debug -- visual \
-  --artifact-dir artifacts/debug-run
+cargo build -p app --features automation-control
 ```
 
-Use a fresh artifact directory when repeating a run because screenshots are not overwritten by default.
+The checked-in app scenario expects `window.png` at `640x360`. A fresh artifact directory is recommended because screenshot reservation does not overwrite existing files. Camera operations are not advertised because the current app has no meaningful camera-control adapter.
 
-Visual sessions can be recorded alongside their screenshots:
+## Failure artifacts
 
-```bash
-cargo run -q -p star_sim_debug -- visual \
-  --artifact-dir artifacts/debug-run \
-  --record artifacts/debug-run/visual-session.jsonl
-```
+On a failed logical or visual run, the CLI continues to mirror child stderr and writes:
 
-## Session recording
+- `recent.log`: the configured rolling stderr window;
+- `failure.json`: the detected panic/Bevy error or CLI failure, including the recording path when one was selected.
 
-Each recording line contains an increasing `sequence`, a `direction` (`to_app` or `from_app`), and the exact JSON protocol `message`. The first entry is the application's `ready` message, followed by every request and response in transmission order. Recordings deliberately use sequence numbers rather than wall-clock timestamps so deterministic runs remain directly comparable.
-
-Parent directories are created automatically. An existing recording at the selected path is replaced when a new session starts.
-
-## Recent failure log
-
-The CLI continues to print child-process stderr, including Bevy logs and panic messages, directly to the terminal. At the same time it retains a rolling window of the latest 50 stderr lines. If a logical or visual scenario fails, those lines are written to `recent.log` in the artifact directory:
-
-```bash
-cargo run -q -p star_sim_debug -- logical \
-  --artifact-dir artifacts/debug-run
-```
-
-A successful run does not create `recent.log`. Runtime context such as the seed and protocol activity remains in the optional session recording instead of being duplicated in application error messages.
-
-Panic headlines and Bevy `ERROR` messages are retained separately from the 50-line window, so a long backtrace cannot displace the message that identifies the failure. A detected failure also creates `failure.json` with the application headline and, when present, the CLI error.
-
-## GitHub issue reports
-
-Create a reviewable Markdown draft from `failure.json`, `recent.log`, and the last 12 session entries:
+Create a reviewable Markdown issue draft without contacting GitHub:
 
 ```bash
 cargo run -q -p star_sim_debug -- report artifacts/debug-run
 ```
 
-This writes `artifacts/debug-run/github-issue.md` without contacting GitHub. To publish explicitly:
+Publish explicitly through the authenticated `gh` CLI:
 
 ```bash
 cargo run -q -p star_sim_debug -- report artifacts/debug-run --create
 ```
 
-Publishing uses the authenticated `gh` CLI. It first compares the generated title against existing open and closed issues; an exact match is returned instead of creating a duplicate.
+The report command uses the reusable GitHub report module, reads its attribution from `[report].generated_by`, and avoids creating an exact-title duplicate issue.
 
 ## Tests
 
 ```bash
-cargo test -p automation_control -p star_sim_debug
+cargo test -p automation_control --features driver
+cargo test -p star_sim_debug
+# Requires a display and runs the checked-in apps/app target:
+xvfb-run -a cargo test -p star_sim_debug --test app_integration -- --ignored
 ```
 
-The CLI scenarios live in [`src/main.rs`](src/main.rs). The protocol, capabilities, targets, and Bevy adapters live in [`crates/automation_control`](../../crates/automation_control) and the corresponding examples. Extend those pieces when the fixed scenarios need new behavior.
+The reusable crate integration tests cover ordered session recordings against the headless example and typed issue drafts. The ignored `app_integration` tests exercise the checked-in `apps/app` target through the `star_sim_debug` CLI and public protocol seam. The crate tests also cover the driver, protocol, target registry, deterministic stepping, waits, and artifact path safety.

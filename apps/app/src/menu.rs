@@ -10,12 +10,19 @@ pub(crate) struct MenuPlugin;
 
 const NORMAL_BUTTON: Color = Color::srgb(0.15, 0.15, 0.15);
 
-#[derive(Clone, Copy, Default, PartialEq, Eq)]
-enum MenuSection {
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum MenuSection {
     #[default]
     Gym,
     Museum,
     Zoo,
+}
+
+#[derive(Component, Clone, Copy, Debug, Default)]
+pub(crate) struct MenuTab {
+    pub(crate) id: &'static str,
+    pub(crate) label: &'static str,
+    pub(crate) section: MenuSection,
 }
 
 impl TabKey for MenuSection {}
@@ -54,19 +61,19 @@ fn menu() -> impl Scene {
                 }
                 Children [
                     (
-                        tab_button("Gym")
+                        tab_button("Gym", "menu.tab.gym", MenuSection::Gym)
                         TabTrigger::<MenuSection> {
                             value: {MenuSection::Gym}
                         }
                     ),
                     (
-                        tab_button("Museum")
+                        tab_button("Museum", "menu.tab.museum", MenuSection::Museum)
                         TabTrigger::<MenuSection> {
                             value: {MenuSection::Museum}
                         }
                     ),
                     (
-                        tab_button("Zoo")
+                        tab_button("Zoo", "menu.tab.zoo", MenuSection::Zoo)
                         TabTrigger::<MenuSection> {
                             value: {MenuSection::Zoo}
                         }
@@ -98,8 +105,9 @@ fn menu() -> impl Scene {
     }
 }
 
-fn tab_button(label: &'static str) -> impl Scene {
+fn tab_button(label: &'static str, id: &'static str, section: MenuSection) -> impl Scene {
     bsn! {
+        MenuTab { id, label, section }
         Node {
             width: px(150),
             height: px(65),

@@ -10,8 +10,8 @@ permissions:
   contents: read
 
 jobs:
-  logical-headless:
-    name: Logical headless automation E2E
+  reusable-headless:
+    name: Reusable headless automation driver
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -20,28 +20,15 @@ jobs:
           submodules: recursive
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - name: Unit tests
-        run: cargo test -p automation_control -p star_sim_debug
-      - name: Build logical process binaries outside the protocol timeout
+      - name: Unit tests and app feature checks
         run: |
-          cargo build -p star_sim_debug
-          cargo build -p automation_control --example automation_control_headless
-      - name: Prove deterministic logical output
-        shell: bash
-        run: |
-          set -euo pipefail
-          cargo run -q -p star_sim_debug -- logical > logical-1.json
-          cargo run -q -p star_sim_debug -- logical > logical-2.json
-          cmp logical-1.json logical-2.json
-          python3 - <<'PY'
-          import json
-          with open("logical-1.json", encoding="utf-8") as handle:
-              result = json.load(handle)
-          assert result["status"] == "passed"
-          assert result["mode"] == "logical"
-          assert result["state"]["seed"] == 42
-          assert result["state"]["simulation_ms"] == 150
-          PY
+          cargo test -p automation_control --features driver -p star_sim_debug
+          cargo check -p app
+          cargo check -p app --features automation-control
+      - name: Build reusable headless process outside the protocol timeout
+        run: cargo build -p automation_control --example automation_control_headless
+      - name: Exercise reusable headless driver through the protocol seam
+        run: cargo test -p automation_control --features driver --test driver_recording -- --nocapture
 
   visual-linux:
     name: Visual Linux automation E2E
@@ -63,11 +50,11 @@ jobs:
             libasound2-dev libudev-dev libxkbcommon-dev libxkbcommon-x11-dev \
             libwayland-dev libxcb-xfixes0-dev libgl1-mesa-dri \
             mesa-vulkan-drivers vulkan-tools
-      - name: Build visual process binaries outside the protocol timeout
+      - name: Build apps/app process outside the protocol timeout
         run: |
           cargo build -p star_sim_debug
-          cargo build -p bevy_viewer --example automation_control_prototype --features automation-control
-      - name: Run complete visual flow under Xvfb
+          cargo build -p app --features automation-control
+      - name: Run apps/app logical and visual flows under Xvfb
         env:
           LIBGL_ALWAYS_SOFTWARE: "1"
           WGPU_FORCE_FALLBACK_ADAPTER: "1"
@@ -75,7 +62,29 @@ jobs:
           set -euo pipefail
           mkdir -p artifacts/debug-ci
           xvfb-run -a -s "-screen 0 1280x720x24" \
-            cargo run -q -p star_sim_debug -- visual --artifact-dir artifacts/debug-ci \
+            cargo run -q -p star_sim_debug -- \
+              --config apps/star_sim_debug/config/automation/debug.toml \
+              logical --artifact-dir artifacts/debug-ci/logical \
+            | tee artifacts/debug-ci/logical-result.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          values = []
+          for line in Path("artifacts/debug-ci/logical-result.json").read_text().splitlines():
+              try:
+                  value = json.loads(line)
+              except json.JSONDecodeError:
+                  continue
+              if isinstance(value, dict) and value.get("status") == "passed":
+                  values.append(value)
+          assert len(values) == 1, f"expected one logical result, got {values!r}"
+          assert values[0]["mode"] == "logical"
+          assert values[0]["state"]["active_screen"] == "museum"
+          PY
+          xvfb-run -a -s "-screen 0 1280x720x24" \
+            cargo run -q -p star_sim_debug -- \
+              --config apps/star_sim_debug/config/automation/debug.toml \
+              visual --artifact-dir artifacts/debug-ci \
             | tee artifacts/debug-ci/result.json
           python3 - <<'PY'
           import json, struct
@@ -92,10 +101,9 @@ jobs:
           assert len(results) == 1, f"expected one successful result, got {results!r}"
           result = results[0]
           assert result["mode"] == "visual"
-          for name, size in [("window.png", (640, 360)), ("camera.png", (320, 180))]:
-              data = Path("artifacts/debug-ci", name).read_bytes()
-              assert data[:8] == b"\x89PNG\r\n\x1a\n"
-              assert struct.unpack(">II", data[16:24]) == size
+          data = Path("artifacts/debug-ci", "window.png").read_bytes()
+          assert data[:8] == b"\x89PNG\r\n\x1a\n"
+          assert struct.unpack(">II", data[16:24]) == (640, 360)
           PY
       - uses: actions/upload-artifact@v4
         if: always()

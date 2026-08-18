@@ -10,10 +10,10 @@ crates/simulation/              simulation crate
   src/models.rs                 feature-gated loading of scientific model inputs
 crates/physics/units/            reusable physical units
 crates/utilities/name_generator/ optional naming experiment
-crates/automation_control/       optional Bevy automation-control plugin and protocol
+crates/automation_control/       reusable Bevy automation-control plugin, protocol, and optional driver
 apps/population_lab/             plots and statistical validation
 apps/app/                        interactive Bevy application and visual examples
-apps/star_sim_debug/             development CLI that drives automation-control examples
+apps/star_sim_debug/             development CLI that drives configured automation-control targets
 ```
 
 Dependencies point inward:
@@ -22,7 +22,7 @@ Dependencies point inward:
 population_lab ──> simulation [feature: models]
 app ──────────────> simulation [core only]
 app ──(automation-control feature)──> automation_control
-tar_sim_debug ──drives──> automation_control / app examples
+star_sim_debug ──drives──> configured automation_control / app targets
 ```
 
 `simulation::core` must not depend on Bevy, an application, or the RON loader. The `models` feature adds the RON adapter and bundled data only for consumers that request it. Applications should contain composition and presentation, not reusable simulation behavior.
@@ -42,7 +42,10 @@ Optional development functionality is activated at the consuming edge:
 cargo run -p app --features automation-control -- --automation
 cargo run -p automation_control --example automation_control_prototype --features render-example -- --automation
 cargo run -p app --example name_generator_lab --features name-generation
-cargo run -p star_sim_debug -- logical
+cargo run -p star_sim_debug -- \
+  --config apps/star_sim_debug/config/automation/debug.toml logical
+cargo run -p star_sim_debug -- \
+  --config apps/star_sim_debug/config/automation/debug.toml visual
 ```
 
 The name generator remains in the repository but is excluded from workspace-wide builds. It is only compiled as the optional dependency of the feature-gated viewer example. This keeps its standalone experimental targets out of normal `cargo check`, `cargo test --workspace`, and application builds.

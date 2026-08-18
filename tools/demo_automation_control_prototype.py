@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Run the issue #35 optional automation-control camera/screenshot demonstration."""
 from __future__ import annotations
-import json, shutil, struct, subprocess, sys, tempfile, time
+import json, os, shutil, struct, subprocess, sys, tempfile, time
 from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -27,7 +27,9 @@ def completed(response): assert response["status"]=="completed", response; retur
 
 def main():
     artifact=Path(tempfile.mkdtemp(prefix="star-sim-debug-35-"))
-    process=subprocess.Popen(["cargo","run","-q","-p","automation_control","--example","automation_control_prototype","--features","render-example","--","--automation","--artifact-dir",str(artifact)],cwd=ROOT,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,bufsize=1)
+    environment = os.environ.copy()
+    environment["AUTOMATION_CONTROL_ARTIFACT_DIR"] = str(artifact)
+    process=subprocess.Popen(["cargo","run","-q","-p","automation_control","--example","automation_control_prototype","--features","render-example","--","--automation"],cwd=ROOT,env=environment,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,bufsize=1)
     assert process.stdin and process.stdout and process.stderr
     try:
         ready=read_json_line(process,60); assert ready["type"]=="ready"

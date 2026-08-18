@@ -1,0 +1,14 @@
+version = 1
+
+[application]
+package = "app"
+kind = "binary"
+target = "app"
+features = ["automation-control"]
+arguments = ["--automation"]
+
+[session]
+timeout_seconds = 60
+
+[report]
+generated_by = "star_sim_debug report"

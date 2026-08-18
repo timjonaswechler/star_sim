@@ -1,0 +1,101 @@
+use serde::Deserialize;
+use std::{env, process::Command};
+
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum LaunchTargetKind {
+    Binary,
+    #[default]
+    Example,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct LaunchSpec {
+    pub package: String,
+    #[serde(default)]
+    pub kind: LaunchTargetKind,
+    pub target: String,
+    #[serde(default)]
+    pub features: Vec<String>,
+    #[serde(default)]
+    pub arguments: Vec<String>,
+}
+
+impl LaunchSpec {
+    /// Builds the Cargo command for this target. Arguments in the specification are passed to the
+    /// launched process, after Cargo's `--` separator.
+    pub fn command(&self) -> Command {
+        let cargo = env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
+        let mut command = Command::new(cargo);
+        command.args(["run", "-q", "-p", &self.package]);
+        match self.kind {
+            LaunchTargetKind::Binary => {
+                command.args(["--bin", &self.target]);
+            }
+            LaunchTargetKind::Example => {
+                command.args(["--example", &self.target]);
+            }
+        }
+        if !self.features.is_empty() {
+            command.arg("--features").arg(self.features.join(","));
+        }
+        command.arg("--").args(&self.arguments);
+        command
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn builds_example_command_from_a_launch_spec() {
+        let spec = LaunchSpec {
+            package: "automation_control".into(),
+            kind: LaunchTargetKind::Example,
+            target: "automation_control_headless".into(),
+            features: vec!["render-example".into()],
+            arguments: vec!["--automation".into(), "--seed".into(), "42".into()],
+        };
+        let command = spec.command();
+        let args: Vec<_> = command
+            .get_args()
+            .map(|value| value.to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(
+            args,
+            [
+                "run",
+                "-q",
+                "-p",
+                "automation_control",
+                "--example",
+                "automation_control_headless",
+                "--features",
+                "render-example",
+                "--",
+                "--automation",
+                "--seed",
+                "42"
+            ]
+        );
+    }
+
+    #[test]
+    fn binary_is_a_supported_launch_target() {
+        let spec = LaunchSpec {
+            package: "app".into(),
+            kind: LaunchTargetKind::Binary,
+            target: "app".into(),
+            features: vec![],
+            arguments: vec![],
+        };
+        let args: Vec<_> = spec
+            .command()
+            .get_args()
+            .map(|value| value.to_string_lossy().into_owned())
+            .collect();
+        assert!(args.windows(2).any(|values| values == ["--bin", "app"]));
+    }
+}

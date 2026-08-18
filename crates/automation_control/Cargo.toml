@@ -6,6 +6,8 @@ publish = false
 
 [features]
 default = []
+# Controller-side process/configuration utilities for tools such as star_sim_debug.
+driver = ["dep:toml"]
 render = ["bevy/bevy_render", "bevy/png", "dep:image"]
 # Windowing, UI rendering, and PBR are needed only by the rendered example.
 render-example = ["render", "bevy/3d", "bevy/ui"]
@@ -15,6 +17,7 @@ bevy = { version = "0.19.0", default-features = false, features = ["bevy_ui"] }
 image = { version = "0.25", default-features = false, features = ["png"], optional = true }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+toml = { version = "0.8", optional = true }
 
 [dev-dependencies]
 # Keep logical crate tests free of Bevy's window backends and their native Wayland/X11 dependencies.
@@ -23,3 +26,15 @@ bevy = { version = "0.19.0", default-features = false, features = ["bevy_ui", "b
 [[example]]
 name = "automation_control_prototype"
 required-features = ["render-example"]
+
+[[test]]
+name = "driver_recording"
+required-features = ["driver"]
+
+[[test]]
+name = "issue_report"
+required-features = ["driver"]
+
+[[test]]
+name = "github_report"
+required-features = ["driver"]

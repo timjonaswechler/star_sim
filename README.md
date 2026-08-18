@@ -8,11 +8,11 @@ This repository uses a virtual Cargo workspace:
 
 - `crates/simulation` — Bevy-independent simulation with a `core` module and optional `models` loader
 - `crates/physics/units` — reusable physical units
-- `crates/automation_control` — optional control protocol and Bevy plugin
+- [`crates/automation_control`](crates/automation_control/README.md) — reusable control protocol, Bevy plugin, and optional driver
 - `crates/utilities/name_generator` — isolated naming experiment
 - `apps/population_lab` — statistical plots and model validation
 - `apps/app` — interactive Bevy application and visual examples
-- [`apps/star_sim_debug`](apps/star_sim_debug/README.md) — development and debugging tool for automation-controlled examples
+- [`apps/star_sim_debug`](apps/star_sim_debug/README.md) — development and debugging tool for configured automation-control targets
 - `assets/scientific_models` — versioned RON inputs
 
 See [`WORKSPACE.md`](WORKSPACE.md) for dependency rules, features, and detailed commands.
@@ -39,6 +39,9 @@ Optional development integrations are disabled by default:
 ```bash
 cargo run -p automation_control --example automation_control_prototype \
   --features render-example -- --automation
+
+cargo run -p star_sim_debug -- \
+  --config apps/star_sim_debug/config/automation/debug.toml logical
 
 cargo run -p app --example name_generator_lab \
   --features name-generation

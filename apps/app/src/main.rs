@@ -2,6 +2,9 @@ use bevy::prelude::*;
 
 mod menu;
 
+#[cfg(feature = "automation-control")]
+mod automation;
+
 fn main() {
     let mut app = App::new();
     app.add_plugins(DefaultPlugins)
@@ -9,7 +12,7 @@ fn main() {
 
     #[cfg(feature = "automation-control")]
     if std::env::args().any(|argument| argument == "--automation") {
-        app.add_plugins(automation_control::AutomationControlPlugin::default());
+        app.add_plugins(automation::AutomationPlugin);
     }
 
     app.run();

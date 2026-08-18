@@ -255,7 +255,7 @@ Source:
 
 Important limitation: those numeric helper functions are currently private implementation details. They should not be coupled directly into a public viewer protocol merely because they are deterministic. Prefer an existing public `ObjectId`, or deliberately introduce a public stable domain identity in the simulation interface. Static UI targets remain explicit IDs such as `toolbar.generate`.
 
-The current `apps/bevy_viewer` only starts `DefaultPlugins`; it does not yet materialize a catalog object from which to choose the first dynamic identity. The vertical prototype can therefore begin with static targets, then add a dynamic target only after selecting an actual public simulation object.
+The current `apps/app` only starts `DefaultPlugins`; it does not yet materialize a catalog object from which to choose the first dynamic identity. The vertical prototype can therefore begin with static targets, then add a dynamic target only after selecting an actual public simulation object.
 
 ## Recommendation for #33
 

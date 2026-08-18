@@ -19,6 +19,9 @@ fn main() {
     let seed = argument(&args, "--seed")
         .and_then(|value| value.parse().ok())
         .unwrap_or(42);
+    let fixed_step_ms = argument(&args, "--fixed-step-ms")
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(50);
 
     App::new()
         .add_plugins(MinimalPlugins)
@@ -35,7 +38,7 @@ fn main() {
                 "inspect_run",
                 "shutdown",
             ])
-            .configured(RunMode::Logical, seed, 50),
+            .configured(RunMode::Logical, seed, fixed_step_ms),
         )
         .init_resource::<ClickCount>()
         .add_systems(Startup, setup)

@@ -19,7 +19,6 @@ use bevy::{
     window::PrimaryWindow,
 };
 use serde_json::json;
-use std::path::PathBuf;
 
 #[derive(Component)]
 struct PrototypeButton;
@@ -55,24 +54,32 @@ fn main() {
         eprintln!("This demonstration only runs with --automation");
         std::process::exit(2);
     }
-    let artifact_dir = args
-        .iter()
-        .position(|value| value == "--artifact-dir")
-        .and_then(|index| args.get(index + 1))
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("artifacts/automation-prototype"));
-    let artifacts = ArtifactRoot::new(artifact_dir).expect("create artifact root");
+    let artifacts = ArtifactRoot::new(automation_control::artifact_root_path(
+        "artifacts/automation-prototype",
+    ))
+    .expect("create artifact root");
+    let seed = argument(&args, "--seed")
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(42);
+    let fixed_step_ms = argument(&args, "--fixed-step-ms")
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(50);
 
     App::new()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
                 title: "Automation Control #35".into(),
-                resolution: (640, 360).into(),
+                resolution:
+                    bevy::window::WindowResolution::new(640, 360).with_scale_factor_override(1.0),
                 ..default()
             }),
             ..default()
         }))
-        .add_plugins(AutomationControlPlugin::default().configured(RunMode::Rendered, 42, 50))
+        .add_plugins(AutomationControlPlugin::default().configured(
+            RunMode::Rendered,
+            seed,
+            fixed_step_ms,
+        ))
         .insert_resource(DemoArtifacts(artifacts))
         .insert_resource(CameraState { target: Vec3::ZERO })
         .init_resource::<ClickCount>()
@@ -88,6 +95,13 @@ fn main() {
                 .chain(),
         )
         .run();
+}
+
+fn argument<'a>(args: &'a [String], key: &str) -> Option<&'a str> {
+    args.iter()
+        .position(|value| value == key)
+        .and_then(|index| args.get(index + 1))
+        .map(String::as_str)
 }
 
 fn setup(

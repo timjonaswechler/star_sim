@@ -2,14 +2,48 @@
 //!
 //! This crate owns protocol, transport, target discovery, and observation. It deliberately does
 //! not own application actions: the host polls [`AutomationRequest`] and calls its normal operation.
+//!
+//! The optional `driver` module contains reusable controller-side process, configuration, JSONL,
+//! diagnostics, and screenshot validation infrastructure. It is separate from the Bevy plugin so
+//! applications that embed automation control do not need to launch child processes themselves.
 
 #[cfg(feature = "render")]
 mod artifact;
 mod control;
 mod coordinates;
+#[cfg(feature = "driver")]
+pub mod driver;
 mod protocol;
 mod target;
 mod transport;
+
+/// Environment variable through which a controller supplies the child application's artifact root.
+///
+/// Applications that support rendered automation should resolve this path before constructing
+/// `ArtifactRoot`. The constant is available without enabling the controller-side `driver`
+/// feature.
+pub const AUTOMATION_CONTROL_ARTIFACT_DIR: &str = "AUTOMATION_CONTROL_ARTIFACT_DIR";
+
+/// Resolves the controller-provided artifact root, falling back to `default` for standalone runs.
+///
+/// The returned path is only a configuration value; rendered applications should still construct
+/// `ArtifactRoot` so screenshot paths remain confined beneath the root.
+pub fn artifact_root_path(default: impl Into<std::path::PathBuf>) -> std::path::PathBuf {
+    artifact_root_path_from(
+        std::env::var_os(AUTOMATION_CONTROL_ARTIFACT_DIR),
+        default.into(),
+    )
+}
+
+fn artifact_root_path_from(
+    configured: Option<std::ffi::OsString>,
+    default: std::path::PathBuf,
+) -> std::path::PathBuf {
+    configured
+        .filter(|value| !value.is_empty())
+        .map(std::path::PathBuf::from)
+        .unwrap_or(default)
+}
 
 #[cfg(feature = "render")]
 pub use artifact::{ArtifactDestination, ArtifactError, ArtifactRoot};
@@ -507,6 +541,29 @@ mod tests {
             plugin_output,
         ));
         (app, sender, output)
+    }
+
+    #[test]
+    fn artifact_root_path_prefers_configured_value_and_supports_fallback() {
+        let configured = std::ffi::OsString::from("artifacts/from-controller");
+        assert_eq!(
+            artifact_root_path_from(
+                Some(configured),
+                std::path::PathBuf::from("artifacts/standalone"),
+            ),
+            std::path::PathBuf::from("artifacts/from-controller")
+        );
+        assert_eq!(
+            artifact_root_path_from(None, std::path::PathBuf::from("artifacts/standalone")),
+            std::path::PathBuf::from("artifacts/standalone")
+        );
+        assert_eq!(
+            artifact_root_path_from(
+                Some(std::ffi::OsString::new()),
+                std::path::PathBuf::from("artifacts/standalone"),
+            ),
+            std::path::PathBuf::from("artifacts/standalone")
+        );
     }
 
     #[test]
