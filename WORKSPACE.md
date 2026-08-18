@@ -12,7 +12,7 @@ crates/physics/units/            reusable physical units
 crates/utilities/name_generator/ optional naming experiment
 crates/automation_control/       optional Bevy automation-control plugin and protocol
 apps/population_lab/             plots and statistical validation
-apps/bevy_viewer/                interactive Bevy viewer and visual examples
+apps/app/                        interactive Bevy application and visual examples
 apps/star_sim_debug/             development CLI that drives automation-control examples
 ```
 
@@ -20,9 +20,9 @@ Dependencies point inward:
 
 ```text
 population_lab ──> simulation [feature: models]
-bevy_viewer ─────> simulation [core only]
-bevy_viewer ──(automation-control feature)──> automation_control
-star_sim_debug ──drives──> automation_control / bevy_viewer examples
+app ──────────────> simulation [core only]
+app ──(automation-control feature)──> automation_control
+tar_sim_debug ──drives──> automation_control / app examples
 ```
 
 `simulation::core` must not depend on Bevy, an application, or the RON loader. The `models` feature adds the RON adapter and bundled data only for consumers that request it. Applications should contain composition and presentation, not reusable simulation behavior.
@@ -33,15 +33,15 @@ star_sim_debug ──drives──> automation_control / bevy_viewer examples
 cargo check
 cargo test -p simulation --features models
 cargo run -p population_lab -- --seed 42
-cargo run -p bevy_viewer
+cargo run -p app
 ```
 
 Optional development functionality is activated at the consuming edge:
 
 ```bash
-cargo run -p bevy_viewer --features automation-control -- --automation
-cargo run -p bevy_viewer --example automation_control_prototype --features automation-control -- --automation
-cargo run -p bevy_viewer --example name_generator_lab --features name-generation
+cargo run -p app --features automation-control -- --automation
+cargo run -p automation_control --example automation_control_prototype --features render-example -- --automation
+cargo run -p app --example name_generator_lab --features name-generation
 cargo run -p star_sim_debug -- logical
 ```
 

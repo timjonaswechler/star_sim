@@ -12,7 +12,6 @@ use bevy::{
 };
 
 use crate::color_temperature::BlackBodyEmission;
-
 const STAR_SURFACE_SHADER_PATH: &str = "shaders/star_surface.wgsl";
 
 /// Registers the hot-reloadable surface shader material pipeline.

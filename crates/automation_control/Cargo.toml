@@ -7,6 +7,8 @@ publish = false
 [features]
 default = []
 render = ["bevy/bevy_render", "bevy/png", "dep:image"]
+# Windowing, UI rendering, and PBR are needed only by the rendered example.
+render-example = ["render", "bevy/3d", "bevy/ui"]
 
 [dependencies]
 bevy = { version = "0.19.0", default-features = false, features = ["bevy_ui"] }
@@ -17,3 +19,7 @@ serde_json = "1.0"
 [dev-dependencies]
 # Keep logical crate tests free of Bevy's window backends and their native Wayland/X11 dependencies.
 bevy = { version = "0.19.0", default-features = false, features = ["bevy_ui", "bevy_render"] }
+
+[[example]]
+name = "automation_control_prototype"
+required-features = ["render-example"]

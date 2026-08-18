@@ -5,4 +5,5 @@ edition = "2024"
 publish = false
 
 [dependencies]
+automation_control = { path = "../../crates/automation_control" }
 serde_json = "1.0"

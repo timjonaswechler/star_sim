@@ -14,7 +14,7 @@ The repository uses a single-context domain documentation layout. See `docs/agen
 
 
 # Naming Rules
-- If any kind of symbol (function, module, struct, enum, etc.), folder or file have the same prefix like `some_functionA`, `some_functionB`, `some_functionC`, etc., they should be grouped together into their one  hierarchy higher representation. For example, `some_functionA`, `some_functionB`, `some_functionC` should be grouped together into a module named `some` and their functions can live named `functionA` and `functionB` and `functionC`.
+If any kind of symbol (function, module, struct, enum, etc.), folder or file have the same prefix like `some_functionA`, `some_functionB`, `some_functionC`, etc., they should be grouped together into their one  hierarchy higher representation. For example, `some_functionA`, `some_functionB`, `some_functionC` should be grouped together into a module named `some` and their functions can live named `functionA` and `functionB` and `functionC`.
 
 ## Commits
 

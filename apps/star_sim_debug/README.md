@@ -55,7 +55,7 @@ Visual mode requires a usable display and graphics backend. CI runs it with Xvfb
 
 ```bash
 cargo build -p star_sim_debug
-cargo build -p bevy_viewer --example automation_control_prototype --features automation-control
+cargo build -p app --example automation_control_prototype --features render-example
 cargo run -q -p star_sim_debug -- visual \
   --artifact-dir artifacts/debug-run
 ```

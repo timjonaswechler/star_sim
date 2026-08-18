@@ -27,7 +27,7 @@ def completed(response): assert response["status"]=="completed", response; retur
 
 def main():
     artifact=Path(tempfile.mkdtemp(prefix="star-sim-debug-35-"))
-    process=subprocess.Popen(["cargo","run","-q","-p","bevy_viewer","--example","automation_control_prototype","--features","automation-control","--","--automation","--artifact-dir",str(artifact)],cwd=ROOT,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,bufsize=1)
+    process=subprocess.Popen(["cargo","run","-q","-p","automation_control","--example","automation_control_prototype","--features","render-example","--","--automation","--artifact-dir",str(artifact)],cwd=ROOT,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,bufsize=1)
     assert process.stdin and process.stdout and process.stderr
     try:
         ready=read_json_line(process,60); assert ready["type"]=="ready"

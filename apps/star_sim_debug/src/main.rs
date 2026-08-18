@@ -13,6 +13,7 @@ use std::{
     time::Duration,
 };
 
+const TARGET_APPLICATION: &str = "app";
 const TIMEOUT: Duration = Duration::from_secs(60);
 const RECENT_LOG_CAPACITY: usize = 50;
 
@@ -449,7 +450,7 @@ fn run_visual(
         .canonicalize()
         .map_err(|error| error.to_string())?;
     let mut command = cargo_example(
-        "bevy_viewer",
+        TARGET_APPLICATION,
         "automation_control_prototype",
         &["automation-control"],
     );

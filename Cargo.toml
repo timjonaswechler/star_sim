@@ -2,7 +2,7 @@
 resolver = "3"
 members = [
     "apps/star_sim_debug",
-    "apps/bevy_viewer",
+    "apps/app",
     "apps/population_lab",
     "crates/automation_control",
     "crates/physics/units",
@@ -10,7 +10,7 @@ members = [
 ]
 exclude = ["crates/utilities/name_generator"]
 default-members = [
-    "apps/bevy_viewer",
+    "apps/app",
     "apps/population_lab",
     "crates/simulation",
 ]

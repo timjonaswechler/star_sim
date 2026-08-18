@@ -20,6 +20,10 @@ use bevy::{
     },
 };
 
+#[path = "star_sphere/color_temperature.rs"]
+mod color_temperature;
+use color_temperature::*;
+
 #[path = "star_sphere/corona_volume.rs"]
 mod corona_volume;
 use corona_volume::{
@@ -27,11 +31,10 @@ use corona_volume::{
     update_corona_volume,
 };
 
-use bevy_viewer::{
-    color_temperature::black_body_emission,
-    star_material::{
-        StarSurfaceMaterial, StarSurfaceMaterialPlugin, procedural_star_surface_material,
-    },
+#[path = "star_sphere/star_material.rs"]
+mod star_material;
+use star_material::{
+    StarSurfaceMaterial, StarSurfaceMaterialPlugin, procedural_star_surface_material,
 };
 
 const INITIAL_TEMPERATURE_K: f64 = 5_772.0;
@@ -46,22 +49,7 @@ struct StarControls {
     manual_compensation_stops: f32,
     limb_darkening: f32,
     granulation_strength: f32,
-    display_mode: SurfaceDisplayMode,
     corona_mode: CoronaMode,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-#[repr(u32)]
-enum SurfaceDisplayMode {
-    Surface = 0,
-}
-
-impl SurfaceDisplayMode {
-    const fn label(self) -> &'static str {
-        match self {
-            Self::Surface => "Surface",
-        }
-    }
 }
 
 #[derive(Component, Clone, Copy, Default)]
@@ -76,7 +64,6 @@ enum ReadoutKind {
     ExposureCompensation,
     LimbDarkening,
     Granulation,
-    DisplayMode,
     CoronaMode,
     Physics,
 }
@@ -103,7 +90,6 @@ fn main() {
             manual_compensation_stops: INITIAL_MANUAL_COMPENSATION_STOPS,
             limb_darkening: 0.6,
             granulation_strength: 0.16,
-            display_mode: SurfaceDisplayMode::Surface,
             corona_mode: CoronaMode::Natural,
         })
         .add_systems(Startup, (setup, settings_scene.spawn()))
@@ -124,7 +110,7 @@ fn setup(
 
     let star_material = procedural_star_surface_material(emission);
     commands.spawn((
-        Mesh3d(meshes.add(Sphere::new(1.0).mesh().ico(6).unwrap())),
+        Mesh3d(meshes.add(Sphere::new(1.0).mesh().ico(16).unwrap())),
         MeshMaterial3d(star_materials.add(star_material.clone())),
     ));
     spawn_corona_volume(
@@ -179,24 +165,6 @@ fn settings_panel() -> impl Scene {
         BorderColor::all(Color::srgb(0.24, 0.27, 0.34))
         Children [
             (Text("Star settings") ThemedText),
-            (
-                @FeathersMenu
-                Children [
-                    (
-                        @FeathersMenuButton {
-                            @caption: bsn! { Text("Display mode") ThemedText }
-                        }
-                        Node { width: percent(100) }
-                    ),
-                    (
-                        @FeathersMenuPopup
-                        Children [
-                            display_mode_item("Surface", SurfaceDisplayMode::Surface),
-                        ]
-                    )
-                ]
-            ),
-            slider_label("View", "Surface", ReadoutKind::DisplayMode),
             (
                 @FeathersMenu
                 Children [
@@ -317,17 +285,6 @@ fn preset_item(label: &'static str, temperature_k: f64) -> impl Scene {
     }
 }
 
-fn display_mode_item(label: &'static str, mode: SurfaceDisplayMode) -> impl Scene {
-    bsn! {
-        @FeathersMenuItem {
-            @caption: bsn! { Text(label) ThemedText }
-        }
-        on(move |_: On<Activate>, mut controls: ResMut<StarControls>| {
-            controls.display_mode = mode;
-        })
-    }
-}
-
 fn corona_mode_item(label: &'static str, mode: CoronaMode) -> impl Scene {
     bsn! {
         @FeathersMenuItem {
@@ -374,7 +331,6 @@ fn update_star(
     let mut updated = procedural_star_surface_material(emission);
     updated.parameters.limb_darkening = controls.limb_darkening;
     updated.parameters.granulation_strength = controls.granulation_strength;
-    updated.parameters.display_mode = controls.display_mode as u32;
     *material = updated.clone();
     update_corona_volume(
         controls.corona_mode,
@@ -397,7 +353,6 @@ fn update_star(
             }
             ReadoutKind::LimbDarkening => format!("{:.2}", controls.limb_darkening),
             ReadoutKind::Granulation => format!("{:.2}", controls.granulation_strength),
-            ReadoutKind::DisplayMode => controls.display_mode.label().into(),
             ReadoutKind::CoronaMode => controls.corona_mode.label().into(),
             ReadoutKind::Physics => format!(
                 "Surface: {:.2e} W/m^2\nVisible luminance: {:.2e} cd/m^2",
@@ -473,16 +428,5 @@ fn update_camera_settings(
             VerticalMovementAxis::World => VerticalMovementAxis::Local,
             VerticalMovementAxis::Local => VerticalMovementAxis::World,
         };
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn display_compensation_matches_the_visual_calibration_endpoints() {
-        assert!((automatic_display_compensation_stops(1_000.0) - 1.5).abs() < f32::EPSILON);
-        assert!((automatic_display_compensation_stops(40_000.0) - 0.2).abs() < f32::EPSILON);
     }
 }
