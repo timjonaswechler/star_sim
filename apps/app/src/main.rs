@@ -11,9 +11,7 @@ fn main() {
         .add_plugins(menu::MenuPlugin);
 
     #[cfg(feature = "automation-control")]
-    if std::env::args().any(|argument| argument == "--automation") {
-        app.add_plugins(automation::AutomationPlugin);
-    }
+    app.add_plugins(automation::AutomationPlugin);
 
     app.run();
 }
