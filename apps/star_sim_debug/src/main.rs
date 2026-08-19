@@ -67,7 +67,6 @@ mod tests {
         assert_eq!(config.application.package, "app");
         assert_eq!(config.application.target, "app");
         assert_eq!(config.application.features, ["automation-control"]);
-        assert_eq!(config.application.arguments, ["--automation"]);
         assert_eq!(
             config.report.generated_by.as_deref(),
             Some("star_sim_debug report")

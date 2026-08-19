@@ -5,7 +5,6 @@ edition = "2024"
 
 [features]
 default = []
-automation-control = ["dep:automation_control", "dep:serde_json"]
 name-generation = ["dep:name_generator"]
 
 [dependencies]
@@ -14,10 +13,6 @@ ui = { path = "../../crates/ui" }
 simulation = { path = "../../crates/simulation" }
 
 name_generator = { path = "../../crates/utilities/name_generator", optional = true }
-
-# Optional dependencies for automation control and bug hunting.
-automation_control = { path = "../../crates/automation_control", optional = true, features = ["render"] }
-serde_json = { version = "1.0", optional = true }
 
 [[example]]
 name = "name_generator_lab"
