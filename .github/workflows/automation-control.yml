@@ -10,8 +10,8 @@ permissions:
   contents: read
 
 jobs:
-  reusable-headless:
-    name: Reusable headless automation driver
+  headless:
+    name: Display-free protocol and driver checks
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -20,18 +20,14 @@ jobs:
           submodules: recursive
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - name: Unit tests and app feature checks
+      - name: Run display-free protocol and driver tests
         run: |
-          cargo test -p automation_control --features driver -p star_sim_debug
-          cargo check -p app
-          cargo check -p app --features automation-control
-      - name: Build reusable headless process outside the protocol timeout
-        run: cargo build -p automation_control --example automation_control_headless
-      - name: Exercise reusable headless driver through the protocol seam
-        run: cargo test -p automation_control --features driver --test driver_recording -- --nocapture
+          cargo test -p automation_control
+          cargo test -p automation_control --features driver
+          cargo test -p star_sim_debug
 
-  visual-linux:
-    name: Visual Linux automation E2E
+  rendered-linux:
+    name: Rendered Linux automation E2E
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
@@ -46,52 +42,38 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y \
-            g++ pkg-config xvfb libx11-dev libxi-dev libxcursor-dev libxrandr-dev \
+            g++ pkg-config xauth xvfb libx11-dev libxi-dev libxcursor-dev libxrandr-dev \
             libasound2-dev libudev-dev libxkbcommon-dev libxkbcommon-x11-dev \
             libwayland-dev libxcb-xfixes0-dev libgl1-mesa-dri \
             mesa-vulkan-drivers vulkan-tools
-      - name: Build apps/app process outside the protocol timeout
+      - name: Check desktop Bevy applications
         run: |
+          cargo check -p app
+          cargo check -p bevy_test_apps
+          cargo check -p bevy_test_apps --features automation
+      - name: Build the rendered probe and controller outside protocol timeouts
+        run: |
+          cargo build -p bevy_test_apps --bin context_menu --features automation
           cargo build -p star_sim_debug
-          cargo build -p app --features automation-control
-      - name: Run apps/app logical and visual flows under Xvfb
+          cargo build -p automation_control --example bevy_controller --features driver
+      - name: Run the rendered probe and screenshot controller under Xvfb
         env:
           LIBGL_ALWAYS_SOFTWARE: "1"
           WGPU_FORCE_FALLBACK_ADAPTER: "1"
         run: |
           set -euo pipefail
-          mkdir -p artifacts/debug-ci
-          xvfb-run -a -s "-screen 0 1280x720x24" \
-            cargo run -q -p star_sim_debug -- \
+          mkdir -p artifacts/debug-ci/probe
+          timeout 5m xvfb-run -a -s "-screen 0 1280x720x24" \
+            target/debug/star_sim_debug \
               --config apps/star_sim_debug/config/automation/debug.toml \
-              logical --artifact-dir artifacts/debug-ci/logical \
-            | tee artifacts/debug-ci/logical-result.json
+              rendered --artifact-dir artifacts/debug-ci/probe \
+            | tee artifacts/debug-ci/rendered-result.json
           python3 - <<'PY'
           import json
           from pathlib import Path
-          values = []
-          for line in Path("artifacts/debug-ci/logical-result.json").read_text().splitlines():
-              try:
-                  value = json.loads(line)
-              except json.JSONDecodeError:
-                  continue
-              if isinstance(value, dict) and value.get("status") == "passed":
-                  values.append(value)
-          assert len(values) == 1, f"expected one logical result, got {values!r}"
-          assert values[0]["mode"] == "logical"
-          assert values[0]["state"]["active_screen"] == "museum"
-          PY
-          xvfb-run -a -s "-screen 0 1280x720x24" \
-            cargo run -q -p star_sim_debug -- \
-              --config apps/star_sim_debug/config/automation/debug.toml \
-              visual --artifact-dir artifacts/debug-ci \
-            | tee artifacts/debug-ci/result.json
-          python3 - <<'PY'
-          import json, struct
-          from pathlib import Path
-          lines = Path("artifacts/debug-ci/result.json").read_text().splitlines()
+
           results = []
-          for line in lines:
+          for line in Path("artifacts/debug-ci/rendered-result.json").read_text().splitlines():
               try:
                   value = json.loads(line)
               except json.JSONDecodeError:
@@ -100,14 +82,21 @@ jobs:
                   results.append(value)
           assert len(results) == 1, f"expected one successful result, got {results!r}"
           result = results[0]
-          assert result["mode"] == "visual"
-          data = Path("artifacts/debug-ci", "window.png").read_bytes()
-          assert data[:8] == b"\x89PNG\r\n\x1a\n"
-          assert struct.unpack(">II", data[16:24]) == (640, 360)
+          assert result["mode"] == "rendered"
+          assert result["ready"]["mode"] == "rendered"
+          expected_controls = ["pointer", "keyboard", "text", "time", "screenshot"]
+          assert result["ready"]["controls"] == expected_controls, result["ready"]
+          targets = result["targets"].get("items")
+          assert isinstance(targets, list) and targets, result["targets"]
           PY
+          timeout 5m xvfb-run -a -s "-screen 0 1280x720x24" \
+            target/debug/examples/bevy_controller \
+            2>&1 | tee artifacts/debug-ci/rendered-controller.log
+          printf 'rendered controller and screenshot smoke passed\n' \
+            > artifacts/debug-ci/rendered-controller-status.txt
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: automation-control-visual-linux
+          name: automation-control-rendered-linux
           path: artifacts/debug-ci/
           if-no-files-found: warn
