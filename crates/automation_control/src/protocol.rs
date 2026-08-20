@@ -1,6 +1,7 @@
 use crate::{
     keyboard::Command as KeyboardCommand, observation::Request as ObservationRequest,
-    pointer::Command as PointerCommand, text::Command as TextCommand, time::Command as TimeCommand,
+    pointer::Command as PointerCommand, screenshot::Command as ScreenshotCommand,
+    text::Command as TextCommand, time::Command as TimeCommand,
 };
 use serde::{
     Deserialize, Deserializer, Serialize, Serializer, de::Error as DeError, ser::SerializeMap,
@@ -24,6 +25,7 @@ pub enum Command {
     Keyboard(KeyboardCommand),
     Text(TextCommand),
     Time(TimeCommand),
+    Screenshot(ScreenshotCommand),
     Shutdown,
 }
 
@@ -61,6 +63,10 @@ impl Serialize for Command {
             Self::Time(command) => {
                 map.serialize_entry("type", "time")?;
                 map.serialize_entry("action", command)?;
+            }
+            Self::Screenshot(command) => {
+                map.serialize_entry("type", "screenshot")?;
+                map.serialize_entry("path", &command.path)?;
             }
             Self::Shutdown => map.serialize_entry("type", "shutdown")?,
         }
@@ -112,6 +118,9 @@ impl<'de> Deserialize<'de> for Command {
                     .map(Self::Time)
                     .map_err(D::Error::custom)
             }
+            "screenshot" => serde_json::from_value(Value::Object(object))
+                .map(Self::Screenshot)
+                .map_err(D::Error::custom),
             "shutdown" => {
                 reject_extra_fields::<D::Error>(&object)?;
                 Ok(Self::Shutdown)
@@ -172,6 +181,11 @@ impl Ready {
                 "clock".into(),
             ],
         }
+    }
+
+    pub(crate) fn with_screenshot(mut self) -> Self {
+        self.controls.push(crate::screenshot::CONTROL_NAME.into());
+        self
     }
 }
 
@@ -284,6 +298,9 @@ fn validate_command(command: &Command) -> Result<(), ProtocolError> {
         Command::Time(command) => command
             .validate()
             .map_err(|error| validation_error(error.code(), error)),
+        Command::Screenshot(command) => command
+            .validate()
+            .map_err(|error| validation_error(error.code(), error)),
         Command::Shutdown => Ok(()),
     }
 }
@@ -303,6 +320,7 @@ mod tests {
         keyboard::{Command as Keyboard, Key},
         observation::{Projection, Selector},
         pointer::{Button, Command as Pointer},
+        screenshot::Command as Screenshot,
         text::Command as Text,
         time::{Command as Time, MAX_FRAMES, MAX_STEP_NANOSECONDS},
     };
@@ -356,6 +374,14 @@ mod tests {
                 "type":"time",
                 "action":{"type":"advance", "frames":60, "step_nanoseconds":16_666_667}
             })
+        );
+
+        let screenshot =
+            serde_json::to_value(Command::Screenshot(Screenshot::new("captures/current.png")))
+                .unwrap();
+        assert_eq!(
+            screenshot,
+            serde_json::json!({"type":"screenshot", "path":"captures/current.png"})
         );
     }
 
@@ -445,6 +471,28 @@ mod tests {
             decode_request(float).unwrap_err().error.unwrap().code,
             "malformed_request"
         );
+    }
+
+    #[test]
+    fn screenshot_paths_return_specific_validation_errors() {
+        for (path, expected_code) in [
+            ("/tmp/capture.png", "absolute_artifact_path"),
+            ("../capture.png", "artifact_path_traversal"),
+            ("capture.jpg", "invalid_artifact_path"),
+        ] {
+            let input = serde_json::json!({
+                "sequence": 1,
+                "command": {"type": "screenshot", "path": path},
+            });
+            assert_eq!(
+                decode_request(&input.to_string())
+                    .unwrap_err()
+                    .error
+                    .unwrap()
+                    .code,
+                expected_code
+            );
+        }
     }
 
     #[test]

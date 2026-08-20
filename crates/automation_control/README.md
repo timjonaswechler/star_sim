@@ -10,7 +10,7 @@ The session emits one `ready` message. The host assigns request sequences beginn
 Controllers send only commands and do not provide protocol versions or request IDs.
 
 ```json
-{"type":"ready","version":2,"mode":"rendered","controls":["pointer","keyboard","text","time"],"observation_scopes":["targets","ui","pointers","entity","virtual_input","clock"]}
+{"type":"ready","version":2,"mode":"rendered","controls":["pointer","keyboard","text","time","screenshot"],"observation_scopes":["targets","ui","pointers","entity","virtual_input","clock"]}
 ```
 
 ```json
@@ -26,9 +26,10 @@ Controllers send only commands and do not provide protocol versions or request I
 {"sequence":4,"command":{"type":"keyboard","action":{"type":"release","key":"a"}}}
 {"sequence":5,"command":{"type":"text","text":"controlled text"}}
 {"sequence":6,"command":{"type":"time","action":{"type":"advance","frames":1,"step_nanoseconds":16666667}}}
+{"sequence":7,"command":{"type":"screenshot","path":"captures/after-step.png"}}
 ```
 
-The public command groups are `Observe`, `Pointer`, `Keyboard`, `Text`, `Time`, and `Shutdown`. Pointer
+The public command groups are `Observe`, `Pointer`, `Keyboard`, `Text`, `Time`, `Screenshot`, and `Shutdown`. Pointer
 actions are `Move`, `Press`, `Release`, and `Scroll`; there is no wire-level click. Keyboard press
 and release are separate requests. `keyboard::Key` defines the stable wire names for letters,
 digits, punctuation, modifiers, navigation keys, and F1 through F12. Text commands accept at most
@@ -41,6 +42,18 @@ integer between 1 and 1,000,000,000. Invalid frame counts and steps return
 without changing the clock. Controlled Sessions do not run Bevy simulation schedules while no
 advance command is pending. Input commands update session-local Virtual Input immediately, while
 Bevy application systems consume the queued transitions on the next controlled frame.
+
+A rendered composition opts into screenshots with `automation_control::screenshot::Plugin`. The
+plugin does not install a renderer, and `ready.controls` includes `screenshot` only when the
+composition already has Bevy's renderer and screenshot capture. Logical Mode and renderer-free
+compositions return `screenshot_capability_unavailable`.
+
+Screenshot paths must be normalized, relative `.png` paths beneath the host-provided session
+artifact root. Absolute paths, `.` or `..` components, and symbolic links are rejected. A completed
+response contains the artifact type, session-relative path, MIME type, width, and height. The
+response is written only after GPU readback, PNG encoding, and a successful read-back check. Fixed
+scene dimensions and semantic image content are testable. Identical PNG bytes across operating
+systems and GPUs are not guaranteed.
 
 ## Embed the plugin
 
@@ -142,5 +155,5 @@ cargo test -p automation_control
 cargo test -p automation_control --features driver
 ```
 
-Recording/replay, screenshots/camera operations, REPL orchestration, multiple process instances,
+Recording/replay, camera operations, screenshot comparison, video capture, REPL orchestration,
 persistent semantic IDs, and model adapters are follow-up work outside this slice.

@@ -3,6 +3,7 @@ use crate::{
     observation::{self, Request as ObservationRequest},
     pointer::{self, Command as PointerCommand, State as PointerState},
     protocol::{self, Command, Response, RunMode},
+    screenshot::{self, Command as ScreenshotCommand},
     text::{self as virtual_text, Command as TextCommand, State as TextState},
     time::{Clock, Command as TimeCommand},
     transport::{Input, JsonLinesInput, Output},
@@ -158,6 +159,12 @@ impl Plugin for AutomationControlPlugin {
                 (
                     drain_render_time,
                     discard_native_focused_input,
+                    bevy::render::view::window::screenshot::trigger_screenshots.run_if(
+                        resource_exists::<
+                            bevy::render::view::window::screenshot::CapturedScreenshots,
+                        >,
+                    ),
+                    collect_screenshot,
                     receive_request,
                     dispatch_request,
                 )
@@ -238,6 +245,11 @@ enum PendingRequest {
         sequence: u64,
         command: TimeCommand,
     },
+    Screenshot {
+        sequence: u64,
+        command: ScreenshotCommand,
+        capture: Option<screenshot::Capture>,
+    },
     Response(Response),
     Shutdown {
         sequence: u64,
@@ -312,13 +324,47 @@ fn discard_native_focused_input(mut input: NativeInputBuffers) {
     }
 }
 
-fn emit_ready(transport: Res<Transport>, configuration: Res<Configuration>) {
-    if let Err(error) = transport
-        .output
-        .ready(&protocol::Ready::new(configuration.mode))
-    {
+fn emit_ready(world: &World) {
+    let configuration = world.resource::<Configuration>();
+    let mut ready = protocol::Ready::new(configuration.mode);
+    if configuration.mode == RunMode::Rendered && screenshot::is_available(world) {
+        ready = ready.with_screenshot();
+    }
+    if let Err(error) = world.resource::<Transport>().output.ready(&ready) {
         eprintln!("automation-control ready failed: {error}");
     }
+}
+
+fn collect_screenshot(world: &mut World) {
+    let pending = world
+        .resource::<PendingRequests>()
+        .0
+        .last()
+        .and_then(|pending| match pending {
+            PendingRequest::Screenshot {
+                sequence,
+                capture: Some(capture),
+                ..
+            } => Some((*sequence, capture.clone())),
+            _ => None,
+        });
+    let Some((sequence, capture)) = pending else {
+        return;
+    };
+    let Some(result) = screenshot::take_completion(world, &capture) else {
+        return;
+    };
+
+    let response = match result {
+        Ok(result) => Response::completed(sequence, result),
+        Err(error) => Response::error(sequence, error.code(), error.to_string()),
+    };
+    world.despawn(capture.entity);
+    world.resource_mut::<PendingRequests>().0.pop();
+    world
+        .resource_mut::<PendingRequests>()
+        .0
+        .push(PendingRequest::Response(response));
 }
 
 /// Reads at most one line per update. This keeps request processing ordered and prevents a burst
@@ -342,6 +388,11 @@ fn receive_request(world: &mut World) {
                     Command::Keyboard(command) => PendingRequest::Keyboard { sequence, command },
                     Command::Text(command) => PendingRequest::Text { sequence, command },
                     Command::Time(command) => PendingRequest::Time { sequence, command },
+                    Command::Screenshot(command) => PendingRequest::Screenshot {
+                        sequence,
+                        command,
+                        capture: None,
+                    },
                     Command::Shutdown => PendingRequest::Shutdown { sequence },
                 };
                 world.resource_mut::<PendingRequests>().0.push(pending);
@@ -485,6 +536,57 @@ fn dispatch_request(world: &mut World) {
                 .0
                 .push(PendingRequest::Time { sequence, command });
         }
+        PendingRequest::Screenshot {
+            sequence,
+            command,
+            capture,
+        } => {
+            if world.resource::<Configuration>().mode != RunMode::Rendered {
+                let error = screenshot::Error::CapabilityUnavailable;
+                world
+                    .resource_mut::<PendingRequests>()
+                    .0
+                    .push(PendingRequest::Response(Response::error(
+                        sequence,
+                        error.code(),
+                        error.to_string(),
+                    )));
+                return;
+            }
+            if capture.is_some() {
+                world
+                    .resource_mut::<PendingRequests>()
+                    .0
+                    .push(PendingRequest::Screenshot {
+                        sequence,
+                        command,
+                        capture,
+                    });
+                return;
+            }
+            match screenshot::start(world, &command) {
+                Ok(capture) => {
+                    world
+                        .resource_mut::<PendingRequests>()
+                        .0
+                        .push(PendingRequest::Screenshot {
+                            sequence,
+                            command,
+                            capture: Some(capture),
+                        })
+                }
+                Err(error) => {
+                    world
+                        .resource_mut::<PendingRequests>()
+                        .0
+                        .push(PendingRequest::Response(Response::error(
+                            sequence,
+                            error.code(),
+                            error.to_string(),
+                        )))
+                }
+            }
+        }
         PendingRequest::Response(response) => {
             world
                 .resource_mut::<PendingRequests>()
@@ -592,6 +694,9 @@ fn complete_request(world: &mut World) {
                 ),
             );
         }
+        pending @ PendingRequest::Screenshot { .. } => {
+            world.resource_mut::<PendingRequests>().0.push(pending);
+        }
         PendingRequest::Response(response) => write_response(world, response),
         PendingRequest::Shutdown { sequence } => {
             write_response(world, Response::completed(sequence, json!({})));
@@ -685,6 +790,31 @@ mod tests {
             .unwrap();
         app.update();
         assert_eq!(output.responses.lock().unwrap()[0].sequence, 1);
+    }
+
+    #[test]
+    fn logical_mode_rejects_screenshots_without_initializing_a_renderer() {
+        let (mut app, sender, output, _window) = controlled_app();
+        app.update();
+        assert!(app.get_sub_app(bevy::render::RenderApp).is_none());
+        assert!(
+            !output.ready.lock().unwrap()[0]
+                .controls
+                .contains(&"screenshot".into())
+        );
+
+        sender
+            .send(Input::Line(
+                r#"{"sequence":1,"command":{"type":"screenshot","path":"capture.png"}}"#.into(),
+            ))
+            .unwrap();
+        app.update();
+        let responses = output.responses.lock().unwrap();
+        assert_eq!(
+            responses[0].error.as_ref().map(|error| error.code.as_str()),
+            Some("screenshot_capability_unavailable")
+        );
+        assert!(app.get_sub_app(bevy::render::RenderApp).is_none());
     }
 
     #[test]
@@ -941,7 +1071,7 @@ mod tests {
 
     #[test]
     fn rendered_redraw_updates_do_not_run_simulation_schedules() {
-        let (mut app, _sender, output, _window) = controlled_app_in_mode(RunMode::Rendered);
+        let (mut app, sender, output, _window) = controlled_app_in_mode(RunMode::Rendered);
         app.init_resource::<FrameCapture>()
             .add_systems(Update, capture_update);
         app.update();
@@ -955,6 +1085,24 @@ mod tests {
         assert_eq!(
             app.world().resource::<Time<Virtual>>().elapsed(),
             std::time::Duration::ZERO
+        );
+        assert!(
+            !output.ready.lock().unwrap()[0]
+                .controls
+                .contains(&"screenshot".into())
+        );
+        sender
+            .send(Input::Line(
+                r#"{"sequence":1,"command":{"type":"screenshot","path":"capture.png"}}"#.into(),
+            ))
+            .unwrap();
+        app.update();
+        assert_eq!(
+            output.responses.lock().unwrap()[0]
+                .error
+                .as_ref()
+                .map(|error| error.code.as_str()),
+            Some("screenshot_capability_unavailable")
         );
     }
 

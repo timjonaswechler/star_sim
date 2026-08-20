@@ -5,12 +5,16 @@ use automation_control::{
     keyboard::{Command as KeyboardCommand, Key},
     observation::{Projection, Request as ObservationRequest, Selector},
     pointer::{Button, Command as PointerCommand},
+    screenshot::Command as ScreenshotCommand,
     text::Command as TextCommand,
     time::Command as TimeCommand,
 };
 use serde_json::Value;
 use std::{
     f32::consts::TAU,
+    fs,
+    path::{Path, PathBuf},
+    sync::atomic::{AtomicU64, Ordering},
     thread,
     time::{Duration, Instant},
 };
@@ -29,7 +33,10 @@ struct Bounds {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let options = parse_options(std::env::args().skip(1))?;
+    run(parse_options(std::env::args().skip(1))?)
+}
+
+fn run(options: Options) -> Result<(), Box<dyn std::error::Error>> {
     let launch = LaunchSpec {
         package: "bevy_context_menu".into(),
         kind: LaunchTargetKind::Binary,
@@ -37,11 +44,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         features: vec!["automation".into()],
         arguments: vec![],
     };
-    let mut session = Session::spawn(&launch, SessionOptions::new(Duration::from_secs(180)))?;
+    let artifact_root = temporary_artifact_root();
+    fs::create_dir_all(&artifact_root)?;
+    let mut session = Session::spawn(
+        &launch,
+        SessionOptions::new(Duration::from_secs(180)).with_artifact_dir(&artifact_root),
+    )?;
     let ready = session.ready()?;
     assert_eq!(ready.version, 2);
     assert_eq!(ready.mode, automation_control::RunMode::Rendered);
-    assert_eq!(ready.controls, ["pointer", "keyboard", "text", "time"]);
+    assert_eq!(
+        ready.controls,
+        ["pointer", "keyboard", "text", "time", "screenshot"]
+    );
     assert!(ready.observation_scopes.contains(&"virtual_input".into()));
     assert!(ready.observation_scopes.contains(&"clock".into()));
     advance(&mut session)?;
@@ -105,8 +120,56 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     assert_eq!(value["value"]["key_a_releases"], 1);
     assert_eq!(value["value"]["text"], "controlled text");
 
+    let first = capture_screenshot(&mut session, &artifact_root, "captures/first.png")?;
+    let second = capture_screenshot(&mut session, &artifact_root, "captures/second.png")?;
+    assert_eq!(first.dimensions(), (640, 360));
+    assert_eq!(second.dimensions(), first.dimensions());
+    assert_fuchsia_background(&first)?;
+    assert_fuchsia_background(&second)?;
+
     move_pointer_in_circles(&mut session, background_bounds, options.duration)?;
     session.shutdown()?;
+    fs::remove_dir_all(artifact_root).ok();
+    Ok(())
+}
+
+fn temporary_artifact_root() -> PathBuf {
+    static SEQUENCE: AtomicU64 = AtomicU64::new(0);
+    std::env::temp_dir().join(format!(
+        "automation-control-rendered-screenshot-{}-{}",
+        std::process::id(),
+        SEQUENCE.fetch_add(1, Ordering::Relaxed)
+    ))
+}
+
+fn capture_screenshot(
+    session: &mut Session,
+    artifact_root: &Path,
+    relative_path: &str,
+) -> Result<image::RgbImage, Box<dyn std::error::Error>> {
+    let response = session.request(Command::Screenshot(ScreenshotCommand::new(relative_path)))?;
+    let artifact = &response
+        .result
+        .as_ref()
+        .ok_or("screenshot result missing")?["artifact"];
+    assert_eq!(artifact["type"], "screenshot");
+    assert_eq!(artifact["path"], relative_path);
+    assert_eq!(artifact["mime_type"], "image/png");
+    assert_eq!(artifact["width"], 640);
+    assert_eq!(artifact["height"], 360);
+
+    let path = artifact_root.join(relative_path);
+    let bytes = fs::read(&path)?;
+    assert!(bytes.len() > 8);
+    assert!(bytes.starts_with(b"\x89PNG\r\n\x1a\n"));
+    Ok(image::open(path)?.to_rgb8())
+}
+
+fn assert_fuchsia_background(image: &image::RgbImage) -> Result<(), Box<dyn std::error::Error>> {
+    let pixel = image.get_pixel(5, 5).0;
+    if pixel[0] < 180 || pixel[1] > 100 || pixel[2] < 180 {
+        return Err(format!("expected fuchsia background, got RGB {pixel:?}").into());
+    }
     Ok(())
 }
 
@@ -291,6 +354,12 @@ fn center(bounds: &Value) -> Result<[f32; 2], Box<dyn std::error::Error>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    #[ignore = "requires a display and render adapter"]
+    fn rendered_session_writes_a_semantically_stable_screenshot() {
+        run(Options::default()).unwrap();
+    }
 
     #[test]
     fn circle_seconds_enables_timed_pointer_motion() {

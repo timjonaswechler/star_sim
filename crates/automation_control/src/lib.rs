@@ -11,6 +11,7 @@ pub mod observation;
 mod plugin;
 pub mod pointer;
 pub mod protocol;
+pub mod screenshot;
 pub mod target;
 pub mod text;
 pub mod time;

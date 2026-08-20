@@ -8,6 +8,8 @@ use std::fmt::Debug;
 
 #[cfg(feature = "automation")]
 use automation_control::{AutomationControlPlugin, AutomationTarget};
+#[cfg(feature = "automation")]
+use bevy::window::WindowResolution;
 
 /// Event opening a new context menu at a pointer position.
 #[derive(Event)]
@@ -53,11 +55,23 @@ fn main() {
     let app = binding
         .add_plugins(
             DefaultPlugins
+                .set(WindowPlugin {
+                    primary_window: Some(Window {
+                        title: "Controlled screenshot test".into(),
+                        resolution: WindowResolution::new(640, 360).with_scale_factor_override(1.0),
+                        resizable: false,
+                        ..default()
+                    }),
+                    ..default()
+                })
                 .build()
                 .disable::<bevy::input::InputPlugin>()
                 .disable::<bevy::gilrs::GilrsPlugin>(),
         )
-        .add_plugins(AutomationControlPlugin::stdio());
+        .add_plugins((
+            AutomationControlPlugin::stdio(),
+            automation_control::screenshot::Plugin::default(),
+        ));
     #[cfg(not(feature = "automation"))]
     let app = binding.add_plugins(DefaultPlugins);
 
