@@ -302,6 +302,20 @@ impl Session {
         unreachable!("the bounded wait loop always returns")
     }
 
+    /// Checks that the child is still running without exposing its process status to Controllers.
+    pub fn ensure_running(&mut self) -> Result<(), DriverError> {
+        match self
+            .child
+            .try_wait()
+            .map_err(|error| DriverError::Child(error.to_string()))?
+        {
+            None => Ok(()),
+            Some(status) => Err(DriverError::Child(format!(
+                "child exited unexpectedly with {status}"
+            ))),
+        }
+    }
+
     pub fn shutdown(mut self) -> Result<(), DriverError> {
         self.request(Command::Shutdown)?;
         self.stdin.take();
@@ -428,6 +442,30 @@ mod tests {
         assert!(data.contains("\"sequence\":1"));
         assert!(!data.contains("\"id\""));
         fs::remove_file(record).ok();
+    }
+
+    #[test]
+    fn reports_a_child_that_exits_while_the_host_is_idle() {
+        let mut command = ProcessCommand::new("sh");
+        command.args([
+            "-c",
+            "printf '%s\\n' '{\"type\":\"ready\",\"version\":2,\"mode\":\"logical\",\"controls\":[],\"observation_scopes\":[]}'",
+        ]);
+        let mut session =
+            Session::spawn_command(command, SessionOptions::new(Duration::from_secs(2))).unwrap();
+        session.ready().unwrap();
+
+        let deadline = Instant::now() + Duration::from_secs(1);
+        loop {
+            match session.ensure_running() {
+                Err(DriverError::Child(message)) => {
+                    assert!(message.contains("exited unexpectedly"));
+                    break;
+                }
+                Ok(()) if Instant::now() < deadline => thread::sleep(Duration::from_millis(10)),
+                result => panic!("unexpected child health result: {result:?}"),
+            }
+        }
     }
 
     #[test]

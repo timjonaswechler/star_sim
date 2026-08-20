@@ -20,7 +20,16 @@ jobs:
           submodules: recursive
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - name: Run display-free protocol and driver tests
+      - name: Install Bevy Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            g++ pkg-config libx11-dev libxi-dev libxcursor-dev libxrandr-dev \
+            libasound2-dev libudev-dev libxkbcommon-dev libxkbcommon-x11-dev \
+            libwayland-dev libxcb-xfixes0-dev
+      - name: Build the logical app outside the session timeout
+        run: cargo build -p app --features automation-control
+      - name: Run display-free protocol, driver, and Debug Host tests
         run: |
           cargo test -p automation_control
           cargo test -p automation_control --features driver
@@ -49,46 +58,33 @@ jobs:
       - name: Check desktop Bevy applications
         run: |
           cargo check -p app
+          cargo check -p app --features automation-control
           cargo check -p bevy_test_apps
           cargo check -p bevy_test_apps --features automation
-      - name: Build the rendered probe and controller outside protocol timeouts
+          ! cargo tree -p app -e normal --prefix none | grep '^automation_control '
+      - name: Build the rendered host, app, and controller outside protocol timeouts
         run: |
-          cargo build -p bevy_test_apps --bin context_menu --features automation
+          cargo build -p app --features automation-control
           cargo build -p star_sim_debug
           cargo build -p automation_control --example bevy_controller --features driver
-      - name: Run the rendered probe and screenshot controller under Xvfb
+      - name: Run the rendered REPL and screenshot controller under Xvfb
         env:
           LIBGL_ALWAYS_SOFTWARE: "1"
           WGPU_FORCE_FALLBACK_ADAPTER: "1"
         run: |
           set -euo pipefail
-          mkdir -p artifacts/debug-ci/probe
-          timeout 5m xvfb-run -a -s "-screen 0 1280x720x24" \
-            target/debug/star_sim_debug \
-              --config apps/star_sim_debug/config/automation/debug.toml \
-              rendered --artifact-dir artifacts/debug-ci/probe \
-            | tee artifacts/debug-ci/rendered-result.json
-          python3 - <<'PY'
-          import json
-          from pathlib import Path
-
-          results = []
-          for line in Path("artifacts/debug-ci/rendered-result.json").read_text().splitlines():
-              try:
-                  value = json.loads(line)
-              except json.JSONDecodeError:
-                  continue
-              if isinstance(value, dict) and value.get("status") == "passed":
-                  results.append(value)
-          assert len(results) == 1, f"expected one successful result, got {results!r}"
-          result = results[0]
-          assert result["mode"] == "rendered"
-          assert result["ready"]["mode"] == "rendered"
-          expected_controls = ["pointer", "keyboard", "text", "time", "screenshot"]
-          assert result["ready"]["controls"] == expected_controls, result["ready"]
-          targets = result["targets"].get("items")
-          assert isinstance(targets, list) and targets, result["targets"]
-          PY
+          mkdir -p artifacts/debug-ci/repl
+          printf 'click menu.tab.museum\nquit\n' \
+            | timeout 5m xvfb-run -a -s "-screen 0 1280x720x24" \
+                target/debug/star_sim_debug \
+                  --mode rendered --artifact-dir artifacts/debug-ci/repl \
+            | tee artifacts/debug-ci/rendered-repl.txt
+          grep -F 'instance=alpha mode=rendered screen=museum paused=false' \
+            artifacts/debug-ci/rendered-repl.txt
+          grep -F 'last action: click menu.tab.museum' \
+            artifacts/debug-ci/rendered-repl.txt
+          ! grep -E '"(sequence|version)"|"type":"ready"|"status":"completed"' \
+            artifacts/debug-ci/rendered-repl.txt
           timeout 5m xvfb-run -a -s "-screen 0 1280x720x24" \
             target/debug/examples/bevy_controller \
             2>&1 | tee artifacts/debug-ci/rendered-controller.log

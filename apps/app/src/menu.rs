@@ -6,6 +6,9 @@ use bevy::{
 };
 use ui::components::tabs::{TabKey, TabPanel, TabTrigger, TabsPlugin, TabsRoot};
 
+#[cfg(feature = "automation-control")]
+use automation_control::AutomationTarget;
+
 pub(crate) struct MenuPlugin;
 
 const NORMAL_BUTTON: Color = Color::srgb(0.15, 0.15, 0.15);
@@ -27,10 +30,60 @@ pub(crate) struct MenuTab {
 
 impl TabKey for MenuSection {}
 
+#[cfg(feature = "automation-control")]
+#[derive(Component, Reflect)]
+#[reflect(Component)]
+pub(crate) struct SessionObservation {
+    active_screen: String,
+}
+
 impl Plugin for MenuPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins((TabNavigationPlugin, TabsPlugin::<MenuSection>::default()))
             .add_systems(Startup, setup_scene.spawn());
+
+        #[cfg(feature = "automation-control")]
+        app.register_type::<SessionObservation>()
+            .add_systems(PostStartup, install_controlled_targets)
+            .add_systems(Update, sync_session_observation);
+    }
+}
+
+#[cfg(feature = "automation-control")]
+fn install_controlled_targets(
+    mut commands: Commands,
+    tabs: Query<(Entity, &MenuTab)>,
+    roots: Query<(Entity, &TabsRoot<MenuSection>)>,
+) {
+    for (entity, tab) in &tabs {
+        commands
+            .entity(entity)
+            .insert((AutomationTarget, Name::new(tab.id)));
+    }
+    for (entity, root) in &roots {
+        commands.entity(entity).insert((
+            AutomationTarget,
+            Name::new("session.status"),
+            SessionObservation {
+                active_screen: screen_name(root.active).into(),
+            },
+        ));
+    }
+}
+
+#[cfg(feature = "automation-control")]
+fn sync_session_observation(mut roots: Query<(&TabsRoot<MenuSection>, &mut SessionObservation)>) {
+    for (root, mut observation) in &mut roots {
+        observation.active_screen = screen_name(root.active).into();
+    }
+}
+
+#[cfg(feature = "automation-control")]
+fn screen_name(section: MenuSection) -> &'static str {
+    match section {
+        MenuSection::Gym => "gym",
+        MenuSection::Museum => "museum",
+        MenuSection::Zoo => "zoo",
     }
 }
 
@@ -41,8 +94,8 @@ fn setup_scene() -> impl SceneList {
 fn menu() -> impl Scene {
     bsn! {
         Node {
-            width: percent(100),
-            height: percent(100),
+            width: menu_width(),
+            height: menu_height(),
             align_items: AlignItems::Center,
             justify_content: JustifyContent::Center,
             display: Display::Flex,
@@ -103,6 +156,22 @@ fn menu() -> impl Scene {
             ),
         ]
     }
+}
+
+fn menu_width() -> Val {
+    #[cfg(feature = "automation-control")]
+    return px(crate::composition::SURFACE_WIDTH);
+
+    #[cfg(not(feature = "automation-control"))]
+    percent(100)
+}
+
+fn menu_height() -> Val {
+    #[cfg(feature = "automation-control")]
+    return px(crate::composition::SURFACE_HEIGHT);
+
+    #[cfg(not(feature = "automation-control"))]
+    percent(100)
 }
 
 fn tab_button(label: &'static str, id: &'static str, section: MenuSection) -> impl Scene {

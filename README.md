@@ -12,7 +12,7 @@ This repository uses a virtual Cargo workspace:
 - `crates/utilities/name_generator` — isolated naming experiment
 - `apps/population_lab` — statistical plots and model validation
 - `apps/app` — interactive Bevy application and visual examples
-- [`apps/star_sim_debug`](apps/star_sim_debug/README.md) — development and debugging tool for configured automation-control targets
+- [`apps/star_sim_debug`](apps/star_sim_debug/README.md) — Debug Host and REPL for isolated Star Sim Controlled Sessions
 - `assets/scientific_models` — versioned RON inputs
 
 See [`WORKSPACE.md`](WORKSPACE.md) for dependency rules, features, and detailed commands.
@@ -34,15 +34,15 @@ cargo run -p population_lab -- --seed 42
 cargo run -p app
 ```
 
-Optional development integrations are disabled by default:
+Start a display-free Controlled Session through the Debug Host:
 
 ```bash
-cargo run -p automation_control --example automation_control_prototype \
-  --features render-example -- --automation
+cargo run -p star_sim_debug -- --mode logical
+```
 
-cargo run -p star_sim_debug -- \
-  --config apps/star_sim_debug/config/automation/debug.toml logical
+Other optional development integrations are disabled by default:
 
+```bash
 cargo run -p app --example name_generator_lab \
   --features name-generation
 ```
