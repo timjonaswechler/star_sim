@@ -53,7 +53,7 @@ impl std::fmt::Debug for AutomationControlPlugin {
 
 impl Default for AutomationControlPlugin {
     fn default() -> Self {
-        Self::stdio()
+        Self::rendered_stdio()
     }
 }
 
@@ -85,7 +85,7 @@ where
 
 impl AutomationControlPlugin {
     /// Creates a Rendered Mode Controlled Session using stdin/stdout JSONL.
-    pub fn stdio() -> Self {
+    pub fn rendered_stdio() -> Self {
         Self {
             mode: RunMode::Rendered,
             output: Arc::new(crate::transport::StdoutOutput),
@@ -93,18 +93,13 @@ impl AutomationControlPlugin {
         }
     }
 
-    /// Creates a Controlled Session with test or embedding transport adapters.
-    pub fn with_io(input: impl InputFactory, output: Arc<dyn Output>) -> Self {
+    /// Creates a Controlled Session with explicit mode metadata and custom transport adapters.
+    pub fn with_io(mode: RunMode, input: impl InputFactory, output: Arc<dyn Output>) -> Self {
         Self {
-            mode: RunMode::Logical,
+            mode,
             output,
             input_factory: input.factory(),
         }
-    }
-
-    pub fn configured(mut self, mode: RunMode) -> Self {
-        self.mode = mode;
-        self
     }
 }
 
@@ -266,9 +261,9 @@ impl Default for ExpectedSequence {
 }
 
 fn register_native_input_channels(app: &mut App) {
-    // Winit, focus, UI widgets, and the picking backend still declare these low-level channels.
-    // Registering empty channels lets the controlled composition omit InputPlugin without
-    // admitting any native events into the session.
+    // Focus, UI widgets, and the picking backend still declare these low-level channels and state
+    // resources. Registering them is compatibility plumbing only: it installs no native producer
+    // or OS connection, and the controlled composition can keep InputPlugin disabled.
     app.add_message::<KeyboardInput>()
         .add_message::<KeyboardFocusLost>()
         .add_message::<Ime>()
@@ -760,18 +755,25 @@ mod tests {
         app.add_plugins(MinimalPlugins)
             .add_message::<WindowEvent>()
             .add_plugins(DefaultPickingPlugins)
-            .add_plugins(
-                AutomationControlPlugin::with_io(
-                    move || JsonLinesInput::from_receiver(receiver.lock().unwrap().take().unwrap()),
-                    output_trait,
-                )
-                .configured(mode),
-            );
+            .add_plugins(AutomationControlPlugin::with_io(
+                mode,
+                move || JsonLinesInput::from_receiver(receiver.lock().unwrap().take().unwrap()),
+                output_trait,
+            ));
         let window = app
             .world_mut()
             .spawn((Window::default(), PrimaryWindow))
             .id();
         (app, sender, output, window)
+    }
+
+    #[test]
+    fn with_io_preserves_the_explicit_mode_in_ready_metadata() {
+        for mode in [RunMode::Logical, RunMode::Rendered] {
+            let (mut app, _sender, output, _window) = controlled_app_in_mode(mode);
+            app.update();
+            assert_eq!(output.ready.lock().unwrap()[0].mode, mode);
+        }
     }
 
     #[test]

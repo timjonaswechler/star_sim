@@ -48,7 +48,7 @@ Reflection ist read-only. Das Protokoll darf keine beliebigen Component-Werte ve
 
 Eine Capability beschreibt ein installiertes Kontroll- oder Beobachtungsmodul, nicht den aktuellen World-Inhalt. Ein vorhandener UI-Button ist keine Capability.
 
-Entferne den vom Aufrufer übergebenen `Vec<String>` aus `AutomationControlPlugin::stdio` und `with_io`. `AutomationControlPlugin::stdio()` erhält keine Capability-Liste. Installierte Module registrieren ihre stabile Unterstützung selbst. `ready` darf zum Beispiel `pointer` und verfügbare Observation-Scopes melden. Die Liste wird aus der App-Komposition abgeleitet.
+Entferne den vom Aufrufer übergebenen `Vec<String>` aus `AutomationControlPlugin::rendered_stdio` und `with_io`. `AutomationControlPlugin::rendered_stdio()` erhält keine Capability-Liste; `with_io` erhält den `RunMode` explizit. Installierte Module registrieren ihre stabile Unterstützung selbst. `ready` darf zum Beispiel `pointer` und verfügbare Observation-Scopes melden. Die Liste wird aus der App-Komposition abgeleitet.
 
 Das Fehlen eines Fensters, Pointers oder Targets ist dynamischer Zustand. Ein betroffener Request liefert eine typisierte Fehlermeldung oder eine leere Observation. Er verändert nicht die ausgehandelten Capabilities.
 

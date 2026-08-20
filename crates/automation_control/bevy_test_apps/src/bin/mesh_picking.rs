@@ -38,7 +38,7 @@ struct MaterialPalette {
 
 fn main() {
     let mut app = App::new();
-    bevy_test_apps::add_run_plugins(
+    bevy_test_apps::add_rendered_run_plugins(
         &mut app,
         Window {
             title: "Mesh picking test".into(),

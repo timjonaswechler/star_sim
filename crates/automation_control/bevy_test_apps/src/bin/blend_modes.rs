@@ -1,7 +1,7 @@
 //! Adapted from Bevy's `examples/3d/blend_modes.rs`; see the package README for provenance.
 
 use bevy::{camera::Hdr, color::palettes::css::ORANGE, prelude::*, window::WindowResolution};
-use bevy_test_apps::add_run_plugins;
+use bevy_test_apps::add_rendered_run_plugins;
 use rand::{Rng, SeedableRng, rngs::StdRng};
 
 #[cfg(feature = "automation")]
@@ -14,7 +14,7 @@ const SPHERE_COUNT: usize = 5;
 
 fn main() {
     let mut app = App::new();
-    add_run_plugins(
+    add_rendered_run_plugins(
         &mut app,
         Window {
             title: "Controlled blend modes test".into(),

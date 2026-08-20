@@ -2,7 +2,9 @@
 
 This package holds rendered Bevy applications used to exercise `automation_control`. Each application is an explicit binary, so another application only needs a new `src/bin/*.rs` file and `[[bin]]` entry.
 
-Without features, a binary is a Player Run with Bevy's native input plugins. With `--features automation`, the same binary is a Controlled Session: native input plugins are absent and `automation_control` supplies Virtual Input over protocol v2.
+Every binary uses `add_rendered_run_plugins` with its configured window. Without features, that helper builds a rendered Player Run with Bevy's native input plugins. With `--features automation`, it builds a rendered Controlled Session with `InputPlugin` and `GilrsPlugin` disabled, screenshot support enabled, and `automation_control` supplying Virtual Input over protocol v2.
+
+The Controlled Session still registers the empty low-level Bevy input message channels and state resources required by UI, focus, and picking systems. These are compatibility prerequisites, not native input producers or operating-system connections. Native producers remain disabled, and native message buffers are cleared before focused-input dispatch.
 
 ## Context menu
 
@@ -82,7 +84,7 @@ cargo run -p automation_control --example game_menu_controller --features driver
 
 ## Application conventions
 
-- Put application systems, components, and semantic test state in the binary that owns them. Shared code is limited to run composition.
+- Put application systems, components, and semantic test state in the binary that owns them. Shared code is limited to the rendered run composition in `add_rendered_run_plugins`.
 - Give observable entities stable, descriptive `Name` values. Names must not depend on spawn order or an entity handle. Use lowercase kebab-case where a name has multiple words.
 - Add `AutomationTarget` only to entities a Controller must find or operate. Keep the marker behind `cfg(feature = "automation")`.
 - Store assertions that span several UI systems in a small application-owned component. Derive `Reflect`, add `#[reflect(Component)]`, and register the type with `App::register_type`.

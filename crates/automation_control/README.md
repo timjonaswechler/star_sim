@@ -68,25 +68,41 @@ systems and GPUs are not guaranteed.
 ```rust
 use automation_control::AutomationControlPlugin;
 
-app.add_plugins(AutomationControlPlugin::stdio());
+app.add_plugins(AutomationControlPlugin::rendered_stdio());
 ```
 
-Tests and embedding applications can provide transport adapters without capability lists:
+Tests and embedding applications provide the protocol mode and transport adapters explicitly:
 
 ```rust
-app.add_plugins(AutomationControlPlugin::with_io(input, output));
+use automation_control::RunMode;
+
+app.add_plugins(AutomationControlPlugin::with_io(
+    RunMode::Rendered,
+    input,
+    output,
+));
 ```
 
-The plugin disables native mouse and touch producers, writes `PointerInput` into Bevy's picking
-pipeline, clears the OS cursor stored on Bevy windows, and clears native aggregate window,
-keyboard, focus, mouse, touch, scroll, gamepad, and IME messages before focused-input dispatch.
-Virtual keyboard commands
-write `KeyboardInput`, update Bevy's `ButtonInput<KeyCode>` and `ButtonInput<Key>` resources, and
-use Bevy's focused-input dispatch. Virtual text commands write `Ime::Commit`, which
-`EditableTextInputPlugin` routes to the focused `EditableText`. The plugin processes one request per
-event-loop update. Input responses acknowledge the queued session-local transition. An advance response is
-written only after every requested frame, including application observers and text-edit systems, has
-completed. `stdout` contains JSONL only. Diagnostics use `stderr`.
+`RunMode` is protocol metadata. It does not select an application composition or install or remove a
+renderer; the embedding application remains responsible for composing the matching session.
+
+The rendered `bevy_test_apps` composition disables `InputPlugin` and `GilrsPlugin`. The control
+plugin also disables Bevy's native mouse and touch picking producers, writes `PointerInput` into
+Bevy's picking pipeline, and clears the OS cursor stored on Bevy windows. Because UI, focus, and
+picking systems still require low-level Bevy input message channels and state resources when
+`InputPlugin` is absent, the plugin registers them empty as
+compatibility prerequisites. Registration neither creates native input producers nor opens an OS
+input connection; the composition's native producers remain disabled. The plugin clears native
+window, keyboard, focus, mouse, touch, scroll, gamepad, and IME message buffers before focused-input
+dispatch.
+
+Virtual keyboard commands write `KeyboardInput`, update Bevy's `ButtonInput<KeyCode>` and
+`ButtonInput<Key>` resources, and use Bevy's focused-input dispatch. Virtual text commands write
+`Ime::Commit`, which `EditableTextInputPlugin` routes to the focused `EditableText`. The plugin
+processes one request per event-loop update. Input responses acknowledge the queued session-local
+transition. An advance response is written only after every requested frame, including application
+observers and text-edit systems, has completed. `stdout` contains JSONL only. Diagnostics use
+`stderr`.
 
 ## Observation
 
