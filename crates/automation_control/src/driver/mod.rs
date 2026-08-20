@@ -3,6 +3,7 @@ mod config;
 mod diagnostics;
 pub mod github;
 mod launch;
+pub mod recording;
 mod report;
 mod session;
 pub mod wait;

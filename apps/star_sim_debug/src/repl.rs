@@ -4,6 +4,7 @@ use crate::controller::{
 };
 use std::{
     io::{self, BufRead, Write},
+    path::PathBuf,
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
@@ -23,6 +24,7 @@ commands:
   text TEXT
   observe targets|ui|pointers|input|clock
   pause | resume | step FRAMES
+  record start [PATH] | record stop
   status | help | quit
 buttons: left, right, middle
 keys use case-insensitive names such as Escape, A, ArrowLeft";
@@ -35,9 +37,16 @@ pub(crate) enum Command {
     Pause,
     Resume,
     Step(u64),
+    Recording(RecordingCommand),
     Status,
     Help,
     Quit,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) enum RecordingCommand {
+    Start(Option<PathBuf>),
+    Stop,
 }
 
 impl Command {
@@ -68,6 +77,11 @@ impl Command {
             .parse::<u64>()
             .map(Command::Step)
             .map_err(|_| "step FRAMES requires a positive integer".into()),
+        ["record", "start"] => Ok(Command::Recording(RecordingCommand::Start(None))),
+        ["record", "start", path] => Ok(Command::Recording(RecordingCommand::Start(Some(
+            PathBuf::from(path),
+        )))),
+        ["record", "stop"] => Ok(Command::Recording(RecordingCommand::Stop)),
         ["click", target] => Ok(Command::Click((*target).into())),
         ["pointer", "move", x, y] => Ok(Command::Action(Action::Pointer(PointerAction::Move {
             x: number(x, "pointer X")?,
@@ -103,6 +117,7 @@ impl Command {
         ["key", ..] => Err("usage: key KEY press|release".into()),
         ["observe", ..] => Err("usage: observe targets|ui|pointers|input|clock".into()),
         ["step", ..] => Err("usage: step FRAMES".into()),
+        ["record", ..] => Err("usage: record start [PATH] | record stop".into()),
         ["click", ..] => Err("usage: click menu.tab.museum".into()),
         _ => Err(format!(
             "unknown command {line:?}; use help to list commands"
@@ -146,6 +161,7 @@ fn run_loop(
                 let command = match Command::from_line(&line) {
                     Ok(command) => command,
                     Err(error) => {
+                        session.capture_invalid_command();
                         writeln!(output, "error: {error}").map_err(output_error)?;
                         write!(output, "> ")
                             .and_then(|_| output.flush())
@@ -158,8 +174,14 @@ fn run_loop(
                 }
                 match execute(session, command, output) {
                     Ok(()) => {}
-                    Err(error) if error.is_fatal() => return Err(error),
-                    Err(error) => writeln!(output, "error: {error}").map_err(output_error)?,
+                    Err(error) if error.is_fatal() => {
+                        session.capture_operation_error(&error);
+                        return Err(error);
+                    }
+                    Err(error) => {
+                        session.capture_operation_error(&error);
+                        writeln!(output, "error: {error}").map_err(output_error)?;
+                    }
                 }
                 write!(output, "\n> ")
                     .and_then(|_| output.flush())
@@ -202,9 +224,17 @@ fn execute(
             )
             .map_err(output_error)?;
         }
-        Command::Pause => session.pause(),
-        Command::Resume => session.resume(),
+        Command::Pause => session.pause()?,
+        Command::Resume => session.resume()?,
         Command::Step(frames) => session.step(frames)?,
+        Command::Recording(RecordingCommand::Start(path)) => {
+            let path = session.start_recording(path)?;
+            writeln!(output, "recording started: {}", path.display()).map_err(output_error)?;
+        }
+        Command::Recording(RecordingCommand::Stop) => {
+            let path = session.stop_recording()?;
+            writeln!(output, "recording stopped: {}", path.display()).map_err(output_error)?;
+        }
         Command::Status => {}
         Command::Help => {
             writeln!(output, "{HELP}").map_err(output_error)?;
@@ -319,6 +349,20 @@ mod tests {
         assert_eq!(Command::from_line("pause").unwrap(), Command::Pause);
         assert_eq!(Command::from_line("resume").unwrap(), Command::Resume);
         assert_eq!(Command::from_line("step 3").unwrap(), Command::Step(3));
+        assert_eq!(
+            Command::from_line("record start records/session.jsonl").unwrap(),
+            Command::Recording(RecordingCommand::Start(Some(PathBuf::from(
+                "records/session.jsonl"
+            ))))
+        );
+        assert_eq!(
+            Command::from_line("record start").unwrap(),
+            Command::Recording(RecordingCommand::Start(None))
+        );
+        assert_eq!(
+            Command::from_line("record stop").unwrap(),
+            Command::Recording(RecordingCommand::Stop)
+        );
         assert_eq!(Command::from_line("status").unwrap(), Command::Status);
         assert_eq!(Command::from_line("help").unwrap(), Command::Help);
         assert_eq!(Command::from_line("quit").unwrap(), Command::Quit);
@@ -338,6 +382,10 @@ mod tests {
         assert_eq!(
             Command::from_line("key Escape").unwrap_err(),
             "usage: key KEY press|release"
+        );
+        assert_eq!(
+            Command::from_line("record start one two").unwrap_err(),
+            "usage: record start [PATH] | record stop"
         );
         assert!(
             Command::from_line("observe world")

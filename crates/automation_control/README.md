@@ -148,9 +148,45 @@ session.request(Command::Shutdown)?;
 session.shutdown()?;
 ```
 
-`driver::Session` owns sequences, child-process lifecycle, JSON serialization, response matching,
-timeouts, stderr streaming, and optional ordered recording. `LaunchSpec` can start Cargo binaries
-or examples. Diagnostics and report helpers remain available to host tools.
+`driver::Session` owns protocol and recording sequences, child-process lifecycle, JSON serialization,
+response matching, timeouts, and stderr streaming. `LaunchSpec` can start Cargo binaries or examples.
+Diagnostics and report helpers remain available to host tools.
+
+## Session Recording
+
+Enable recording at launch with an artifact-root-relative path:
+
+```rust
+use std::{path::PathBuf, time::Duration};
+use automation_control::driver::{SessionOptions, recording::Controller};
+
+let options = SessionOptions::new(Duration::from_secs(60))
+    .with_artifact_dir("artifacts/session")
+    .with_record(Some(PathBuf::from("recordings/run.jsonl")))
+    .with_recording_context(
+        "alpha",
+        automation_control::RunMode::Logical,
+        serde_json::json!({"surface": [640, 360]}),
+    )
+    .with_controller(Controller::new("repl"));
+```
+
+`with_recording_context` lets a host include its complete configuration and checks its mode against
+`ready`. Without explicit context, the driver waits for `ready` and fills the mode and protocol before
+writing `SessionStarted`. `Session::start_recording(None)` allocates a collision-free path below the
+artifact root. `Session::stop_recording()` flushes and closes the current segment. Starting another segment keeps
+the same strictly increasing host sequence and writes the complete open-session context first.
+Requested paths must be relative `.jsonl` paths without `.` or `..` components, and existing files
+or symbolic-link escapes are rejected.
+
+The JSONL format has its own `driver::recording::FORMAT_VERSION`. Every line contains `version`,
+`sequence`, and a typed event. Events distinguish session context, source-neutral Controller
+actions with Controller-origin metadata, game responses, observations, errors, artifact references,
+recording stops, and session completion or abort. The recorder never copies child stderr. It redacts
+sensitive fields and messages and bounds strings, collections, nesting, and serialized entry size so
+credentials and raw model prompts cannot enter the file. `recording::Recording::parse_reader` and
+`parse_path` validate the version and strictly increasing
+sequences, returning an unsupported-version error for newer formats.
 
 Host waits compose existing observation and time commands. They do not add a wait command to the wire protocol. `FrameLimit` validates both the maximum frame count and each controlled time step against the protocol limits:
 
@@ -216,5 +252,5 @@ Use `RENDER_STRESS_RUNS`, `RENDER_STRESS_FRAMES`, `RENDER_STRESS_ATTEMPTS`, and
 `RENDER_STRESS_DELAY_MS` to change the run. `RENDER_STRESS_CAPTURE_READY=true` also records the
 frame available immediately after `ready`.
 
-Recording/replay, camera operations, screenshot comparison, video capture, REPL orchestration,
-persistent semantic IDs, and model adapters are follow-up work outside this slice.
+Replay, camera operations, screenshot comparison, video capture, persistent semantic IDs, and
+model adapters are follow-up work outside this slice.

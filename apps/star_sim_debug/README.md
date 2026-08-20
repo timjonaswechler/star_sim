@@ -21,6 +21,14 @@ cargo run -p star_sim_debug -- --mode logical
 
 Both modes use a fixed 640 by 360 session surface. The host keeps the session alive until `quit`, EOF, Ctrl-C, a child failure, or another terminal error. Child logs go to stderr. Human status and observations go to the host's stdout; raw JSONL protocol messages do not.
 
+Start Session Recording with a path relative to the Session artifact root:
+
+```bash
+cargo run -p star_sim_debug -- --mode logical --record recordings/logical.jsonl
+```
+
+Absolute paths, traversal, symbolic-link escapes, and existing files are rejected.
+
 ## REPL commands
 
 ```text
@@ -41,6 +49,9 @@ observe clock
 pause
 resume
 step 3
+record start recordings/manual.jsonl
+record stop
+record start
 status
 help
 quit
@@ -51,6 +62,12 @@ quit
 `click menu.tab.museum` is a Star Sim host macro. The host observes that known menu target, moves to its current bounds, presses and releases the primary pointer button, and waits for the reflected active screen. It does not add a Click command to the child protocol or a generic target registry.
 
 Every Virtual Input transition includes one controlled settle frame so Bevy consumes it. There is no background clock. `pause` prevents bounded wait loops from advancing extra frames; input settle frames and explicit `step FRAMES` still run. `resume` lets bounded waits advance again. A paused unmet wait returns an error instead of changing time.
+
+`record start [PATH]` starts a new JSONL segment while the Controlled Session remains open. Without a
+path, the host creates a collision-free file under `recordings/` in the artifact root. `record stop`
+flushes the segment. Recording can be started and stopped repeatedly; host sequences continue while
+recording is off, and every new segment begins with the current session context. Quit and EOF write a
+completed end event. Fatal errors and child aborts write an aborted end event when recording is active.
 
 After startup and each successful operation, the REPL prints:
 

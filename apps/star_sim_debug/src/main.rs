@@ -1,7 +1,7 @@
 mod controller;
 mod repl;
 
-use automation_control::driver::{RecentLogs, ReportConfig, github};
+use automation_control::driver::{RecentLogs, ReportConfig, github, recording};
 use clap::{Parser, Subcommand, ValueEnum};
 use controller::{ControllerSession, Mode, SurfaceSize};
 use std::{
@@ -28,6 +28,10 @@ struct Cli {
     /// Root for session diagnostics and artifacts.
     #[arg(long, default_value = DEFAULT_ARTIFACT_DIR)]
     artifact_dir: PathBuf,
+
+    /// Start Session Recording at this artifact-root-relative JSONL path.
+    #[arg(long)]
+    record: Option<PathBuf>,
 
     #[command(subcommand)]
     command: Option<CliCommand>,
@@ -71,24 +75,41 @@ fn execute(cli: Cli) -> Result<(), String> {
             artifact_dir,
             create,
         }) => report(artifact_dir, create),
-        None => controlled_repl(cli.mode.into(), cli.artifact_dir),
+        None => controlled_repl(cli.mode.into(), cli.artifact_dir, cli.record),
     }
 }
 
-fn controlled_repl(mode: Mode, artifact_dir: PathBuf) -> Result<(), String> {
+fn controlled_repl(
+    mode: Mode,
+    artifact_dir: PathBuf,
+    record: Option<PathBuf>,
+) -> Result<(), String> {
     let recent_logs = RecentLogs::default();
     let interrupted = Arc::new(AtomicBool::new(false));
     let signal = Arc::clone(&interrupted);
     ctrlc::set_handler(move || signal.store(true, Ordering::SeqCst))
         .map_err(|error| format!("could not install Ctrl-C handler: {error}"))?;
 
-    let result = ControllerSession::start(mode, CANVAS, artifact_dir.clone(), recent_logs.clone())
-        .and_then(|session| repl::run(session, interrupted))
-        .map_err(|error| error.to_string());
+    let diagnostic_record_path = record
+        .as_ref()
+        .and_then(|path| recording::path_below_artifact_root(&artifact_dir, path).ok());
+    let result = ControllerSession::start(
+        mode,
+        CANVAS,
+        artifact_dir.clone(),
+        record,
+        recent_logs.clone(),
+    )
+    .and_then(|session| repl::run(session, interrupted))
+    .map_err(|error| error.to_string());
 
     let cli_error = result.as_ref().err().map(String::as_str);
     if (cli_error.is_some() || recent_logs.failure().is_some())
-        && let Err(error) = recent_logs.persist_failure_artifacts(&artifact_dir, cli_error, None)
+        && let Err(error) = recent_logs.persist_failure_artifacts(
+            &artifact_dir,
+            cli_error,
+            diagnostic_record_path.as_deref(),
+        )
     {
         eprintln!("warning: could not save failure artifacts: {error}");
     }
@@ -123,6 +144,7 @@ mod tests {
         assert_eq!(cli.mode, ModeArgument::Rendered);
         assert!(cli.command.is_none());
         assert_eq!(cli.artifact_dir, PathBuf::from(DEFAULT_ARTIFACT_DIR));
+        assert_eq!(cli.record, None);
     }
 
     #[test]
@@ -131,6 +153,20 @@ mod tests {
         assert_eq!(cli.mode, ModeArgument::Logical);
         assert!(cli.command.is_none());
         assert!(Cli::try_parse_from(["star_sim_debug", "logical"]).is_err());
+    }
+
+    #[test]
+    fn record_is_a_host_option() {
+        let cli = Cli::try_parse_from([
+            "star_sim_debug",
+            "--mode",
+            "logical",
+            "--record",
+            "records/logical.jsonl",
+        ])
+        .unwrap();
+        assert_eq!(cli.record, Some(PathBuf::from("records/logical.jsonl")));
+        assert!(cli.command.is_none());
     }
 
     #[test]

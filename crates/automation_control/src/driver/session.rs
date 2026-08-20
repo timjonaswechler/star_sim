@@ -2,6 +2,10 @@ use super::{
     config::SessionConfig,
     diagnostics::{RecentLogs, stream_stderr},
     launch::LaunchSpec,
+    recording::{
+        self, Controller, Entry as RecordingEntry, Event as RecordingEvent, SessionContext,
+        SessionOutcome,
+    },
 };
 use crate::{
     AUTOMATION_CONTROL_ARTIFACT_DIR, Command, PROTOCOL_VERSION, Ready, Request, Response,
@@ -10,7 +14,6 @@ use crate::{
 use serde_json::Value;
 use std::{
     fmt,
-    fs::{self, File},
     io::{self, BufRead, BufReader, Write},
     path::{Path, PathBuf},
     process::{Child, ChildStdin, ChildStdout, Command as ProcessCommand, Stdio},
@@ -60,6 +63,7 @@ pub struct SessionOptions {
     pub record: Option<PathBuf>,
     pub recent_logs: RecentLogs,
     pub artifact_dir: Option<PathBuf>,
+    pub recording: recording::Options,
 }
 
 impl SessionOptions {
@@ -69,6 +73,7 @@ impl SessionOptions {
             record: None,
             recent_logs: RecentLogs::default(),
             artifact_dir: None,
+            recording: recording::Options::default(),
         }
     }
 
@@ -98,54 +103,21 @@ impl SessionOptions {
         self.artifact_dir = Some(path.into());
         self
     }
-}
 
-struct SessionRecorder {
-    file: File,
-    sequence: u64,
-}
-
-impl SessionRecorder {
-    fn create(path: &Path) -> Result<Self, DriverError> {
-        if let Some(parent) = path
-            .parent()
-            .filter(|parent| !parent.as_os_str().is_empty())
-        {
-            fs::create_dir_all(parent).map_err(|error| {
-                DriverError::Io(format!(
-                    "failed to create recording directory {}: {error}",
-                    parent.display()
-                ))
-            })?;
-        }
-        let file = File::create(path).map_err(|error| {
-            DriverError::Io(format!(
-                "failed to create recording {}: {error}",
-                path.display()
-            ))
-        })?;
-        Ok(Self { file, sequence: 0 })
+    pub fn with_recording_context(
+        mut self,
+        session_id: impl Into<String>,
+        mode: crate::RunMode,
+        configuration: Value,
+    ) -> Self {
+        self.recording.context = SessionContext::new(session_id, mode, configuration);
+        self.recording.context_explicit = true;
+        self
     }
 
-    fn record(&mut self, direction: &str, message: &Value) -> Result<(), DriverError> {
-        serde_json::to_writer(
-            &mut self.file,
-            &serde_json::json!({
-                "sequence": self.sequence,
-                "direction": direction,
-                "message": message,
-            }),
-        )
-        .map_err(|error| {
-            DriverError::Io(format!("failed to serialize session recording: {error}"))
-        })?;
-        writeln!(self.file)
-            .and_then(|_| self.file.flush())
-            .map_err(|error| {
-                DriverError::Io(format!("failed to write session recording: {error}"))
-            })?;
-        self.sequence += 1;
-        Ok(())
+    pub fn with_controller(mut self, controller: Controller) -> Self {
+        self.recording.controller = controller;
+        self
     }
 }
 
@@ -153,7 +125,7 @@ pub struct Session {
     child: Child,
     stdin: Option<ChildStdin>,
     receiver: mpsc::Receiver<Result<Value, String>>,
-    recorder: Option<SessionRecorder>,
+    recording: recording::State,
     stderr_thread: Option<thread::JoinHandle<()>>,
     timeout: Duration,
     next_sequence: u64,
@@ -169,14 +141,11 @@ impl Session {
         mut command: ProcessCommand,
         options: SessionOptions,
     ) -> Result<Self, DriverError> {
-        if let Some(artifact_dir) = options.artifact_dir.as_deref() {
-            command.env(AUTOMATION_CONTROL_ARTIFACT_DIR, artifact_dir);
-        }
-        let recorder = options
-            .record
-            .as_deref()
-            .map(SessionRecorder::create)
-            .transpose()?;
+        let artifact_root = options
+            .artifact_dir
+            .clone()
+            .unwrap_or_else(|| PathBuf::from("artifacts"));
+        command.env(AUTOMATION_CONTROL_ARTIFACT_DIR, &artifact_root);
         #[cfg(unix)]
         command.process_group(0);
         let mut child = command
@@ -204,66 +173,254 @@ impl Session {
                 eprintln!("automation-control: failed to read child stderr: {error}");
             }
         });
-        Ok(Self {
+        let mut session = Self {
             child,
             stdin: Some(stdin),
             receiver,
-            recorder,
+            recording: recording::State {
+                writer: None,
+                context: options.recording.context,
+                context_explicit: options.recording.context_explicit,
+                context_written: false,
+                ready: false,
+                artifact_root,
+                controller: options.recording.controller,
+                host_sequence: 1,
+            },
             stderr_thread: Some(stderr_thread),
             timeout: options.timeout,
             next_sequence: 1,
             clean_shutdown: false,
-        })
+        };
+        if let Some(path) = options.record
+            && let Err(error) = session.start_recording(Some(path))
+        {
+            return Err(error);
+        }
+        Ok(session)
     }
 
     pub fn ready(&mut self) -> Result<Ready, DriverError> {
-        let value = self.receive()?;
-        self.record("from_app", &value)?;
-        let ready: Ready = serde_json::from_value(value)
-            .map_err(|error| DriverError::Protocol(format!("invalid ready message: {error}")))?;
+        let value = match self.receive() {
+            Ok(value) => value,
+            Err(error) => return self.fail("ready_receive_failed", error),
+        };
+        let ready: Ready = match serde_json::from_value(value) {
+            Ok(ready) => ready,
+            Err(error) => {
+                return self.fail(
+                    "ready_parse_failed",
+                    DriverError::Protocol(format!("invalid ready message: {error}")),
+                );
+            }
+        };
         if ready.kind != "ready" || ready.version != PROTOCOL_VERSION {
-            return Err(DriverError::Protocol(format!(
-                "invalid ready message: {ready:?}"
-            )));
+            return self.fail(
+                "ready_version_unsupported",
+                DriverError::Protocol(format!("invalid ready message: {ready:?}")),
+            );
         }
+        if self.recording.context_explicit && ready.mode != self.recording.context.mode {
+            return self.fail(
+                "ready_mode_mismatch",
+                DriverError::Protocol(format!(
+                    "child reported mode {:?}, expected {:?}",
+                    ready.mode, self.recording.context.mode
+                )),
+            );
+        }
+        if !self.recording.context_explicit {
+            self.recording.context.mode = ready.mode;
+            self.recording.context.protocol_version = ready.version;
+        }
+        self.recording.ready = true;
+        self.ensure_recording_started()?;
         Ok(ready)
     }
 
-    /// Sends one command with a host-assigned sequence beginning at one.
+    /// Sends one command with a host-assigned protocol sequence beginning at one.
     pub fn request(&mut self, command: Command) -> Result<Response, DriverError> {
         let sequence = self.next_sequence;
         self.next_sequence = self.next_sequence.saturating_add(1);
+        let observation = match &command {
+            Command::Observe(request) => Some(request.clone()),
+            _ => None,
+        };
+        let action = match recording::command_value(&command) {
+            Ok(action) => action,
+            Err(error) => {
+                return self.fail(
+                    "request_action_serialize_failed",
+                    map_recording_error(error),
+                );
+            }
+        };
+        self.write_recording_event(RecordingEvent::ControllerAction {
+            controller: self.recording.controller.clone(),
+            action,
+        })?;
         let request = Request { sequence, command };
-        let request_value = serde_json::to_value(&request).map_err(|error| {
-            DriverError::Protocol(format!("failed to serialize request {sequence}: {error}"))
-        })?;
-        self.record("to_app", &request_value)?;
-        let serialized = serde_json::to_string(&request).map_err(|error| {
-            DriverError::Protocol(format!("failed to serialize request {sequence}: {error}"))
-        })?;
-        let stdin = self
+        let serialized = match serde_json::to_string(&request) {
+            Ok(serialized) => serialized,
+            Err(error) => {
+                return self.fail(
+                    "request_serialize_failed",
+                    DriverError::Protocol(format!(
+                        "failed to serialize request {sequence}: {error}"
+                    )),
+                );
+            }
+        };
+        let send_result = self
             .stdin
             .as_mut()
-            .ok_or_else(|| DriverError::Io("child stdin is closed".into()))?;
-        writeln!(stdin, "{serialized}")
-            .and_then(|_| stdin.flush())
-            .map_err(|error| {
-                DriverError::Io(format!("failed to send sequence {sequence}: {error}"))
-            })?;
-        let response_value = self.receive()?;
-        self.record("from_app", &response_value)?;
-        let response: Response = serde_json::from_value(response_value).map_err(|error| {
-            DriverError::Protocol(format!("invalid response for sequence {sequence}: {error}"))
-        })?;
-        if response.sequence != sequence {
-            return Err(DriverError::Protocol(format!(
-                "expected response sequence {sequence}, got {response:?}"
-            )));
+            .ok_or_else(|| DriverError::Io("child stdin is closed".into()))
+            .and_then(|stdin| {
+                writeln!(stdin, "{serialized}")
+                    .and_then(|_| stdin.flush())
+                    .map_err(|error| {
+                        DriverError::Io(format!("failed to send sequence {sequence}: {error}"))
+                    })
+            });
+        if let Err(error) = send_result {
+            return self.fail("request_send_failed", error);
         }
-        if response.status != ResponseStatus::Completed {
+        let response_value = match self.receive() {
+            Ok(value) => value,
+            Err(error) => return self.fail("response_receive_failed", error),
+        };
+        let response: Response = match serde_json::from_value(response_value) {
+            Ok(response) => response,
+            Err(error) => {
+                return self.fail(
+                    "response_parse_failed",
+                    DriverError::Protocol(format!(
+                        "invalid response for sequence {sequence}: {error}"
+                    )),
+                );
+            }
+        };
+        if response.sequence != sequence {
+            return self.fail(
+                "response_sequence_mismatch",
+                DriverError::Protocol(format!(
+                    "expected response sequence {sequence}, got {response:?}"
+                )),
+            );
+        }
+        if response.status == ResponseStatus::Completed
+            && (response.result.is_none() || response.error.is_some())
+        {
+            return self.fail(
+                "response_payload_invalid",
+                DriverError::Protocol(format!(
+                    "completed response for sequence {sequence} must contain result and no error"
+                )),
+            );
+        }
+        if response.status == ResponseStatus::Error && response.error.is_none() {
+            return self.fail(
+                "response_payload_invalid",
+                DriverError::Protocol(format!(
+                    "error response for sequence {sequence} must contain error"
+                )),
+            );
+        }
+
+        if response.status == ResponseStatus::Completed {
+            if let (Some(request), Some(result)) = (observation, response.result.clone()) {
+                self.write_recording_event(RecordingEvent::Observation {
+                    request_sequence: sequence,
+                    request,
+                    result,
+                })?;
+            } else {
+                self.write_game_response(sequence, &response)?;
+            }
+        } else {
+            self.write_game_response(sequence, &response)?;
+            if let Some(error) = &response.error {
+                self.write_recording_event(RecordingEvent::Error {
+                    kind: error.code.clone(),
+                    message: error.message.clone(),
+                })?;
+            }
             return Err(DriverError::RequestFailed(response));
         }
         Ok(response)
+    }
+
+    /// Replaces the context written at the start of the next recording segment.
+    pub fn configure_recording(&mut self, configuration: Value) -> Result<(), DriverError> {
+        if self.recording.writer.is_some() {
+            return Err(DriverError::Io(
+                "cannot change recording context while recording is active".into(),
+            ));
+        }
+        self.recording.context.configuration = configuration;
+        Ok(())
+    }
+
+    /// Starts a recording segment below the configured artifact root.
+    ///
+    /// A missing path allocates a collision-free `recordings/session-*.jsonl` path.
+    pub fn start_recording(&mut self, path: Option<PathBuf>) -> Result<PathBuf, DriverError> {
+        if self.recording.writer.is_some() {
+            return Err(DriverError::Io(
+                "session recording is already active".into(),
+            ));
+        }
+        let writer = recording::Writer::create(&self.recording.artifact_root, path.as_deref())
+            .map_err(map_recording_error)?;
+        let path = writer.path().to_path_buf();
+        self.recording.writer = Some(writer);
+        self.recording.context_written = false;
+        if self.recording.context_explicit || self.recording.ready {
+            if let Err(error) = self.ensure_recording_started() {
+                self.recording.writer = None;
+                return Err(error);
+            }
+        }
+        Ok(path)
+    }
+
+    /// Flushes the active segment with a terminal recording marker.
+    pub fn stop_recording(&mut self) -> Result<PathBuf, DriverError> {
+        let path = self
+            .recording
+            .writer
+            .as_ref()
+            .map(|writer| writer.path().to_path_buf())
+            .ok_or_else(|| DriverError::Io("session recording is not active".into()))?;
+        self.ensure_recording_started()?;
+        self.write_recording_event(RecordingEvent::RecordingStopped)?;
+        self.recording.writer = None;
+        self.recording.context_written = false;
+        Ok(path)
+    }
+
+    pub fn active_recording_path(&self) -> Option<&Path> {
+        self.recording.writer.as_ref().map(recording::Writer::path)
+    }
+
+    /// Records a source-neutral host action such as pause or resume.
+    pub fn capture_controller_action(&mut self, action: Value) -> Result<(), DriverError> {
+        self.write_recording_event(RecordingEvent::ControllerAction {
+            controller: self.recording.controller.clone(),
+            action,
+        })
+    }
+
+    /// Records a bounded, sanitized host or session error without attaching child stderr.
+    pub fn capture_error(
+        &mut self,
+        kind: impl Into<String>,
+        message: impl Into<String>,
+    ) -> Result<(), DriverError> {
+        self.write_recording_event(RecordingEvent::Error {
+            kind: kind.into(),
+            message: message.into(),
+        })
     }
 
     /// Repeats an observation and advances one controlled frame after each miss.
@@ -304,15 +461,13 @@ impl Session {
 
     /// Checks that the child is still running without exposing its process status to Controllers.
     pub fn ensure_running(&mut self) -> Result<(), DriverError> {
-        match self
-            .child
-            .try_wait()
-            .map_err(|error| DriverError::Child(error.to_string()))?
-        {
-            None => Ok(()),
-            Some(status) => Err(DriverError::Child(format!(
-                "child exited unexpectedly with {status}"
-            ))),
+        match self.child.try_wait() {
+            Ok(None) => Ok(()),
+            Ok(Some(status)) => self.fail(
+                "child_aborted",
+                DriverError::Child(format!("child exited unexpectedly with {status}")),
+            ),
+            Err(error) => self.fail("child_status_failed", DriverError::Child(error.to_string())),
         }
     }
 
@@ -321,22 +476,35 @@ impl Session {
         self.stdin.take();
         let deadline = Instant::now() + self.timeout;
         loop {
-            if let Some(status) = self
-                .child
-                .try_wait()
-                .map_err(|error| DriverError::Child(error.to_string()))?
-            {
+            let status = match self.child.try_wait() {
+                Ok(status) => status,
+                Err(error) => {
+                    return self.fail(
+                        "shutdown_status_failed",
+                        DriverError::Child(error.to_string()),
+                    );
+                }
+            };
+            if let Some(status) = status {
                 if status.success() {
+                    self.write_recording_event(RecordingEvent::SessionEnded {
+                        outcome: SessionOutcome::Completed,
+                    })?;
+                    self.recording.writer = None;
+                    self.recording.context_written = false;
                     self.clean_shutdown = true;
                     return Ok(());
                 }
-                return Err(DriverError::Child(format!("child exited {status}")));
+                return self.fail(
+                    "shutdown_child_failed",
+                    DriverError::Child(format!("child exited {status}")),
+                );
             }
             if Instant::now() >= deadline {
+                let error = DriverError::Timeout("child did not exit after shutdown".into());
+                self.capture_driver_failure("shutdown_timeout", &error);
                 terminate_child(&mut self.child);
-                return Err(DriverError::Timeout(
-                    "child did not exit after shutdown".into(),
-                ));
+                return Err(error);
             }
             thread::sleep(Duration::from_millis(10));
         }
@@ -356,16 +524,94 @@ impl Session {
             .map_err(DriverError::Protocol)
     }
 
-    fn record(&mut self, direction: &str, message: &Value) -> Result<(), DriverError> {
-        if let Some(recorder) = &mut self.recorder {
-            recorder.record(direction, message)?;
+    fn write_game_response(
+        &mut self,
+        request_sequence: u64,
+        response: &Response,
+    ) -> Result<(), DriverError> {
+        self.write_recording_event(RecordingEvent::GameResponse {
+            request_sequence,
+            status: response.status,
+            result: response.result.clone(),
+            error: response.error.clone(),
+        })?;
+        if let Some(result) = response.result.as_ref()
+            && let Some(artifact) = recording::ArtifactReference::from_result(result)
+        {
+            self.write_recording_event(RecordingEvent::Artifact {
+                request_sequence,
+                artifact,
+            })?;
+        }
+        Ok(())
+    }
+
+    fn fail<T>(&mut self, kind: &str, error: DriverError) -> Result<T, DriverError> {
+        self.capture_driver_failure(kind, &error);
+        Err(error)
+    }
+
+    fn capture_driver_failure(&mut self, kind: &str, error: &DriverError) {
+        let _ = self.write_recording_event(RecordingEvent::Error {
+            kind: kind.into(),
+            message: error.to_string(),
+        });
+    }
+
+    fn ensure_recording_started(&mut self) -> Result<(), DriverError> {
+        if self.recording.writer.is_none() || self.recording.context_written {
+            return Ok(());
+        }
+        let context = self.recording.context.clone();
+        self.write_entry(RecordingEvent::SessionStarted { context })?;
+        self.recording.context_written = true;
+        Ok(())
+    }
+
+    fn write_recording_event(&mut self, event: RecordingEvent) -> Result<(), DriverError> {
+        if !matches!(event, RecordingEvent::SessionStarted { .. }) {
+            self.ensure_recording_started()?;
+        }
+        self.write_entry(event)
+    }
+
+    fn write_entry(&mut self, event: RecordingEvent) -> Result<(), DriverError> {
+        let next_sequence = self
+            .recording
+            .host_sequence
+            .checked_add(1)
+            .ok_or_else(|| DriverError::Io("recording host sequence is exhausted".into()))?;
+        let entry = RecordingEntry {
+            version: recording::FORMAT_VERSION,
+            sequence: self.recording.host_sequence,
+            event: recording::sanitize_event(event),
+        };
+        self.recording.host_sequence = next_sequence;
+        if let Some(writer) = &mut self.recording.writer {
+            writer.write(&entry).map_err(map_recording_error)?;
         }
         Ok(())
     }
 }
 
+fn map_recording_error(error: recording::Error) -> DriverError {
+    DriverError::Io(error.to_string())
+}
+
 impl Drop for Session {
     fn drop(&mut self) {
+        if !self.clean_shutdown && self.recording.writer.is_some() {
+            let _ = self.ensure_recording_started();
+            let _ = self.write_recording_event(RecordingEvent::Error {
+                kind: "session_aborted".into(),
+                message: "Controlled Session ended without a clean shutdown".into(),
+            });
+            let _ = self.write_recording_event(RecordingEvent::SessionEnded {
+                outcome: SessionOutcome::Aborted,
+            });
+            self.recording.writer = None;
+            self.recording.context_written = false;
+        }
         self.stdin.take();
         if self.child.try_wait().ok().flatten().is_none() {
             terminate_child(&mut self.child);
@@ -417,32 +663,7 @@ fn json_reader(stdout: ChildStdout) -> mpsc::Receiver<Result<Value, String>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Command, RunMode};
     use std::process::Command as ProcessCommand;
-
-    #[test]
-    fn records_driver_sequences_starting_at_one_without_request_ids() {
-        let record = std::env::temp_dir().join(format!(
-            "automation-control-session-{}.jsonl",
-            std::process::id()
-        ));
-        let mut command = ProcessCommand::new("sh");
-        command.args([
-            "-c",
-            "printf '%s\\n' '{\"type\":\"ready\",\"version\":2,\"mode\":\"logical\",\"controls\":[\"pointer\"],\"observation_scopes\":[\"targets\"]}'; while read line; do printf '%s\\n' '{\"sequence\":1,\"status\":\"completed\",\"result\":{}}'; exit 0; done",
-        ]);
-        let mut session = Session::spawn_command(
-            command,
-            SessionOptions::new(Duration::from_secs(2)).with_record(Some(record.clone())),
-        )
-        .unwrap();
-        assert_eq!(session.ready().unwrap().mode, RunMode::Logical);
-        session.request(Command::Shutdown).unwrap();
-        let data = fs::read_to_string(&record).unwrap();
-        assert!(data.contains("\"sequence\":1"));
-        assert!(!data.contains("\"id\""));
-        fs::remove_file(record).ok();
-    }
 
     #[test]
     fn reports_a_child_that_exits_while_the_host_is_idle() {

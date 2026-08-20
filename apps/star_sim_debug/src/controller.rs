@@ -2,7 +2,7 @@ use automation_control::{
     Command as WireCommand, Handle, RunMode,
     driver::{
         DriverError, LaunchSpec, LaunchTargetKind, RecentLogs, Session as DriverSession,
-        SessionOptions,
+        SessionOptions, recording::Controller,
     },
     keyboard::{Command as KeyboardCommand, Key},
     observation::{Projection, Request as ObservationRequest, Selector},
@@ -86,6 +86,14 @@ impl SurfaceSize {
         }
         Ok([x * self.width, y * self.height])
     }
+}
+
+fn session_configuration(mode: Mode, surface: SurfaceSize, paused: bool) -> Value {
+    json!({
+        "mode": mode.as_str(),
+        "surface": {"width": surface.width, "height": surface.height},
+        "paused": paused,
+    })
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -287,12 +295,20 @@ impl ControllerSession {
         mode: Mode,
         surface: SurfaceSize,
         artifact_dir: PathBuf,
+        record: Option<PathBuf>,
         recent_logs: RecentLogs,
     ) -> Result<Self, ControllerError> {
         let launch = ControlledApp::launch(mode);
         let options = SessionOptions::new(Duration::from_secs(180))
             .with_recent_logs(recent_logs)
-            .with_artifact_dir(artifact_dir);
+            .with_artifact_dir(artifact_dir)
+            .with_record(record)
+            .with_recording_context(
+                "alpha",
+                mode.wire(),
+                session_configuration(mode, surface, false),
+            )
+            .with_controller(Controller::new("repl"));
         let mut driver = DriverSession::spawn(&launch, options).map_err(map_driver_error)?;
         let ready = driver.ready().map_err(map_driver_error)?;
         if ready.mode != mode.wire() {
@@ -432,14 +448,87 @@ impl ControllerSession {
         })
     }
 
-    pub(crate) fn pause(&mut self) {
+    pub(crate) fn pause(&mut self) -> Result<(), ControllerError> {
+        self.driver_mut()?
+            .capture_controller_action(json!({"type": "pause"}))
+            .map_err(map_driver_error)?;
         self.paused = true;
         self.last_action = "pause".into();
+        Ok(())
     }
 
-    pub(crate) fn resume(&mut self) {
+    pub(crate) fn resume(&mut self) -> Result<(), ControllerError> {
+        self.driver_mut()?
+            .capture_controller_action(json!({"type": "resume"}))
+            .map_err(map_driver_error)?;
         self.paused = false;
         self.last_action = "resume".into();
+        Ok(())
+    }
+
+    pub(crate) fn start_recording(
+        &mut self,
+        path: Option<PathBuf>,
+    ) -> Result<PathBuf, ControllerError> {
+        let configuration = session_configuration(self.mode, self.surface, self.paused);
+        let driver = self.driver_mut()?;
+        driver
+            .configure_recording(configuration)
+            .map_err(map_driver_error)?;
+        driver.start_recording(path).map_err(map_driver_error)
+    }
+
+    pub(crate) fn stop_recording(&mut self) -> Result<PathBuf, ControllerError> {
+        self.driver_mut()?
+            .stop_recording()
+            .map_err(map_driver_error)
+    }
+
+    pub(crate) fn capture_invalid_command(&mut self) {
+        if let Some(driver) = &mut self.driver {
+            let _ = driver.capture_error(
+                "invalid_controller_command",
+                "Controller command was invalid",
+            );
+        }
+    }
+
+    pub(crate) fn capture_operation_error(&mut self, error: &ControllerError) {
+        let (kind, message) = match error {
+            ControllerError::Launch(_) => {
+                ("session_launch_failed", "Controlled Session launch failed")
+            }
+            ControllerError::Communication(_) => (
+                "session_communication_failed",
+                "Controlled Session communication failed",
+            ),
+            ControllerError::Child(_) => (
+                "session_child_ended",
+                "Controlled Session child ended unexpectedly",
+            ),
+            ControllerError::Request { .. } => (
+                "session_request_failed",
+                "Controlled Session request failed",
+            ),
+            ControllerError::Invalid(_) => {
+                ("invalid_controller_action", "Controller action was invalid")
+            }
+            ControllerError::PausedWait => (
+                "paused_wait",
+                "Observation wait was blocked while the session was paused",
+            ),
+            ControllerError::WaitLimitReached { .. } => (
+                "wait_limit_reached",
+                "Observation wait reached its frame limit",
+            ),
+            ControllerError::Shutdown => (
+                "session_shutdown",
+                "Controlled Session was already shut down",
+            ),
+        };
+        if let Some(driver) = &mut self.driver {
+            let _ = driver.capture_error(kind, message);
+        }
     }
 
     pub(crate) fn step(&mut self, frames: u64) -> Result<(), ControllerError> {
@@ -666,9 +755,8 @@ fn map_driver_error(error: DriverError) -> ControllerError {
         DriverError::Timeout(_) => {
             ControllerError::Communication("child did not respond before the timeout".into())
         }
-        DriverError::Io(_) | DriverError::Protocol(_) => {
-            ControllerError::Communication("the child transport was invalid".into())
-        }
+        DriverError::Io(message) => ControllerError::Communication(message),
+        DriverError::Protocol(message) => ControllerError::Communication(message),
         DriverError::WaitLimitReached { frame_limit, .. } => ControllerError::WaitLimitReached {
             frames: frame_limit,
         },
@@ -748,7 +836,7 @@ mod tests {
             r#"printf '%s\n' '{"type":"ready","version":2,"mode":"logical","controls":["time"],"observation_scopes":["clock"]}'; read line; printf '%s\n' '{"sequence":1,"status":"completed","result":{"items":[{"ready":false}]}}'; sleep 1"#,
         );
         let mut session = ControllerSession::from_driver(driver, Mode::Logical);
-        session.pause();
+        session.pause().unwrap();
         let error = session
             .wait_for(Observation::Clock, 4, |value| {
                 value["items"][0]["ready"] == true
