@@ -127,12 +127,14 @@ session.shutdown()?;
 timeouts, stderr streaming, and optional ordered recording. `LaunchSpec` can start Cargo binaries
 or examples. Diagnostics and report helpers remain available to host tools.
 
-## Dummy app smoke test
+## Bevy application smoke test
 
-The `bevy_context_menu` package is a context-menu application. Without features it runs as a Player
+The `bevy_test_apps` package contains the `context_menu` binary. Without features it runs as a Player
 Run. With `automation`, it disables `InputPlugin` and the native gamepad producer, enables the
 Controlled Session plugin, marks the background, buttons, menu items, and editable text target, and
-exposes reflected pointer, keyboard, and text state.
+exposes reflected pointer, keyboard, and text state. Package structure, run commands, target naming,
+reflection conventions, and the adapted Bevy example's provenance are documented in
+[`bevy_test_apps/README.md`](bevy_test_apps/README.md).
 
 ```bash
 cargo run -p automation_control --example bevy_controller --features driver

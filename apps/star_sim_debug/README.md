@@ -7,8 +7,9 @@ follow-up work tracked under #49.
 
 ## Controlled-session probe
 
-The checked-in configuration launches `bevy_example` with its `automation` feature. The feature
-selects the Controlled Session composition internally; there is no public `--automation` argument.
+The checked-in configuration launches the `context_menu` binary from `bevy_test_apps` with its
+`automation` feature. The feature selects the Controlled Session composition internally; there is no
+public `--automation` argument.
 
 ```bash
 cargo run -q -p star_sim_debug -- rendered

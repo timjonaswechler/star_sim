@@ -1,9 +1,9 @@
 version = 1
 
 [application]
-package = "bevy_example"
+package = "bevy_test_apps"
 kind = "binary"
-target = "bevy_example"
+target = "context_menu"
 features = ["automation"]
 arguments = []
 

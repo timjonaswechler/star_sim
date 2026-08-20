@@ -1,15 +1,17 @@
+//! Adapted from Bevy's `examples/usage/context_menu.rs`; see the package README for provenance.
+
 use bevy::{
     color::palettes::basic,
     ecs::{relationship::RelatedSpawner, spawn::SpawnWith},
     prelude::*,
     text::{EditableText, TextCursorStyle},
+    window::WindowResolution,
 };
+use bevy_test_apps::add_run_plugins;
 use std::fmt::Debug;
 
 #[cfg(feature = "automation")]
-use automation_control::{AutomationControlPlugin, AutomationTarget};
-#[cfg(feature = "automation")]
-use bevy::window::WindowResolution;
+use automation_control::AutomationTarget;
 
 /// Event opening a new context menu at a pointer position.
 #[derive(Event)]
@@ -49,31 +51,16 @@ struct SessionState {
 }
 
 fn main() {
-    let mut binding = App::new();
-
-    #[cfg(feature = "automation")]
-    let app = binding
-        .add_plugins(
-            DefaultPlugins
-                .set(WindowPlugin {
-                    primary_window: Some(Window {
-                        title: "Controlled screenshot test".into(),
-                        resolution: WindowResolution::new(640, 360).with_scale_factor_override(1.0),
-                        resizable: false,
-                        ..default()
-                    }),
-                    ..default()
-                })
-                .build()
-                .disable::<bevy::input::InputPlugin>()
-                .disable::<bevy::gilrs::GilrsPlugin>(),
-        )
-        .add_plugins((
-            AutomationControlPlugin::stdio(),
-            automation_control::screenshot::Plugin::default(),
-        ));
-    #[cfg(not(feature = "automation"))]
-    let app = binding.add_plugins(DefaultPlugins);
+    let mut app = App::new();
+    add_run_plugins(
+        &mut app,
+        Window {
+            title: "Controlled context menu test".into(),
+            resolution: WindowResolution::new(640, 360).with_scale_factor_override(1.0),
+            resizable: false,
+            ..default()
+        },
+    );
 
     app.register_type::<SessionState>()
         .add_systems(Startup, setup)
@@ -168,7 +155,7 @@ fn on_trigger_menu(
     let pos = event.pos;
     commands
         .spawn((
-            Name::new("context menu"),
+            Name::new("context-menu"),
             ContextMenu,
             Node {
                 position_type: PositionType::Absolute,

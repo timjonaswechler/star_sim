@@ -38,9 +38,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 fn run(options: Options) -> Result<(), Box<dyn std::error::Error>> {
     let launch = LaunchSpec {
-        package: "bevy_context_menu".into(),
+        package: "bevy_test_apps".into(),
         kind: LaunchTargetKind::Binary,
-        target: "bevy_context_menu".into(),
+        target: "context_menu".into(),
         features: vec!["automation".into()],
         arguments: vec![],
     };
@@ -109,10 +109,11 @@ fn run(options: Options) -> Result<(), Box<dyn std::error::Error>> {
     let state = session.request(Command::Observe(ObservationRequest::new(
         Selector::Entity(background_handle),
         Projection::Components {
-            type_paths: vec!["bevy_context_menu::SessionState".into()],
+            type_paths: vec!["context_menu::SessionState".into()],
         },
     )))?;
-    let value = &state.result.as_ref().unwrap()["items"][0]["components"]["bevy_context_menu::SessionState"];
+    let value =
+        &state.result.as_ref().unwrap()["items"][0]["components"]["context_menu::SessionState"];
     assert_eq!(value["status"], "available");
     assert_eq!(value["value"]["menu_open"], false);
     assert_eq!(value["value"]["selected_item"], "fuchsia");
@@ -328,11 +329,11 @@ fn observe_session_state(
     let response = session.request(Command::Observe(ObservationRequest::new(
         Selector::Entity(background),
         Projection::Components {
-            type_paths: vec!["bevy_context_menu::SessionState".into()],
+            type_paths: vec!["context_menu::SessionState".into()],
         },
     )))?;
     Ok(response.result.ok_or("state observation has no result")?["items"][0]["components"]
-        ["bevy_context_menu::SessionState"]["value"]
+        ["context_menu::SessionState"]["value"]
         .clone())
 }
 

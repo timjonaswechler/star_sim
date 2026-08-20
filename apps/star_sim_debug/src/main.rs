@@ -64,8 +64,8 @@ mod tests {
     #[test]
     fn checked_in_configuration_loads_and_points_at_the_application_target() {
         let config = Config::load(default_config_path()).unwrap();
-        assert_eq!(config.application.package, "bevy_example");
-        assert_eq!(config.application.target, "bevy_example");
+        assert_eq!(config.application.package, "bevy_test_apps");
+        assert_eq!(config.application.target, "context_menu");
         assert_eq!(config.application.features, ["automation"]);
         assert_eq!(
             config.report.generated_by.as_deref(),

@@ -675,14 +675,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "bevy_context_menu"
-version = "0.1.0"
-dependencies = [
- "automation_control",
- "bevy",
-]
-
-[[package]]
 name = "bevy_core_pipeline"
 version = "0.19.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1634,6 +1626,14 @@ dependencies = [
  "futures-lite",
  "heapless",
  "web-task",
+]
+
+[[package]]
+name = "bevy_test_apps"
+version = "0.1.0"
+dependencies = [
+ "automation_control",
+ "bevy",
 ]
 
 [[package]]
