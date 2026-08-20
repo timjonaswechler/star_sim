@@ -4,8 +4,8 @@ use std::{env, process::Command};
 #[derive(Clone, Debug, Default, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum LaunchTargetKind {
-    Binary,
     #[default]
+    Binary,
     Example,
 }
 
@@ -80,12 +80,32 @@ mod tests {
     }
 
     #[test]
-    fn binary_is_a_supported_launch_target() {
+    fn omitted_kind_deserializes_to_a_binary_launch() {
+        let spec: LaunchSpec = toml::from_str(
+            r#"
+            package = "app"
+            target = "app"
+            "#,
+        )
+        .unwrap();
+        assert_eq!(spec.kind, LaunchTargetKind::Binary);
+
+        let args: Vec<_> = spec
+            .command()
+            .get_args()
+            .map(|value| value.to_string_lossy().into_owned())
+            .collect();
+        assert!(args.windows(2).any(|values| values == ["--bin", "app"]));
+        assert!(!args.iter().any(|value| value == "--example"));
+    }
+
+    #[test]
+    fn explicit_example_is_a_supported_launch_target() {
         let spec = LaunchSpec {
-            package: "app".into(),
-            kind: LaunchTargetKind::Binary,
-            target: "app".into(),
-            features: vec![],
+            package: "automation_control".into(),
+            kind: LaunchTargetKind::Example,
+            target: "bevy_controller".into(),
+            features: vec!["driver".into()],
             arguments: vec![],
         };
         let args: Vec<_> = spec
@@ -93,6 +113,9 @@ mod tests {
             .get_args()
             .map(|value| value.to_string_lossy().into_owned())
             .collect();
-        assert!(args.windows(2).any(|values| values == ["--bin", "app"]));
+        assert!(
+            args.windows(2)
+                .any(|values| values == ["--example", "bevy_controller"])
+        );
     }
 }
