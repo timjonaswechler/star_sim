@@ -22,6 +22,10 @@ name = "bevy_controller"
 required-features = ["driver"]
 
 [[example]]
+name = "picking_controller"
+required-features = ["driver"]
+
+[[example]]
 name = "blend_modes_controller"
 required-features = ["driver"]
 

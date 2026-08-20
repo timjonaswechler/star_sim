@@ -21,3 +21,7 @@ path = "src/bin/context_menu.rs"
 [[bin]]
 name = "blend_modes"
 path = "src/bin/blend_modes.rs"
+
+[[bin]]
+name = "mesh_picking"
+path = "src/bin/mesh_picking.rs"

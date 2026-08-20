@@ -36,6 +36,20 @@ The rendered controller checks held arrow keys, controlled time, separate mode-k
 cargo run -p automation_control --example blend_modes_controller --features driver
 ```
 
+## Mesh picking
+
+Run the 3D picking scene with native pointer input:
+
+```bash
+cargo run -p bevy_test_apps --bin mesh_picking
+```
+
+The rendered controller drives the same binary through Virtual Input and controlled time. It checks mesh hover, press, release, drag, reflected transforms and interaction state, deterministic rotation, and screenshots:
+
+```bash
+cargo run -p automation_control --example picking_controller --features driver
+```
+
 ## Application conventions
 
 - Put application systems, components, and semantic test state in the binary that owns them. Shared code is limited to run composition.
@@ -49,4 +63,6 @@ cargo run -p automation_control --example blend_modes_controller --features driv
 
 `blend_modes` adapts Bevy 0.19.1's [`examples/3d/blend_modes.rs`](https://github.com/bevyengine/bevy/blob/v0.19.1/examples/3d/blend_modes.rs). Stable targets, reflected state, deterministic colors, fixed window dimensions, and Controlled Session integration are Star Sim changes.
 
-Bevy distributes both examples under either the MIT License or Apache License 2.0, as recorded in Bevy's [repository license files](https://github.com/bevyengine/bevy/tree/v0.19.1#license).
+`mesh_picking` adapts Bevy 0.19.1's [`examples/picking/mesh_picking.rs`](https://github.com/bevyengine/bevy/blob/v0.19.1/examples/picking/mesh_picking.rs). Star Sim reduces the scene to three stable targets and adds Controlled Session input, deterministic rotation checks, reflected interaction state, and screenshot assertions.
+
+Bevy distributes all three examples under either the MIT License or Apache License 2.0, as recorded in Bevy's [repository license files](https://github.com/bevyengine/bevy/tree/v0.19.1#license).
