@@ -1,5 +1,5 @@
 use automation_control::{
-    Command as WireCommand, RunMode,
+    Command as WireCommand, Handle, RunMode,
     driver::{
         DriverError, LaunchSpec, LaunchTargetKind, RecentLogs, Session as DriverSession,
         SessionOptions,
@@ -13,12 +13,23 @@ use automation_control::{
 use serde_json::{Value, json};
 use std::{fmt, path::PathBuf, time::Duration};
 
-const APP_PACKAGE: &str = "app";
-const APP_TARGET: &str = "app";
-const APP_FEATURE: &str = "automation-control";
-const SESSION_OBSERVATION_TYPE: &str = "app::menu::SessionObservation";
-const SETTLE_STEP_NANOSECONDS: u64 = 16_666_667;
-const CLICK_WAIT_FRAMES: u64 = 8;
+const REFLECTED_COMPONENT: &str = "app::menu::SessionObservation";
+const FRAME_NANOSECONDS: u64 = 16_666_667;
+const TARGET_WAIT_FRAMES: u64 = 8;
+
+struct ControlledApp;
+
+impl ControlledApp {
+    fn launch(mode: Mode) -> LaunchSpec {
+        LaunchSpec {
+            package: "app".into(),
+            kind: LaunchTargetKind::Binary,
+            target: "app".into(),
+            features: vec!["automation-control".into()],
+            arguments: vec!["--controlled-mode".into(), mode.as_str().into()],
+        }
+    }
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum Mode {
@@ -55,7 +66,7 @@ pub(crate) struct SurfaceSize {
 }
 
 impl SurfaceSize {
-    pub(crate) fn new(width: u32, height: u32) -> Self {
+    pub(crate) const fn new(width: u32, height: u32) -> Self {
         Self {
             width: width as f32,
             height: height as f32,
@@ -64,12 +75,12 @@ impl SurfaceSize {
 
     fn position(self, x: f32, y: f32) -> Result<[f32; 2], ControllerError> {
         if !x.is_finite() || !y.is_finite() {
-            return Err(ControllerError::InvalidAction(
+            return Err(ControllerError::Invalid(
                 "pointer coordinates must be finite".into(),
             ));
         }
         if !(0.0..1.0).contains(&x) || !(0.0..1.0).contains(&y) {
-            return Err(ControllerError::InvalidAction(
+            return Err(ControllerError::Invalid(
                 "pointer coordinates must be normalized values in [0, 1)".into(),
             ));
         }
@@ -78,13 +89,27 @@ impl SurfaceSize {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum PointerButton {
+pub(crate) enum Button {
     Left,
     Right,
     Middle,
 }
 
-impl PointerButton {
+impl Button {
+    pub(crate) fn from_name(value: &str) -> Result<Self, String> {
+        if value.eq_ignore_ascii_case("left") {
+            Ok(Self::Left)
+        } else if value.eq_ignore_ascii_case("right") {
+            Ok(Self::Right)
+        } else if value.eq_ignore_ascii_case("middle") {
+            Ok(Self::Middle)
+        } else {
+            Err(format!(
+                "unsupported pointer button {value:?}; expected left, right, or middle"
+            ))
+        }
+    }
+
     const fn wire(self) -> WireButton {
         match self {
             Self::Left => WireButton::Primary,
@@ -103,27 +128,53 @@ impl PointerButton {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) enum Action {
-    PointerMove { x: f32, y: f32 },
-    PointerPress(PointerButton),
-    PointerRelease(PointerButton),
-    PointerClick(PointerButton),
+pub(crate) enum PointerAction {
+    Move { x: f32, y: f32 },
+    Press(Button),
+    Release(Button),
+    Click(Button),
     Scroll { x: f32, y: f32 },
-    KeyPress(String),
-    KeyRelease(String),
+}
+
+impl PointerAction {
+    fn description(&self) -> String {
+        match self {
+            Self::Move { x, y } => format!("pointer move {x} {y}"),
+            Self::Press(button) => format!("pointer press {}", button.as_str()),
+            Self::Release(button) => format!("pointer release {}", button.as_str()),
+            Self::Click(button) => format!("pointer click {}", button.as_str()),
+            Self::Scroll { x, y } => format!("scroll {x} {y}"),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum KeyboardAction {
+    Press(String),
+    Release(String),
+}
+
+impl KeyboardAction {
+    fn description(&self) -> String {
+        match self {
+            Self::Press(key) => format!("key {key} press"),
+            Self::Release(key) => format!("key {key} release"),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) enum Action {
+    Pointer(PointerAction),
+    Keyboard(KeyboardAction),
     Text(String),
 }
 
 impl Action {
     fn description(&self) -> String {
         match self {
-            Self::PointerMove { x, y } => format!("pointer move {x} {y}"),
-            Self::PointerPress(button) => format!("pointer press {}", button.as_str()),
-            Self::PointerRelease(button) => format!("pointer release {}", button.as_str()),
-            Self::PointerClick(button) => format!("pointer click {}", button.as_str()),
-            Self::Scroll { x, y } => format!("scroll {x} {y}"),
-            Self::KeyPress(key) => format!("key {key} press"),
-            Self::KeyRelease(key) => format!("key {key} release"),
+            Self::Pointer(action) => action.description(),
+            Self::Keyboard(action) => action.description(),
             Self::Text(text) => format!("text {text}"),
         }
     }
@@ -140,6 +191,17 @@ pub(crate) enum Observation {
 }
 
 impl Observation {
+    pub(crate) fn from_name(value: &str) -> Option<Self> {
+        match value {
+            "targets" => Some(Self::Targets),
+            "ui" => Some(Self::Ui),
+            "pointers" => Some(Self::Pointers),
+            "input" => Some(Self::VirtualInput),
+            "clock" => Some(Self::Clock),
+            _ => None,
+        }
+    }
+
     pub(crate) const fn as_str(self) -> &'static str {
         match self {
             Self::Targets => "targets",
@@ -167,8 +229,7 @@ pub(crate) enum ControllerError {
     Communication(String),
     Child(String),
     Request { code: String, message: String },
-    InvalidAction(String),
-    InvalidObservation(String),
+    Invalid(String),
     PausedWait,
     WaitLimitReached { frames: u64 },
     Shutdown,
@@ -186,9 +247,7 @@ impl fmt::Display for ControllerError {
             ),
             Self::Child(message) => write!(formatter, "Controlled Session ended: {message}"),
             Self::Request { code, message } => write!(formatter, "{code}: {message}"),
-            Self::InvalidAction(message) | Self::InvalidObservation(message) => {
-                formatter.write_str(message)
-            }
+            Self::Invalid(message) => formatter.write_str(message),
             Self::PausedWait => formatter.write_str(
                 "wait condition is not met and the session is paused; use step or resume",
             ),
@@ -230,13 +289,7 @@ impl ControllerSession {
         artifact_dir: PathBuf,
         recent_logs: RecentLogs,
     ) -> Result<Self, ControllerError> {
-        let launch = LaunchSpec {
-            package: APP_PACKAGE.into(),
-            kind: LaunchTargetKind::Binary,
-            target: APP_TARGET.into(),
-            features: vec![APP_FEATURE.into()],
-            arguments: vec!["--controlled-mode".into(), mode.as_str().into()],
-        };
+        let launch = ControlledApp::launch(mode);
         let options = SessionOptions::new(Duration::from_secs(180))
             .with_recent_logs(recent_logs)
             .with_artifact_dir(artifact_dir);
@@ -274,86 +327,66 @@ impl ControllerSession {
     pub(crate) fn perform(&mut self, action: Action) -> Result<Value, ControllerError> {
         let description = action.description();
         let result = match action {
-            Action::PointerMove { x, y } => {
-                let position = self.surface.position(x, y)?;
-                self.pointer_transition(PointerCommand::Move {
-                    surface: None,
-                    position,
-                })?
-            }
-            Action::PointerPress(button) => self.pointer_transition(PointerCommand::Press {
-                button: button.wire(),
-            })?,
-            Action::PointerRelease(button) => self.pointer_transition(PointerCommand::Release {
-                button: button.wire(),
-            })?,
-            Action::PointerClick(button) => {
-                self.pointer_transition(PointerCommand::Press {
-                    button: button.wire(),
-                })?;
-                self.pointer_transition(PointerCommand::Release {
-                    button: button.wire(),
-                })?
-            }
-            Action::Scroll { x, y } => {
-                if !x.is_finite() || !y.is_finite() {
-                    return Err(ControllerError::InvalidAction(
-                        "scroll deltas must be finite".into(),
-                    ));
+            Action::Pointer(action) => match action {
+                PointerAction::Move { x, y } => {
+                    let position = self.surface.position(x, y)?;
+                    self.transition(PointerCommand::Move {
+                        surface: None,
+                        position,
+                    })?
                 }
-                self.pointer_transition(PointerCommand::Scroll { delta: [x, y] })?
-            }
-            Action::KeyPress(name) => {
-                let key = parse_key(&name)?;
-                self.input_transition(WireCommand::Keyboard(KeyboardCommand::Press { key }))?
-            }
-            Action::KeyRelease(name) => {
-                let key = parse_key(&name)?;
-                self.input_transition(WireCommand::Keyboard(KeyboardCommand::Release { key }))?
-            }
-            Action::Text(text) => {
-                self.input_transition(WireCommand::Text(TextCommand::new(text)))?
-            }
+                PointerAction::Press(button) => self.transition(PointerCommand::Press {
+                    button: button.wire(),
+                })?,
+                PointerAction::Release(button) => self.transition(PointerCommand::Release {
+                    button: button.wire(),
+                })?,
+                PointerAction::Click(button) => self.click(button)?,
+                PointerAction::Scroll { x, y } => {
+                    if !x.is_finite() || !y.is_finite() {
+                        return Err(ControllerError::Invalid(
+                            "scroll deltas must be finite".into(),
+                        ));
+                    }
+                    self.transition(PointerCommand::Scroll { delta: [x, y] })?
+                }
+            },
+            Action::Keyboard(action) => match action {
+                KeyboardAction::Press(name) => {
+                    let key = resolve_key(&name)?;
+                    self.settle(WireCommand::Keyboard(KeyboardCommand::Press { key }))?
+                }
+                KeyboardAction::Release(name) => {
+                    let key = resolve_key(&name)?;
+                    self.settle(WireCommand::Keyboard(KeyboardCommand::Release { key }))?
+                }
+            },
+            Action::Text(text) => self.settle(WireCommand::Text(TextCommand::new(text)))?,
         };
         self.last_action = description;
         Ok(result)
     }
 
-    pub(crate) fn click_target(&mut self, target: &str) -> Result<(), ControllerError> {
+    pub(crate) fn activate_target(&mut self, target: &str) -> Result<(), ControllerError> {
         let expected_screen = match target {
             "menu.tab.gym" => "gym",
             "menu.tab.museum" => "museum",
             "menu.tab.zoo" => "zoo",
             _ => {
-                return Err(ControllerError::InvalidAction(format!(
+                return Err(ControllerError::Invalid(format!(
                     "unknown Star Sim click target {target:?}"
                 )));
             }
         };
         let targets = self.observe_raw(Observation::Targets)?;
-        let item = targets["items"]
-            .as_array()
-            .and_then(|items| items.iter().find(|item| item["name"] == target))
-            .ok_or_else(|| {
-                ControllerError::InvalidObservation(format!(
-                    "Star Sim target {target:?} is not available"
-                ))
-            })?;
-        let bounds = &item["bounds"];
-        let x = number(bounds, "x")? + number(bounds, "width")? / 2.0;
-        let y = number(bounds, "y")? + number(bounds, "height")? / 2.0;
+        let position = TargetView::named(&targets, target)?.center()?;
 
-        self.pointer_transition(PointerCommand::Move {
+        self.transition(PointerCommand::Move {
             surface: None,
-            position: [x as f32, y as f32],
+            position,
         })?;
-        self.pointer_transition(PointerCommand::Press {
-            button: WireButton::Primary,
-        })?;
-        self.pointer_transition(PointerCommand::Release {
-            button: WireButton::Primary,
-        })?;
-        self.wait_for(Observation::ActiveScreen, CLICK_WAIT_FRAMES, |value| {
+        self.click(Button::Left)?;
+        self.wait_for(Observation::ActiveScreen, TARGET_WAIT_FRAMES, |value| {
             value["active_screen"] == expected_screen
         })?;
         self.last_action = format!("click {target}");
@@ -376,7 +409,7 @@ impl ControllerSession {
         F: FnMut(&Value) -> bool,
     {
         if frame_limit > MAX_FRAMES {
-            return Err(ControllerError::InvalidAction(format!(
+            return Err(ControllerError::Invalid(format!(
                 "wait frame limit must be at most {MAX_FRAMES}"
             )));
         }
@@ -437,11 +470,20 @@ impl ControllerSession {
         driver.shutdown().map_err(map_driver_error)
     }
 
-    fn pointer_transition(&mut self, command: PointerCommand) -> Result<Value, ControllerError> {
-        self.input_transition(WireCommand::Pointer(command))
+    fn click(&mut self, button: Button) -> Result<Value, ControllerError> {
+        self.transition(PointerCommand::Press {
+            button: button.wire(),
+        })?;
+        self.transition(PointerCommand::Release {
+            button: button.wire(),
+        })
     }
 
-    fn input_transition(&mut self, command: WireCommand) -> Result<Value, ControllerError> {
+    fn transition(&mut self, command: PointerCommand) -> Result<Value, ControllerError> {
+        self.settle(WireCommand::Pointer(command))
+    }
+
+    fn settle(&mut self, command: WireCommand) -> Result<Value, ControllerError> {
         let result = self.request(command)?;
         self.advance(1)?;
         Ok(result)
@@ -449,13 +491,13 @@ impl ControllerSession {
 
     fn advance(&mut self, frames: u64) -> Result<Value, ControllerError> {
         if frames == 0 || frames > MAX_FRAMES {
-            return Err(ControllerError::InvalidAction(format!(
+            return Err(ControllerError::Invalid(format!(
                 "step frames must be between 1 and {MAX_FRAMES}"
             )));
         }
         self.request(WireCommand::Time(TimeCommand::advance(
             frames,
-            SETTLE_STEP_NANOSECONDS,
+            FRAME_NANOSECONDS,
         )))
     }
 
@@ -479,35 +521,14 @@ impl ControllerSession {
 
     fn active_screen(&mut self) -> Result<String, ControllerError> {
         let targets = self.observe_raw(Observation::Targets)?;
-        let handle = targets["items"]
-            .as_array()
-            .and_then(|items| items.iter().find(|item| item["name"] == "session.status"))
-            .and_then(|item| serde_json::from_value(item["entity"].clone()).ok())
-            .ok_or_else(|| {
-                ControllerError::InvalidObservation(
-                    "Star Sim session status target is not available".into(),
-                )
-            })?;
+        let handle = TargetView::named(&targets, "session.status")?.handle()?;
         let result = self.request(WireCommand::Observe(ObservationRequest::new(
             Selector::Entity(handle),
             Projection::Components {
-                type_paths: vec![SESSION_OBSERVATION_TYPE.into()],
+                type_paths: vec![REFLECTED_COMPONENT.into()],
             },
         )))?;
-        let component = &result["items"][0]["components"][SESSION_OBSERVATION_TYPE];
-        if component["status"] != "available" {
-            return Err(ControllerError::InvalidObservation(
-                "Star Sim active screen observation is unavailable".into(),
-            ));
-        }
-        component["value"]["active_screen"]
-            .as_str()
-            .map(str::to_owned)
-            .ok_or_else(|| {
-                ControllerError::InvalidObservation(
-                    "Star Sim active screen observation is invalid".into(),
-                )
-            })
+        screen_value(&result)
     }
 
     fn request(&mut self, command: WireCommand) -> Result<Value, ControllerError> {
@@ -525,38 +546,107 @@ impl ControllerSession {
     }
 }
 
-fn parse_key(name: &str) -> Result<Key, ControllerError> {
-    let wire_name = snake_case(name);
-    let key: Key = serde_json::from_value(json!(wire_name)).map_err(|_| {
-        ControllerError::InvalidAction(format!("unsupported keyboard key {name:?}"))
-    })?;
+struct TargetView<'a> {
+    value: &'a Value,
+}
+
+impl<'a> TargetView<'a> {
+    fn named(observation: &'a Value, name: &str) -> Result<Self, ControllerError> {
+        let value = observation
+            .get("items")
+            .and_then(Value::as_array)
+            .and_then(|items| {
+                items
+                    .iter()
+                    .find(|item| item.get("name").and_then(Value::as_str) == Some(name))
+            })
+            .ok_or_else(|| {
+                ControllerError::Invalid(format!("Star Sim target {name:?} is not available"))
+            })?;
+        Ok(Self { value })
+    }
+
+    fn center(&self) -> Result<[f32; 2], ControllerError> {
+        let bounds = self
+            .value
+            .get("bounds")
+            .ok_or_else(|| ControllerError::Invalid("Star Sim target has no bounds".into()))?;
+        let number = |field: &str| {
+            bounds.get(field).and_then(Value::as_f64).ok_or_else(|| {
+                ControllerError::Invalid(format!("Star Sim target has no numeric {field} bound"))
+            })
+        };
+        Ok([
+            (number("x")? + number("width")? / 2.0) as f32,
+            (number("y")? + number("height")? / 2.0) as f32,
+        ])
+    }
+
+    fn handle(&self) -> Result<Handle, ControllerError> {
+        self.value
+            .get("entity")
+            .cloned()
+            .and_then(|value| serde_json::from_value(value).ok())
+            .ok_or_else(|| ControllerError::Invalid("Star Sim target handle is invalid".into()))
+    }
+}
+
+fn screen_value(observation: &Value) -> Result<String, ControllerError> {
+    let component = observation
+        .get("items")
+        .and_then(Value::as_array)
+        .and_then(|items| items.first())
+        .and_then(|item| item.get("components"))
+        .and_then(|components| components.get(REFLECTED_COMPONENT))
+        .ok_or_else(|| {
+            ControllerError::Invalid("Star Sim active screen observation is unavailable".into())
+        })?;
+    if component.get("status").and_then(Value::as_str) != Some("available") {
+        return Err(ControllerError::Invalid(
+            "Star Sim active screen observation is unavailable".into(),
+        ));
+    }
+    component
+        .get("value")
+        .and_then(|value| value.get("active_screen"))
+        .and_then(Value::as_str)
+        .map(str::to_owned)
+        .ok_or_else(|| {
+            ControllerError::Invalid("Star Sim active screen observation is invalid".into())
+        })
+}
+
+fn resolve_key(name: &str) -> Result<Key, ControllerError> {
+    let wire_name = normalize_key_name(name);
+    let key: Key = serde_json::from_value(json!(wire_name))
+        .map_err(|_| ControllerError::Invalid(format!("unsupported keyboard key {name:?}")))?;
     KeyboardCommand::Press { key: key.clone() }
         .validate()
-        .map_err(|error| ControllerError::InvalidAction(error.to_string()))?;
+        .map_err(|error| ControllerError::Invalid(error.to_string()))?;
     Ok(key)
 }
 
-fn snake_case(name: &str) -> String {
-    let mut output = String::with_capacity(name.len());
-    for (index, character) in name.chars().enumerate() {
-        if character == '-' || character == ' ' {
-            output.push('_');
-        } else if character.is_ascii_uppercase() {
-            if index > 0 {
-                output.push('_');
-            }
-            output.push(character.to_ascii_lowercase());
-        } else {
-            output.push(character.to_ascii_lowercase());
+fn normalize_key_name(name: &str) -> String {
+    let compact = name
+        .chars()
+        .filter(|character| !matches!(character, '_' | '-' | ' '))
+        .map(|character| character.to_ascii_lowercase())
+        .collect::<String>();
+
+    if compact
+        .strip_prefix("digit")
+        .is_some_and(|suffix| suffix.len() == 1 && suffix.as_bytes()[0].is_ascii_digit())
+    {
+        return format!("digit_{}", &compact["digit".len()..]);
+    }
+    for suffix in ["left", "right", "down", "up", "lock", "menu"] {
+        if let Some(prefix) = compact.strip_suffix(suffix)
+            && !prefix.is_empty()
+        {
+            return format!("{prefix}_{suffix}");
         }
     }
-    output
-}
-
-fn number(object: &Value, field: &str) -> Result<f64, ControllerError> {
-    object[field].as_f64().ok_or_else(|| {
-        ControllerError::InvalidObservation(format!("Star Sim target has no numeric {field} bound"))
-    })
+    compact
 }
 
 fn map_driver_error(error: DriverError) -> ControllerError {
@@ -609,10 +699,31 @@ mod tests {
     }
 
     #[test]
-    fn keyboard_names_are_case_insensitive_and_accept_pascal_case() {
-        assert_eq!(parse_key("Escape").unwrap(), Key::Escape);
-        assert_eq!(parse_key("ArrowLeft").unwrap(), Key::ArrowLeft);
-        assert!(parse_key("Hyperdrive").is_err());
+    fn keyboard_names_are_case_insensitive_and_accept_common_word_forms() {
+        for name in ["escape", "Escape", "ESCAPE"] {
+            assert_eq!(resolve_key(name).unwrap(), Key::Escape);
+        }
+        for name in ["ArrowLeft", "arrow_left", "arrow-left", "aRrOwLeFt"] {
+            assert_eq!(resolve_key(name).unwrap(), Key::ArrowLeft);
+        }
+        for (name, expected) in [
+            ("A", Key::A),
+            ("DIGIT0", Key::Digit0),
+            ("Backquote", Key::Backquote),
+            ("BracketLeft", Key::BracketLeft),
+            ("CONTROL_RIGHT", Key::ControlRight),
+            ("CAPS-LOCK", Key::CapsLock),
+            ("ContextMenu", Key::ContextMenu),
+            ("PAGE DOWN", Key::PageDown),
+            ("F12", Key::F12),
+        ] {
+            assert_eq!(
+                resolve_key(name).unwrap(),
+                expected,
+                "failed to parse {name}"
+            );
+        }
+        assert!(resolve_key("Hyperdrive").is_err());
     }
 
     #[test]
@@ -622,7 +733,7 @@ mod tests {
         );
         let mut session = ControllerSession::from_driver(driver, Mode::Logical);
         let message = session
-            .perform(Action::PointerPress(PointerButton::Left))
+            .perform(Action::Pointer(PointerAction::Press(Button::Left)))
             .unwrap_err()
             .to_string();
         assert_eq!(message, "pointer_failed: no pointer location");

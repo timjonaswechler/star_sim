@@ -13,8 +13,7 @@ use std::{
 };
 
 const DEFAULT_ARTIFACT_DIR: &str = "artifacts/star-sim-debug";
-const SURFACE_WIDTH: u32 = 640;
-const SURFACE_HEIGHT: u32 = 360;
+const CANVAS: SurfaceSize = SurfaceSize::new(640, 360);
 
 #[derive(Debug, Parser)]
 #[command(
@@ -83,14 +82,9 @@ fn controlled_repl(mode: Mode, artifact_dir: PathBuf) -> Result<(), String> {
     ctrlc::set_handler(move || signal.store(true, Ordering::SeqCst))
         .map_err(|error| format!("could not install Ctrl-C handler: {error}"))?;
 
-    let result = ControllerSession::start(
-        mode,
-        SurfaceSize::new(SURFACE_WIDTH, SURFACE_HEIGHT),
-        artifact_dir.clone(),
-        recent_logs.clone(),
-    )
-    .and_then(|session| repl::run(session, interrupted))
-    .map_err(|error| error.to_string());
+    let result = ControllerSession::start(mode, CANVAS, artifact_dir.clone(), recent_logs.clone())
+        .and_then(|session| repl::run(session, interrupted))
+        .map_err(|error| error.to_string());
 
     let cli_error = result.as_ref().err().map(String::as_str);
     if (cli_error.is_some() || recent_logs.failure().is_some())

@@ -94,8 +94,8 @@ fn setup_scene() -> impl SceneList {
 fn menu() -> impl Scene {
     bsn! {
         Node {
-            width: menu_width(),
-            height: menu_height(),
+            width: layout_dimension(Dimension::Width),
+            height: layout_dimension(Dimension::Height),
             align_items: AlignItems::Center,
             justify_content: JustifyContent::Center,
             display: Display::Flex,
@@ -158,20 +158,22 @@ fn menu() -> impl Scene {
     }
 }
 
-fn menu_width() -> Val {
-    #[cfg(feature = "automation-control")]
-    return px(crate::composition::SURFACE_WIDTH);
-
-    #[cfg(not(feature = "automation-control"))]
-    percent(100)
+enum Dimension {
+    Width,
+    Height,
 }
 
-fn menu_height() -> Val {
+fn layout_dimension(dimension: Dimension) -> Val {
     #[cfg(feature = "automation-control")]
-    return px(crate::composition::SURFACE_HEIGHT);
+    return match dimension {
+        Dimension::Width => px(crate::composition::Canvas::WIDTH),
+        Dimension::Height => px(crate::composition::Canvas::HEIGHT),
+    };
 
     #[cfg(not(feature = "automation-control"))]
-    percent(100)
+    match dimension {
+        Dimension::Width | Dimension::Height => percent(100),
+    }
 }
 
 fn tab_button(label: &'static str, id: &'static str, section: MenuSection) -> impl Scene {

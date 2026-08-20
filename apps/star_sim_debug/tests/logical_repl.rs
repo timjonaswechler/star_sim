@@ -18,7 +18,7 @@ fn logical_repl_clicks_the_real_museum_tab_and_shuts_down_on_quit_and_eof() {
         .unwrap_or_else(std::sync::PoisonError::into_inner);
 
     let quit = run_repl(
-        "pause\nstep 2\nresume\nclick menu.tab.museum\nquit\n",
+        "pause\nstep 2\nresume\nclick menu.tab.museum\npointer click left\nhelp\nquit\n",
         "quit",
     );
     assert!(
@@ -34,6 +34,8 @@ fn logical_repl_clicks_the_real_museum_tab_and_shuts_down_on_quit_and_eof() {
     assert!(stdout.contains("last action: resume"));
     assert!(stdout.contains("instance=alpha mode=logical screen=museum paused=false"));
     assert!(stdout.contains("last action: click menu.tab.museum"));
+    assert!(stdout.contains("last action: pointer click left"));
+    assert!(stdout.contains("keys use case-insensitive names"));
     assert_no_protocol_envelopes(&stdout);
 
     let eof = run_repl("status\n", "eof");

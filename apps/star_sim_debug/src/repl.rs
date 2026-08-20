@@ -1,5 +1,6 @@
 use crate::controller::{
-    Action, ControllerError, ControllerSession, Observation, PointerButton, Status,
+    Action, Button, ControllerError, ControllerSession, KeyboardAction, Observation, PointerAction,
+    Status,
 };
 use std::{
     io::{self, BufRead, Write},
@@ -39,24 +40,25 @@ pub(crate) enum Command {
     Quit,
 }
 
-pub(crate) fn parse(line: &str) -> Result<Command, String> {
-    let line = line.trim();
-    if line.is_empty() {
-        return Err("enter a command; use help to list commands".into());
-    }
-    if let Some(text) = line.strip_prefix("text") {
-        let Some(text) = text.strip_prefix(char::is_whitespace) else {
-            return Err("usage: text TEXT".into());
-        };
-        let text = text.trim_start();
-        if text.is_empty() {
-            return Err("text requires a non-empty value".into());
+impl Command {
+    pub(crate) fn from_line(line: &str) -> Result<Self, String> {
+        let line = line.trim();
+        if line.is_empty() {
+            return Err("enter a command; use help to list commands".into());
         }
-        return Ok(Command::Action(Action::Text(text.into())));
-    }
+        if let Some(text) = line.strip_prefix("text") {
+            let Some(text) = text.strip_prefix(char::is_whitespace) else {
+                return Err("usage: text TEXT".into());
+            };
+            let text = text.trim_start();
+            if text.is_empty() {
+                return Err("text requires a non-empty value".into());
+            }
+            return Ok(Command::Action(Action::Text(text.into())));
+        }
 
-    let words = line.split_whitespace().collect::<Vec<_>>();
-    match words.as_slice() {
+        let words = line.split_whitespace().collect::<Vec<_>>();
+        match words.as_slice() {
         ["help"] => Ok(Command::Help),
         ["status"] => Ok(Command::Status),
         ["quit"] => Ok(Command::Quit),
@@ -67,30 +69,34 @@ pub(crate) fn parse(line: &str) -> Result<Command, String> {
             .map(Command::Step)
             .map_err(|_| "step FRAMES requires a positive integer".into()),
         ["click", target] => Ok(Command::Click((*target).into())),
-        ["pointer", "move", x, y] => Ok(Command::Action(Action::PointerMove {
+        ["pointer", "move", x, y] => Ok(Command::Action(Action::Pointer(PointerAction::Move {
             x: number(x, "pointer X")?,
             y: number(y, "pointer Y")?,
-        })),
-        ["pointer", "press", button] => {
-            Ok(Command::Action(Action::PointerPress(parse_button(button)?)))
-        }
-        ["pointer", "release", button] => Ok(Command::Action(Action::PointerRelease(
-            parse_button(button)?,
+        }))),
+        ["pointer", "press", value] => Ok(Command::Action(Action::Pointer(PointerAction::Press(
+            Button::from_name(value)?,
+        )))),
+        ["pointer", "release", value] => Ok(Command::Action(Action::Pointer(
+            PointerAction::Release(Button::from_name(value)?),
         ))),
-        ["pointer", "click", button] => {
-            Ok(Command::Action(Action::PointerClick(parse_button(button)?)))
-        }
-        ["scroll", x, y] => Ok(Command::Action(Action::Scroll {
+        ["pointer", "click", value] => Ok(Command::Action(Action::Pointer(PointerAction::Click(
+            Button::from_name(value)?,
+        )))),
+        ["scroll", x, y] => Ok(Command::Action(Action::Pointer(PointerAction::Scroll {
             x: number(x, "scroll DX")?,
             y: number(y, "scroll DY")?,
-        })),
-        ["key", key, state] if state.eq_ignore_ascii_case("press") => {
-            Ok(Command::Action(Action::KeyPress((*key).into())))
-        }
-        ["key", key, state] if state.eq_ignore_ascii_case("release") => {
-            Ok(Command::Action(Action::KeyRelease((*key).into())))
-        }
-        ["observe", scope] => parse_observation(scope).map(Command::Observe),
+        }))),
+        ["key", key, state] if state.eq_ignore_ascii_case("press") => Ok(Command::Action(
+            Action::Keyboard(KeyboardAction::Press((*key).into())),
+        )),
+        ["key", key, state] if state.eq_ignore_ascii_case("release") => Ok(Command::Action(
+            Action::Keyboard(KeyboardAction::Release((*key).into())),
+        )),
+        ["observe", scope] => Observation::from_name(scope)
+            .map(Command::Observe)
+            .ok_or_else(|| format!(
+                "unsupported observation {scope:?}; expected targets, ui, pointers, input, or clock"
+            )),
         ["pointer", ..] => {
             Err("usage: pointer move X Y | pointer press|release|click left|right|middle".into())
         }
@@ -101,6 +107,7 @@ pub(crate) fn parse(line: &str) -> Result<Command, String> {
         _ => Err(format!(
             "unknown command {line:?}; use help to list commands"
         )),
+    }
     }
 }
 
@@ -136,7 +143,7 @@ fn run_loop(
         }
         match input.recv_timeout(Duration::from_millis(100)) {
             Ok(InputEvent::Line(line)) => {
-                let command = match parse(&line) {
+                let command = match Command::from_line(&line) {
                     Ok(command) => command,
                     Err(error) => {
                         writeln!(output, "error: {error}").map_err(output_error)?;
@@ -179,7 +186,7 @@ fn execute(
     output: &mut impl Write,
 ) -> Result<(), ControllerError> {
     match command {
-        Command::Click(target) => session.click_target(&target)?,
+        Command::Click(target) => session.activate_target(&target)?,
         Command::Action(action) => {
             session.perform(action)?;
         }
@@ -201,7 +208,6 @@ fn execute(
         Command::Status => {}
         Command::Help => {
             writeln!(output, "{HELP}").map_err(output_error)?;
-            return Ok(());
         }
         Command::Quit => unreachable!("quit is handled by the REPL loop"),
     }
@@ -215,33 +221,6 @@ pub(crate) fn write_status(output: &mut impl Write, status: &Status) -> io::Resu
         status.instance, status.mode, status.active_screen, status.paused
     )?;
     writeln!(output, "last action: {}", status.last_action)
-}
-
-fn parse_button(value: &str) -> Result<PointerButton, String> {
-    if value.eq_ignore_ascii_case("left") {
-        Ok(PointerButton::Left)
-    } else if value.eq_ignore_ascii_case("right") {
-        Ok(PointerButton::Right)
-    } else if value.eq_ignore_ascii_case("middle") {
-        Ok(PointerButton::Middle)
-    } else {
-        Err(format!(
-            "unsupported pointer button {value:?}; expected left, right, or middle"
-        ))
-    }
-}
-
-fn parse_observation(value: &str) -> Result<Observation, String> {
-    match value {
-        "targets" => Ok(Observation::Targets),
-        "ui" => Ok(Observation::Ui),
-        "pointers" => Ok(Observation::Pointers),
-        "input" => Ok(Observation::VirtualInput),
-        "clock" => Ok(Observation::Clock),
-        _ => Err(format!(
-            "unsupported observation {value:?}; expected targets, ui, pointers, input, or clock"
-        )),
-    }
 }
 
 fn number(value: &str, name: &str) -> Result<f32, String> {
@@ -298,74 +277,74 @@ mod tests {
     #[test]
     fn parses_the_documented_line_commands() {
         assert_eq!(
-            parse("click menu.tab.museum").unwrap(),
+            Command::from_line("click menu.tab.museum").unwrap(),
             Command::Click("menu.tab.museum".into())
         );
         assert_eq!(
-            parse("pointer move 0.5 0.3").unwrap(),
-            Command::Action(Action::PointerMove { x: 0.5, y: 0.3 })
+            Command::from_line("pointer move 0.5 0.3").unwrap(),
+            Command::Action(Action::Pointer(PointerAction::Move { x: 0.5, y: 0.3 }))
         );
         assert_eq!(
-            parse("pointer press right").unwrap(),
-            Command::Action(Action::PointerPress(PointerButton::Right))
+            Command::from_line("pointer press right").unwrap(),
+            Command::Action(Action::Pointer(PointerAction::Press(Button::Right)))
         );
         assert_eq!(
-            parse("pointer release middle").unwrap(),
-            Command::Action(Action::PointerRelease(PointerButton::Middle))
+            Command::from_line("pointer release middle").unwrap(),
+            Command::Action(Action::Pointer(PointerAction::Release(Button::Middle)))
         );
         assert_eq!(
-            parse("pointer click left").unwrap(),
-            Command::Action(Action::PointerClick(PointerButton::Left))
+            Command::from_line("pointer click left").unwrap(),
+            Command::Action(Action::Pointer(PointerAction::Click(Button::Left)))
         );
         assert_eq!(
-            parse("scroll 1 -2").unwrap(),
-            Command::Action(Action::Scroll { x: 1.0, y: -2.0 })
+            Command::from_line("scroll 1 -2").unwrap(),
+            Command::Action(Action::Pointer(PointerAction::Scroll { x: 1.0, y: -2.0 }))
         );
         assert_eq!(
-            parse("key Escape press").unwrap(),
-            Command::Action(Action::KeyPress("Escape".into()))
+            Command::from_line("key Escape press").unwrap(),
+            Command::Action(Action::Keyboard(KeyboardAction::Press("Escape".into())))
         );
         assert_eq!(
-            parse("key Escape release").unwrap(),
-            Command::Action(Action::KeyRelease("Escape".into()))
+            Command::from_line("key Escape release").unwrap(),
+            Command::Action(Action::Keyboard(KeyboardAction::Release("Escape".into())))
         );
         assert_eq!(
-            parse("text hello museum visitors").unwrap(),
+            Command::from_line("text hello museum visitors").unwrap(),
             Command::Action(Action::Text("hello museum visitors".into()))
         );
         assert_eq!(
-            parse("observe input").unwrap(),
+            Command::from_line("observe input").unwrap(),
             Command::Observe(Observation::VirtualInput)
         );
-        assert_eq!(parse("pause").unwrap(), Command::Pause);
-        assert_eq!(parse("resume").unwrap(), Command::Resume);
-        assert_eq!(parse("step 3").unwrap(), Command::Step(3));
-        assert_eq!(parse("status").unwrap(), Command::Status);
-        assert_eq!(parse("help").unwrap(), Command::Help);
-        assert_eq!(parse("quit").unwrap(), Command::Quit);
+        assert_eq!(Command::from_line("pause").unwrap(), Command::Pause);
+        assert_eq!(Command::from_line("resume").unwrap(), Command::Resume);
+        assert_eq!(Command::from_line("step 3").unwrap(), Command::Step(3));
+        assert_eq!(Command::from_line("status").unwrap(), Command::Status);
+        assert_eq!(Command::from_line("help").unwrap(), Command::Help);
+        assert_eq!(Command::from_line("quit").unwrap(), Command::Quit);
     }
 
     #[test]
     fn command_errors_include_the_expected_syntax() {
         assert_eq!(
-            parse("pointer move left down").unwrap_err(),
+            Command::from_line("pointer move left down").unwrap_err(),
             "pointer X must be a number, got \"left\""
         );
         assert!(
-            parse("pointer press fourth")
+            Command::from_line("pointer press fourth")
                 .unwrap_err()
                 .contains("left, right, or middle")
         );
         assert_eq!(
-            parse("key Escape").unwrap_err(),
+            Command::from_line("key Escape").unwrap_err(),
             "usage: key KEY press|release"
         );
         assert!(
-            parse("observe world")
+            Command::from_line("observe world")
                 .unwrap_err()
                 .contains("targets, ui, pointers")
         );
-        assert!(parse("").unwrap_err().contains("use help"));
+        assert!(Command::from_line("").unwrap_err().contains("use help"));
     }
 
     #[test]

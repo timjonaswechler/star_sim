@@ -15,9 +15,13 @@ use bevy::{
 };
 
 #[cfg(feature = "automation-control")]
-pub(crate) const SURFACE_WIDTH: u32 = 640;
+pub(crate) struct Canvas;
+
 #[cfg(feature = "automation-control")]
-pub(crate) const SURFACE_HEIGHT: u32 = 360;
+impl Canvas {
+    pub(crate) const WIDTH: u32 = 640;
+    pub(crate) const HEIGHT: u32 = 360;
+}
 
 #[cfg(feature = "automation-control")]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -61,7 +65,7 @@ fn rendered(app: &mut App) -> &mut App {
             .set(WindowPlugin {
                 primary_window: Some(Window {
                     title: "Star Sim Controlled Session".into(),
-                    resolution: WindowResolution::new(SURFACE_WIDTH, SURFACE_HEIGHT)
+                    resolution: WindowResolution::new(Canvas::WIDTH, Canvas::HEIGHT)
                         .with_scale_factor_override(1.0),
                     resizable: false,
                     ..default()
@@ -101,7 +105,7 @@ fn logical(app: &mut App) -> &mut App {
         Name::new("logical-surface"),
         PrimaryWindow,
         Window {
-            resolution: WindowResolution::new(SURFACE_WIDTH, SURFACE_HEIGHT)
+            resolution: WindowResolution::new(Canvas::WIDTH, Canvas::HEIGHT)
                 .with_scale_factor_override(1.0),
             resizable: false,
             ..default()
@@ -150,8 +154,8 @@ mod tests {
             .world_mut()
             .query_filtered::<&Window, With<PrimaryWindow>>();
         let window = windows.single(app.world()).unwrap();
-        assert_eq!(window.resolution.physical_width(), SURFACE_WIDTH);
-        assert_eq!(window.resolution.physical_height(), SURFACE_HEIGHT);
+        assert_eq!(window.resolution.physical_width(), Canvas::WIDTH);
+        assert_eq!(window.resolution.physical_height(), Canvas::HEIGHT);
         assert_eq!(window.resolution.scale_factor(), 1.0);
         assert!(!window.resizable);
     }
