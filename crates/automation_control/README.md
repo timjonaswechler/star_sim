@@ -48,6 +48,14 @@ plugin does not install a renderer, and `ready.controls` includes `screenshot` o
 composition already has Bevy's renderer and screenshot capture. Logical Mode and renderer-free
 compositions return `screenshot_capability_unavailable`.
 
+`ready` is a control-plane signal. It reports that the protocol accepts commands and that the
+advertised services exist. It does not mean that Bevy has completed UI layout, render extraction,
+or its first presented frame. Controllers that need an image must advance separate controlled
+frames and wait for an application-specific visible condition, such as an expected tile color.
+Sending several frames in one `time.advance` request advances simulation schedules in one outer
+application update, so it is not a substitute for separate updates while the first rendered scene
+is being prepared.
+
 Screenshot paths must be normalized, relative `.png` paths beneath the host-provided session
 artifact root. Absolute paths, `.` or `..` components, and symbolic links are rejected. A completed
 response contains the artifact type, session-relative path, MIME type, width, and height. The
@@ -156,6 +164,20 @@ and driver tests do not need them.
 cargo test -p automation_control
 cargo test -p automation_control --features driver
 ```
+
+The rendered readiness stress test launches fresh `ui_drag_drop` sessions and distinguishes black
+textures, Bevy's clear-only frame, and screenshots containing scene content. Build the controlled
+binary once so repeated launches do not include Cargo startup time:
+
+```bash
+cargo build -p bevy_test_apps --bin ui_drag_drop --features automation
+RENDER_STRESS_APP=target/debug/ui_drag_drop \
+  cargo run -p automation_control --example render_readiness_stress --features driver
+```
+
+Use `RENDER_STRESS_RUNS`, `RENDER_STRESS_FRAMES`, `RENDER_STRESS_ATTEMPTS`, and
+`RENDER_STRESS_DELAY_MS` to change the run. `RENDER_STRESS_CAPTURE_READY=true` also records the
+frame available immediately after `ready`.
 
 Recording/replay, camera operations, screenshot comparison, video capture, REPL orchestration,
 persistent semantic IDs, and model adapters are follow-up work outside this slice.

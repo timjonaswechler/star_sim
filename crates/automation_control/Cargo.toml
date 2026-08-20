@@ -37,6 +37,10 @@ required-features = ["driver"]
 name = "ui_drag_drop_controller"
 required-features = ["driver"]
 
+[[example]]
+name = "render_readiness_stress"
+required-features = ["driver"]
+
 [[test]]
 name = "driver_recording"
 required-features = ["driver"]
