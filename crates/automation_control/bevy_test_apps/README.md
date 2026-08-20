@@ -4,7 +4,7 @@ This package holds small Bevy applications used to exercise `automation_control`
 
 Rendered binaries use `composition::rendered` with a configured window. Without features, it builds a Player Run with Bevy's native input plugins. With `--features automation`, it builds a Rendered Mode Controlled Session with `InputPlugin` and `GilrsPlugin` disabled, screenshot support enabled, and `automation_control` supplying Virtual Input over protocol v2.
 
-`logical_state` uses `composition::logical`. This composition installs no Winit, `WindowPlugin`, `RenderPlugin`, `InputPlugin`, Gilrs, or native pointer producer. It creates one data-only `Window` component with fixed dimensions so Bevy UI layout and Virtual Pointer coordinates share a session-local surface. No operating-system window backs that entity.
+With `--features automation`, `logical_state` uses `composition::logical`. Without the feature it uses the rendered composition as a native Player Run, like the other binaries. The logical composition installs no Winit, `WindowPlugin`, `RenderPlugin`, `InputPlugin`, Gilrs, or native pointer producer. It creates one data-only `Window` component with fixed dimensions so Bevy UI layout and Virtual Pointer coordinates share a session-local surface. No operating-system window backs that entity.
 
 Controlled compositions still register the empty low-level Bevy input message channels and state resources required by UI, focus, and picking systems. These are compatibility prerequisites, not native input producers or operating-system connections. The control plugin clears native message buffers before focused-input dispatch.
 

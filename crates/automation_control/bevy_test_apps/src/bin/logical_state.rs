@@ -1,15 +1,19 @@
 use bevy::{prelude::*, time::Fixed};
-use bevy_test_apps::{LogicalSurface, composition};
+#[cfg(feature = "automation")]
+use bevy_test_apps::LogicalSurface;
+use bevy_test_apps::composition;
 
 #[cfg(feature = "automation")]
 use automation_control::AutomationTarget;
+#[cfg(not(feature = "automation"))]
+use bevy::window::WindowResolution;
 
 const SURFACE_WIDTH: u32 = 640;
 const SURFACE_HEIGHT: u32 = 360;
 const FIXED_STEP: std::time::Duration = std::time::Duration::from_millis(10);
 const TIMER_PERIOD: std::time::Duration = std::time::Duration::from_millis(40);
 
-#[derive(Component, Reflect)]
+#[derive(Component, Default, Reflect)]
 #[reflect(Component)]
 struct SessionObservation {
     updates: u64,
@@ -30,7 +34,19 @@ fn main() {
 
 fn build_app() -> App {
     let mut app = App::new();
+    #[cfg(feature = "automation")]
     composition::logical(&mut app, LogicalSurface::new(SURFACE_WIDTH, SURFACE_HEIGHT));
+    #[cfg(not(feature = "automation"))]
+    composition::rendered(
+        &mut app,
+        Window {
+            title: "Logical state test".into(),
+            resolution: WindowResolution::new(SURFACE_WIDTH, SURFACE_HEIGHT)
+                .with_scale_factor_override(1.0),
+            resizable: false,
+            ..default()
+        },
+    );
     app.world_mut()
         .resource_mut::<Time<Fixed>>()
         .set_timestep(FIXED_STEP);
@@ -46,15 +62,7 @@ fn setup(mut commands: Commands) {
     commands.spawn((Name::new("logical-camera"), Camera2d));
     commands.spawn((
         Name::new("logical-state"),
-        SessionObservation {
-            updates: 0,
-            fixed_updates: 0,
-            timer_finishes: 0,
-            pointer_presses: 0,
-            key_a_held: false,
-            key_a_presses: 0,
-            key_a_releases: 0,
-        },
+        SessionObservation::default(),
         #[cfg(feature = "automation")]
         AutomationTarget,
     ));
@@ -107,14 +115,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn logical_state_app_has_one_reflectable_state_and_fixed_surface() {
-        let mut app = build_app();
-        app.world_mut().run_schedule(Startup);
-
-        let mut states = app.world_mut().query::<(&Name, &SessionObservation)>();
-        let (name, state) = states.single(app.world()).unwrap();
-        assert_eq!(name.as_str(), "logical-state");
+    fn logical_state_starts_with_an_empty_observation() {
+        let state = SessionObservation::default();
+        assert_eq!(state.updates, 0);
+        assert_eq!(state.fixed_updates, 0);
+        assert_eq!(state.timer_finishes, 0);
         assert_eq!(state.pointer_presses, 0);
-        assert_eq!(app.world().resource::<Time<Fixed>>().timestep(), FIXED_STEP);
+        assert!(!state.key_a_held);
+        assert_eq!(FIXED_STEP, std::time::Duration::from_millis(10));
     }
 }

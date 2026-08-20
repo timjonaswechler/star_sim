@@ -1,5 +1,5 @@
 use automation_control::{
-    Command, Handle, RunMode,
+    Command, Handle, Response, RunMode,
     driver::{
         DriverError, LaunchSpec, LaunchTargetKind, Session, SessionOptions, wait::FrameLimit,
     },
@@ -62,20 +62,18 @@ fn logical_state_schedules_advance_only_through_the_controlled_clock() {
     session.ready().unwrap();
     let handle = target_handle(&mut session, "logical-state");
 
-    let initial = state(&mut session, handle);
+    let initial = session_observation(&mut session, handle);
     assert_eq!(initial["updates"], 0);
     assert_eq!(initial["fixed_updates"], 0);
     assert_eq!(initial["timer_finishes"], 0);
-    assert_eq!(state(&mut session, handle), initial);
+    assert_eq!(session_observation(&mut session, handle), initial);
 
-    session
-        .request(Command::Time(TimeCommand::advance(2, 25_000_000)))
-        .unwrap();
-    let advanced = state(&mut session, handle);
+    advance(&mut session, TimeCommand::advance(2, 25_000_000));
+    let advanced = session_observation(&mut session, handle);
     assert_eq!(advanced["updates"], 2);
     assert_eq!(advanced["fixed_updates"], 5);
     assert_eq!(advanced["timer_finishes"], 1);
-    assert_eq!(state(&mut session, handle), advanced);
+    assert_eq!(session_observation(&mut session, handle), advanced);
 
     session.shutdown().unwrap();
 }
@@ -85,9 +83,9 @@ fn virtual_pointer_and_keyboard_change_state_through_application_systems() {
     let _guard = session_test_guard();
     let mut session = spawn_logical_state().unwrap();
     session.ready().unwrap();
-    advance(&mut session, 1, 10_000_000);
+    advance(&mut session, TimeCommand::advance(1, 10_000_000));
 
-    let button = target(&mut session, "logical-button");
+    let button = target_summary(&mut session, "logical-button");
     assert_eq!(button["bounds"]["x"], 220.0);
     assert_eq!(button["bounds"]["y"], 130.0);
     assert_eq!(button["bounds"]["width"], 200.0);
@@ -98,26 +96,26 @@ fn virtual_pointer_and_keyboard_change_state_through_application_systems() {
             position: [320.0, 180.0],
         }))
         .unwrap();
-    advance(&mut session, 1, 10_000_000);
+    advance(&mut session, TimeCommand::advance(1, 10_000_000));
     session
         .request(Command::Pointer(PointerCommand::Press {
             button: Button::Primary,
         }))
         .unwrap();
-    advance(&mut session, 1, 10_000_000);
+    advance(&mut session, TimeCommand::advance(1, 10_000_000));
     session
         .request(Command::Pointer(PointerCommand::Release {
             button: Button::Primary,
         }))
         .unwrap();
-    advance(&mut session, 1, 10_000_000);
+    advance(&mut session, TimeCommand::advance(1, 10_000_000));
 
     session
         .request(Command::Keyboard(KeyboardCommand::Press { key: Key::A }))
         .unwrap();
-    advance(&mut session, 2, 10_000_000);
+    advance(&mut session, TimeCommand::advance(2, 10_000_000));
     let handle = target_handle(&mut session, "logical-state");
-    let pressed = state(&mut session, handle);
+    let pressed = session_observation(&mut session, handle);
     assert_eq!(pressed["pointer_presses"], 1);
     assert_eq!(pressed["key_a_held"], true);
     assert_eq!(pressed["key_a_presses"], 1);
@@ -126,8 +124,8 @@ fn virtual_pointer_and_keyboard_change_state_through_application_systems() {
     session
         .request(Command::Keyboard(KeyboardCommand::Release { key: Key::A }))
         .unwrap();
-    advance(&mut session, 1, 10_000_000);
-    let released = state(&mut session, handle);
+    advance(&mut session, TimeCommand::advance(1, 10_000_000));
+    let released = session_observation(&mut session, handle);
     assert_eq!(released["key_a_held"], false);
     assert_eq!(released["key_a_presses"], 1);
     assert_eq!(released["key_a_releases"], 1);
@@ -193,12 +191,12 @@ fn deterministic_observation() -> Value {
     session
         .request(Command::Keyboard(KeyboardCommand::Press { key: Key::A }))
         .unwrap();
-    advance(&mut session, 2, 25_000_000);
+    advance(&mut session, TimeCommand::advance(2, 25_000_000));
     session
         .request(Command::Keyboard(KeyboardCommand::Release { key: Key::A }))
         .unwrap();
-    advance(&mut session, 2, 25_000_000);
-    let observation = state(&mut session, handle);
+    advance(&mut session, TimeCommand::advance(2, 25_000_000));
+    let observation = session_observation(&mut session, handle);
     session.shutdown().unwrap();
     observation
 }
@@ -209,36 +207,35 @@ fn session_test_guard() -> std::sync::MutexGuard<'static, ()> {
         .unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
-fn advance(session: &mut Session, frames: u64, step_nanoseconds: u64) {
-    session
-        .request(Command::Time(TimeCommand::advance(
-            frames,
-            step_nanoseconds,
-        )))
-        .unwrap();
+fn advance(session: &mut Session, command: TimeCommand) {
+    session.request(Command::Time(command)).unwrap();
 }
 
-fn target(session: &mut Session, name: &str) -> Value {
+fn target_summary(session: &mut Session, name: &str) -> Value {
     let response = session
         .request(Command::Observe(ObservationRequest::new(
             Selector::Targets,
             Projection::Summary,
         )))
         .unwrap();
-    response.result.unwrap()["items"]
-        .as_array()
-        .unwrap()
-        .iter()
+    observation_items(response)
+        .into_iter()
         .find(|item| item["name"] == name)
         .unwrap()
-        .clone()
+}
+
+fn observation_items(response: Response) -> Vec<Value> {
+    response
+        .result
+        .and_then(|result| result.get("items").and_then(Value::as_array).cloned())
+        .expect("observation response should contain items")
 }
 
 fn target_handle(session: &mut Session, name: &str) -> Handle {
-    serde_json::from_value(target(session, name)["entity"].clone()).unwrap()
+    serde_json::from_value(target_summary(session, name)["entity"].clone()).unwrap()
 }
 
-fn state(session: &mut Session, handle: Handle) -> Value {
+fn session_observation(session: &mut Session, handle: Handle) -> Value {
     const STATE_PATH: &str = "logical_state::SessionObservation";
     let response = session
         .request(Command::Observe(ObservationRequest::new(
@@ -248,7 +245,11 @@ fn state(session: &mut Session, handle: Handle) -> Value {
             },
         )))
         .unwrap();
-    let component = &response.result.unwrap()["items"][0]["components"][STATE_PATH];
+    let item = observation_items(response)
+        .into_iter()
+        .next()
+        .expect("state observation should contain one item");
+    let component = &item["components"][STATE_PATH];
     assert_eq!(component["status"], "available");
     component["value"].clone()
 }
