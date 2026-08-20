@@ -29,6 +29,10 @@ required-features = ["driver"]
 name = "blend_modes_controller"
 required-features = ["driver"]
 
+[[example]]
+name = "ui_drag_drop_controller"
+required-features = ["driver"]
+
 [[test]]
 name = "driver_recording"
 required-features = ["driver"]

@@ -890,7 +890,7 @@ mod tests {
     }
 
     #[test]
-    fn native_window_pointer_input_is_disabled_but_virtual_move_updates_the_pointer() {
+    fn native_mouse_and_touch_input_are_disabled_but_virtual_move_updates_the_pointer() {
         let (mut app, sender, output, window) = controlled_app();
         app.init_resource::<PressCount>();
         let camera = app.world_mut().spawn_empty().id();
@@ -921,6 +921,16 @@ mod tests {
                 state: ButtonState::Pressed,
                 window,
             }));
+        let native_touch = TouchInput {
+            phase: bevy::input::touch::TouchPhase::Started,
+            position: Vec2::new(400.0, 300.0),
+            window,
+            force: None,
+            id: 7,
+        };
+        app.world_mut().write_message(native_touch);
+        app.world_mut()
+            .write_message(WindowEvent::TouchInput(native_touch));
         app.update();
         let native_location = app
             .world_mut()
@@ -936,6 +946,13 @@ mod tests {
                 .is_none()
         );
         assert_eq!(app.world().resource::<PressCount>().0, 0);
+        assert!(app.world().resource::<Touches>().iter().next().is_none());
+        assert!(
+            app.world_mut()
+                .query::<&PointerId>()
+                .iter(app.world())
+                .all(PointerId::is_mouse)
+        );
 
         sender
             .send(Input::Line(

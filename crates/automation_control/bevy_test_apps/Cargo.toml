@@ -25,3 +25,7 @@ path = "src/bin/blend_modes.rs"
 [[bin]]
 name = "mesh_picking"
 path = "src/bin/mesh_picking.rs"
+
+[[bin]]
+name = "ui_drag_drop"
+path = "src/bin/ui_drag_drop.rs"

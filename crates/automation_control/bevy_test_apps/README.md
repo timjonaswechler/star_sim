@@ -50,6 +50,20 @@ The rendered controller drives the same binary through Virtual Input and control
 cargo run -p automation_control --example picking_controller --features driver
 ```
 
+## UI drag and drop
+
+Run the adapted UI grid with native pointer input:
+
+```bash
+cargo run -p bevy_test_apps --bin ui_drag_drop
+```
+
+The rendered controller derives tile centers from observed UI bounds, then builds complete drags from pointer moves, a press, controlled frames, and a release. It checks the Bevy `DragStart`, `Drag`, `DragDrop`, and `DragEnd` lifecycle, reflected layout and presentation components, valid and invalid drops, and screenshots of the initial, dragging, and dropped states:
+
+```bash
+cargo run -p automation_control --example ui_drag_drop_controller --features driver
+```
+
 ## Application conventions
 
 - Put application systems, components, and semantic test state in the binary that owns them. Shared code is limited to run composition.
@@ -65,4 +79,6 @@ cargo run -p automation_control --example picking_controller --features driver
 
 `mesh_picking` adapts Bevy 0.19.1's [`examples/picking/mesh_picking.rs`](https://github.com/bevyengine/bevy/blob/v0.19.1/examples/picking/mesh_picking.rs). Star Sim reduces the scene to three stable targets and adds Controlled Session input, deterministic rotation checks, reflected interaction state, and screenshot assertions.
 
-Bevy distributes all three examples under either the MIT License or Apache License 2.0, as recorded in Bevy's [repository license files](https://github.com/bevyengine/bevy/tree/v0.19.1#license).
+`ui_drag_drop` adapts Bevy 0.19.1's [`examples/ui/ui_drag_and_drop.rs`](https://github.com/bevyengine/bevy/blob/v0.19.1/examples/ui/ui_drag_and_drop.rs). Star Sim uses a compact grid with stable targets and adds reflected lifecycle state, Controlled Session gestures, invalid-drop checks, and semantic screenshot assertions.
+
+Bevy distributes these examples under either the MIT License or Apache License 2.0, as recorded in Bevy's [repository license files](https://github.com/bevyengine/bevy/tree/v0.19.1#license).
