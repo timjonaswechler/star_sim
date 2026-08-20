@@ -4,11 +4,15 @@ use crate::{
     pointer::{self, Command as PointerCommand, State as PointerState},
     protocol::{self, Command, Response, RunMode},
     text::{self as virtual_text, Command as TextCommand, State as TextState},
+    time::{Clock, Command as TimeCommand},
     transport::{Input, JsonLinesInput, Output},
 };
 use bevy::{
-    app::AppExit,
-    ecs::system::SystemParam,
+    app::{AppExit, MainScheduleOrder},
+    ecs::{
+        schedule::{InternedScheduleLabel, ScheduleLabel},
+        system::SystemParam,
+    },
     input::{
         ButtonInput, InputSystems,
         gamepad::GamepadButtonChangedEvent,
@@ -20,8 +24,9 @@ use bevy::{
         touch::{TouchInput, Touches},
     },
     input_focus::{InputDispatchPlugin, InputFocusPlugin},
-    picking::{PickingPlugin, input::PointerInputSettings},
+    picking::{PickingPlugin, input::PointerInputSettings, pointer::PointerInput},
     prelude::*,
+    time::{Real, TimePlugin, TimeReceiver, TimeUpdateStrategy, Virtual},
     window::{Ime, WindowEvent},
 };
 use serde_json::json;
@@ -78,7 +83,7 @@ where
 }
 
 impl AutomationControlPlugin {
-    /// Creates a rendered controlled composition using stdin/stdout JSONL.
+    /// Creates a Rendered Mode Controlled Session using stdin/stdout JSONL.
     pub fn stdio() -> Self {
         Self {
             mode: RunMode::Rendered,
@@ -87,7 +92,7 @@ impl AutomationControlPlugin {
         }
     }
 
-    /// Creates a controlled composition with test or embedding transport adapters.
+    /// Creates a Controlled Session with test or embedding transport adapters.
     pub fn with_io(input: impl InputFactory, output: Arc<dyn Output>) -> Self {
         Self {
             mode: RunMode::Logical,
@@ -104,6 +109,9 @@ impl AutomationControlPlugin {
 
 impl Plugin for AutomationControlPlugin {
     fn build(&self, app: &mut App) {
+        if !app.is_plugin_added::<TimePlugin>() {
+            app.add_plugins(TimePlugin);
+        }
         if !app.is_plugin_added::<PickingPlugin>() {
             app.add_plugins(PickingPlugin);
         }
@@ -114,7 +122,7 @@ impl Plugin for AutomationControlPlugin {
             app.add_plugins(InputDispatchPlugin);
         }
         // The picking core remains active, but all native mouse and touch producers are disabled.
-        // The controlled composition supplies PointerInput messages itself.
+        // The Controlled Session supplies PointerInput messages itself.
         app.insert_resource(PointerInputSettings {
             is_mouse_enabled: false,
             is_touch_enabled: false,
@@ -125,26 +133,68 @@ impl Plugin for AutomationControlPlugin {
             output: Arc::clone(&self.output),
         });
         app.insert_resource(Configuration { mode: self.mode });
+        app.world_mut()
+            .resource_mut::<Time<Real>>()
+            .update_with_duration(std::time::Duration::ZERO);
+        app.world_mut()
+            .resource_mut::<Time<Virtual>>()
+            .set_max_delta(std::time::Duration::from_nanos(
+                crate::time::MAX_STEP_NANOSECONDS,
+            ));
         app.init_resource::<PointerState>()
             .init_resource::<KeyboardState>()
             .init_resource::<TextState>()
+            .init_resource::<Clock>()
+            .init_resource::<QueuedVirtualInput>()
             .init_resource::<PendingRequests>()
             .init_resource::<ExpectedSequence>()
+            .insert_resource(TimeUpdateStrategy::ManualDuration(
+                std::time::Duration::ZERO,
+            ))
             .add_systems(Startup, emit_ready)
             .add_systems(PostStartup, pointer::ensure_mouse_pointer)
             .add_systems(
-                First,
+                control_schedule::Input,
                 (
+                    drain_render_time,
                     discard_native_focused_input,
                     receive_request,
                     dispatch_request,
                 )
                     .chain(),
             )
+            .add_systems(control_schedule::Frames, run_controlled_frames)
             .add_systems(PreUpdate, keyboard_input_system.in_set(InputSystems))
-            .add_systems(Last, complete_request);
+            .add_systems(control_schedule::Output, complete_request);
+        let simulation_schedules = {
+            let mut order = app.world_mut().resource_mut::<MainScheduleOrder>();
+            let simulation_schedules = std::mem::take(&mut order.labels);
+            order.labels = vec![
+                control_schedule::Input.intern(),
+                control_schedule::Frames.intern(),
+                control_schedule::Output.intern(),
+            ];
+            simulation_schedules
+        };
+        app.insert_resource(SimulationScheduleOrder(simulation_schedules));
     }
 }
+
+mod control_schedule {
+    use super::ScheduleLabel;
+
+    #[derive(Clone, Debug, PartialEq, Eq, Hash, ScheduleLabel)]
+    pub(super) struct Input;
+
+    #[derive(Clone, Debug, PartialEq, Eq, Hash, ScheduleLabel)]
+    pub(super) struct Frames;
+
+    #[derive(Clone, Debug, PartialEq, Eq, Hash, ScheduleLabel)]
+    pub(super) struct Output;
+}
+
+#[derive(Resource)]
+struct SimulationScheduleOrder(Vec<InternedScheduleLabel>);
 
 #[derive(Resource)]
 struct Transport {
@@ -159,6 +209,13 @@ struct Configuration {
 
 #[derive(Default, Resource)]
 struct PendingRequests(Vec<PendingRequest>);
+
+#[derive(Default, Resource)]
+struct QueuedVirtualInput {
+    pointers: Vec<PointerInput>,
+    keyboards: Vec<KeyboardInput>,
+    text: Vec<Ime>,
+}
 
 enum PendingRequest {
     Observe {
@@ -176,6 +233,10 @@ enum PendingRequest {
     Text {
         sequence: u64,
         command: TextCommand,
+    },
+    Time {
+        sequence: u64,
+        command: TimeCommand,
     },
     Response(Response),
     Shutdown {
@@ -227,6 +288,13 @@ struct NativeInputBuffers<'w, 's> {
     windows: Query<'w, 's, &'static mut Window>,
 }
 
+fn drain_render_time(receiver: Option<Res<TimeReceiver>>) {
+    let Some(receiver) = receiver else {
+        return;
+    };
+    while receiver.0.try_recv().is_ok() {}
+}
+
 fn discard_native_focused_input(mut input: NativeInputBuffers) {
     input.keyboard.clear();
     input.focus_lost.clear();
@@ -273,6 +341,7 @@ fn receive_request(world: &mut World) {
                     Command::Pointer(command) => PendingRequest::Pointer { sequence, command },
                     Command::Keyboard(command) => PendingRequest::Keyboard { sequence, command },
                     Command::Text(command) => PendingRequest::Text { sequence, command },
+                    Command::Time(command) => PendingRequest::Time { sequence, command },
                     Command::Shutdown => PendingRequest::Shutdown { sequence },
                 };
                 world.resource_mut::<PendingRequests>().0.push(pending);
@@ -332,7 +401,10 @@ fn dispatch_request(world: &mut World) {
             };
             match result {
                 Ok(event) => {
-                    world.write_message(event);
+                    world
+                        .resource_mut::<QueuedVirtualInput>()
+                        .pointers
+                        .push(event);
                     world
                         .resource_mut::<PendingRequests>()
                         .0
@@ -359,7 +431,10 @@ fn dispatch_request(world: &mut World) {
             };
             match result {
                 Ok(event) => {
-                    world.write_message(event);
+                    world
+                        .resource_mut::<QueuedVirtualInput>()
+                        .keyboards
+                        .push(event);
                     world
                         .resource_mut::<PendingRequests>()
                         .0
@@ -386,7 +461,7 @@ fn dispatch_request(world: &mut World) {
             };
             match result {
                 Ok(event) => {
-                    world.write_message(event);
+                    world.resource_mut::<QueuedVirtualInput>().text.push(event);
                     world
                         .resource_mut::<PendingRequests>()
                         .0
@@ -404,6 +479,12 @@ fn dispatch_request(world: &mut World) {
                 }
             }
         }
+        PendingRequest::Time { sequence, command } => {
+            world
+                .resource_mut::<PendingRequests>()
+                .0
+                .push(PendingRequest::Time { sequence, command });
+        }
         PendingRequest::Response(response) => {
             world
                 .resource_mut::<PendingRequests>()
@@ -417,6 +498,50 @@ fn dispatch_request(world: &mut World) {
                 .push(PendingRequest::Shutdown { sequence });
         }
     }
+}
+
+fn run_controlled_frames(world: &mut World) {
+    let Some(advance) = world
+        .resource::<PendingRequests>()
+        .0
+        .last()
+        .and_then(|pending| match pending {
+            PendingRequest::Time { command, .. } => Some(command.into_advance()),
+            _ => None,
+        })
+    else {
+        return;
+    };
+    let schedules = world.resource::<SimulationScheduleOrder>().0.clone();
+    for _ in 0..advance.frames {
+        *world.resource_mut::<TimeUpdateStrategy>() =
+            TimeUpdateStrategy::ManualDuration(advance.step);
+        for &schedule in &schedules {
+            let _ = world.try_run_schedule(schedule);
+            if (*schedule).eq(&First) {
+                flush_virtual_input(world);
+            }
+        }
+        world.resource_mut::<Clock>().complete_frame(advance.step);
+    }
+    *world.resource_mut::<TimeUpdateStrategy>() =
+        TimeUpdateStrategy::ManualDuration(std::time::Duration::ZERO);
+}
+
+fn flush_virtual_input(world: &mut World) {
+    let mut queued = world
+        .remove_resource::<QueuedVirtualInput>()
+        .unwrap_or_default();
+    for event in queued.pointers.drain(..) {
+        world.write_message(event);
+    }
+    for event in queued.keyboards.drain(..) {
+        world.write_message(event);
+    }
+    for event in queued.text.drain(..) {
+        world.write_message(event);
+    }
+    world.insert_resource(queued);
 }
 
 fn complete_request(world: &mut World) {
@@ -455,6 +580,15 @@ fn complete_request(world: &mut World) {
                 Response::completed(
                     sequence,
                     json!({"text": world.resource::<TextState>().observation(world)}),
+                ),
+            );
+        }
+        PendingRequest::Time { sequence, .. } => {
+            write_response(
+                world,
+                Response::completed(
+                    sequence,
+                    json!({"clock": world.resource::<Clock>().observation()}),
                 ),
             );
         }
@@ -507,6 +641,12 @@ mod tests {
     }
 
     fn controlled_app() -> (App, mpsc::SyncSender<Input>, Arc<MemoryOutput>, Entity) {
+        controlled_app_in_mode(RunMode::Logical)
+    }
+
+    fn controlled_app_in_mode(
+        mode: RunMode,
+    ) -> (App, mpsc::SyncSender<Input>, Arc<MemoryOutput>, Entity) {
         let (sender, receiver) = mpsc::sync_channel(8);
         let receiver = Mutex::new(Some(receiver));
         let output = Arc::new(MemoryOutput::default());
@@ -515,10 +655,13 @@ mod tests {
         app.add_plugins(MinimalPlugins)
             .add_message::<WindowEvent>()
             .add_plugins(DefaultPickingPlugins)
-            .add_plugins(AutomationControlPlugin::with_io(
-                move || JsonLinesInput::from_receiver(receiver.lock().unwrap().take().unwrap()),
-                output_trait,
-            ));
+            .add_plugins(
+                AutomationControlPlugin::with_io(
+                    move || JsonLinesInput::from_receiver(receiver.lock().unwrap().take().unwrap()),
+                    output_trait,
+                )
+                .configured(mode),
+            );
         let window = app
             .world_mut()
             .spawn((Window::default(), PrimaryWindow))
@@ -533,7 +676,7 @@ mod tests {
         assert_eq!(output.ready.lock().unwrap()[0].version, 2);
         assert_eq!(
             output.ready.lock().unwrap()[0].controls,
-            ["pointer", "keyboard", "text"]
+            ["pointer", "keyboard", "text", "time"]
         );
         sender
             .send(Input::Line(
@@ -670,6 +813,12 @@ mod tests {
             ))
             .unwrap();
         app.update();
+        send_command(
+            &mut app,
+            &sender,
+            2,
+            r#"{"type":"time","action":{"type":"advance","frames":1,"step_nanoseconds":16666667}}"#,
+        );
         let virtual_location = app
             .world_mut()
             .query::<&PointerLocation>()
@@ -704,6 +853,257 @@ mod tests {
 
     #[derive(Resource, Default)]
     struct WindowCapture(u32);
+
+    #[derive(Resource, Default, Debug, Eq, PartialEq)]
+    struct FrameCapture {
+        updates: u32,
+        fixed_updates: u32,
+        held_updates: u32,
+    }
+
+    fn capture_update(keys: Res<ButtonInput<KeyCode>>, mut capture: ResMut<FrameCapture>) {
+        capture.updates += 1;
+        if keys.pressed(KeyCode::KeyA) {
+            capture.held_updates += 1;
+        }
+    }
+
+    fn capture_fixed_update(mut capture: ResMut<FrameCapture>) {
+        capture.fixed_updates += 1;
+    }
+
+    fn send_command(app: &mut App, sender: &mpsc::SyncSender<Input>, sequence: u64, command: &str) {
+        sender
+            .send(Input::Line(format!(
+                r#"{{"sequence":{sequence},"command":{command}}}"#
+            )))
+            .unwrap();
+        app.update();
+    }
+
+    #[test]
+    fn simulation_and_virtual_time_advance_only_for_time_commands() {
+        let (mut app, sender, output, _window) = controlled_app();
+        app.init_resource::<FrameCapture>()
+            .add_systems(Update, capture_update)
+            .add_systems(FixedUpdate, capture_fixed_update);
+        app.update();
+
+        for _ in 0..3 {
+            app.update();
+        }
+        assert_eq!(app.world().resource::<FrameCapture>().updates, 0);
+        assert_eq!(app.world().resource::<Clock>().frame_index(), 0);
+        assert_eq!(
+            app.world().resource::<Time<Virtual>>().elapsed(),
+            std::time::Duration::ZERO
+        );
+
+        send_command(
+            &mut app,
+            &sender,
+            1,
+            r#"{"type":"time","action":{"type":"advance","frames":1,"step_nanoseconds":25000000}}"#,
+        );
+
+        assert_eq!(app.world().resource::<FrameCapture>().updates, 1);
+        assert_eq!(app.world().resource::<Clock>().frame_index(), 1);
+        assert_eq!(
+            app.world().resource::<Time<Virtual>>().elapsed(),
+            std::time::Duration::from_millis(25)
+        );
+        assert_eq!(
+            output.responses.lock().unwrap()[0].result.as_ref().unwrap()["clock"]["frame_index"],
+            1
+        );
+    }
+
+    #[test]
+    fn maximum_step_is_not_clamped_by_bevy_virtual_time() {
+        let (mut app, sender, _output, _window) = controlled_app();
+        app.update();
+        send_command(
+            &mut app,
+            &sender,
+            1,
+            r#"{"type":"time","action":{"type":"advance","frames":1,"step_nanoseconds":1000000000}}"#,
+        );
+
+        assert_eq!(
+            app.world().resource::<Time<Virtual>>().elapsed(),
+            std::time::Duration::from_secs(1)
+        );
+        assert_eq!(
+            app.world().resource::<Time<Virtual>>().delta(),
+            std::time::Duration::from_secs(1)
+        );
+    }
+
+    #[test]
+    fn rendered_redraw_updates_do_not_run_simulation_schedules() {
+        let (mut app, _sender, output, _window) = controlled_app_in_mode(RunMode::Rendered);
+        app.init_resource::<FrameCapture>()
+            .add_systems(Update, capture_update);
+        app.update();
+        for _ in 0..4 {
+            app.update();
+        }
+
+        assert_eq!(output.ready.lock().unwrap()[0].mode, RunMode::Rendered);
+        assert_eq!(app.world().resource::<FrameCapture>().updates, 0);
+        assert_eq!(app.world().resource::<Clock>().frame_index(), 0);
+        assert_eq!(
+            app.world().resource::<Time<Virtual>>().elapsed(),
+            std::time::Duration::ZERO
+        );
+    }
+
+    #[test]
+    fn invalid_time_commands_do_not_partially_advance_the_clock() {
+        let (mut app, sender, output, _window) = controlled_app();
+        app.init_resource::<FrameCapture>()
+            .add_systems(Update, capture_update);
+        app.update();
+        for (sequence, action) in [
+            (1, r#"{"type":"advance","frames":0,"step_nanoseconds":1}"#),
+            (
+                2,
+                r#"{"type":"advance","frames":10001,"step_nanoseconds":1}"#,
+            ),
+            (3, r#"{"type":"advance","frames":1,"step_nanoseconds":0}"#),
+            (
+                4,
+                r#"{"type":"advance","frames":1,"step_nanoseconds":1000000001}"#,
+            ),
+        ] {
+            send_command(
+                &mut app,
+                &sender,
+                sequence,
+                &format!(r#"{{"type":"time","action":{action}}}"#),
+            );
+        }
+
+        assert_eq!(app.world().resource::<FrameCapture>().updates, 0);
+        assert_eq!(app.world().resource::<Clock>().frame_index(), 0);
+        assert_eq!(
+            app.world().resource::<Clock>().elapsed(),
+            std::time::Duration::ZERO
+        );
+        assert_eq!(
+            output
+                .responses
+                .lock()
+                .unwrap()
+                .iter()
+                .map(|response| response.error.as_ref().unwrap().code.as_str())
+                .collect::<Vec<_>>(),
+            [
+                "invalid_time_frames",
+                "time_frames_too_large",
+                "invalid_time_step",
+                "time_step_too_large",
+            ]
+        );
+    }
+
+    #[test]
+    fn controlled_clocks_are_isolated_between_sessions() {
+        let (mut first, first_sender, _first_output, _first_window) = controlled_app();
+        let (mut second, _second_sender, _second_output, _second_window) = controlled_app();
+        first.update();
+        second.update();
+        send_command(
+            &mut first,
+            &first_sender,
+            1,
+            r#"{"type":"time","action":{"type":"advance","frames":2,"step_nanoseconds":500}}"#,
+        );
+
+        assert_eq!(first.world().resource::<Clock>().frame_index(), 2);
+        assert_eq!(
+            first.world().resource::<Clock>().elapsed(),
+            std::time::Duration::from_nanos(1_000)
+        );
+        assert_eq!(second.world().resource::<Clock>().frame_index(), 0);
+        assert_eq!(
+            second.world().resource::<Clock>().elapsed(),
+            std::time::Duration::ZERO
+        );
+    }
+
+    #[test]
+    fn batched_and_single_frame_advances_have_the_same_result() {
+        fn run(frame_batches: &[u32]) -> (FrameCapture, Clock) {
+            let (mut app, sender, _output, _window) = controlled_app();
+            app.init_resource::<FrameCapture>()
+                .add_systems(Update, capture_update)
+                .add_systems(FixedUpdate, capture_fixed_update);
+            app.world_mut()
+                .resource_mut::<Time<Fixed>>()
+                .set_timestep(std::time::Duration::from_millis(10));
+            app.update();
+            for (index, frames) in frame_batches.iter().enumerate() {
+                send_command(
+                    &mut app,
+                    &sender,
+                    index as u64 + 1,
+                    &format!(
+                        r#"{{"type":"time","action":{{"type":"advance","frames":{frames},"step_nanoseconds":25000000}}}}"#
+                    ),
+                );
+            }
+            let capture = app.world_mut().remove_resource::<FrameCapture>().unwrap();
+            let clock = app.world_mut().remove_resource::<Clock>().unwrap();
+            (capture, clock)
+        }
+
+        let (batched_capture, batched_clock) = run(&[4]);
+        let (single_capture, single_clock) = run(&[1, 1, 1, 1]);
+        assert_eq!(batched_capture, single_capture);
+        assert_eq!(batched_capture.updates, 4);
+        assert_eq!(batched_capture.fixed_updates, 10);
+        assert_eq!(batched_clock.frame_index(), single_clock.frame_index());
+        assert_eq!(batched_clock.elapsed(), single_clock.elapsed());
+    }
+
+    #[test]
+    fn held_virtual_keys_are_consumed_on_each_controlled_frame() {
+        let (mut app, sender, _output, _window) = controlled_app();
+        app.init_resource::<FrameCapture>()
+            .add_systems(Update, capture_update);
+        app.update();
+
+        send_command(
+            &mut app,
+            &sender,
+            1,
+            r#"{"type":"keyboard","action":{"type":"press","key":"a"}}"#,
+        );
+        assert_eq!(app.world().resource::<FrameCapture>().updates, 0);
+        send_command(
+            &mut app,
+            &sender,
+            2,
+            r#"{"type":"time","action":{"type":"advance","frames":3,"step_nanoseconds":16666667}}"#,
+        );
+        assert_eq!(app.world().resource::<FrameCapture>().held_updates, 3);
+
+        send_command(
+            &mut app,
+            &sender,
+            3,
+            r#"{"type":"keyboard","action":{"type":"release","key":"a"}}"#,
+        );
+        send_command(
+            &mut app,
+            &sender,
+            4,
+            r#"{"type":"time","action":{"type":"advance","frames":1,"step_nanoseconds":16666667}}"#,
+        );
+        assert_eq!(app.world().resource::<FrameCapture>().updates, 4);
+        assert_eq!(app.world().resource::<FrameCapture>().held_updates, 3);
+    }
 
     fn capture_window(mut input: MessageReader<WindowEvent>, mut capture: ResMut<WindowCapture>) {
         capture.0 += input.read().count() as u32;
@@ -781,48 +1181,63 @@ mod tests {
         assert!(app.world().resource::<TextCapture>().0.is_empty());
         assert_eq!(app.world().resource::<WindowCapture>().0, 0);
 
-        for (sequence, command) in [
-            (
-                1,
-                r#"{"type":"keyboard","action":{"type":"press","key":"a"}}"#,
-            ),
-            (
-                2,
-                r#"{"type":"keyboard","action":{"type":"press","key":"a"}}"#,
-            ),
-            (
-                3,
-                r#"{"type":"keyboard","action":{"type":"release","key":"a"}}"#,
-            ),
-            (4, r#"{"type":"text","text":"virtual"}"#),
-            (
-                5,
-                r#"{"type":"observe","selector":{"type":"virtual_input"},"projection":{"type":"summary"},"limit":1}"#,
-            ),
-        ] {
-            sender
-                .send(Input::Line(format!(
-                    r#"{{"sequence":{sequence},"command":{command}}}"#
-                )))
-                .unwrap();
-            app.update();
-            if sequence == 1 {
-                assert!(
-                    app.world()
-                        .resource::<ButtonInput<KeyCode>>()
-                        .pressed(KeyCode::KeyA)
-                );
-                app.world_mut().write_message(KeyboardFocusLost);
-                app.world_mut()
-                    .write_message(WindowEvent::KeyboardFocusLost(KeyboardFocusLost));
-                app.update();
-                assert!(
-                    app.world()
-                        .resource::<ButtonInput<KeyCode>>()
-                        .pressed(KeyCode::KeyA)
-                );
-            }
-        }
+        send_command(
+            &mut app,
+            &sender,
+            1,
+            r#"{"type":"keyboard","action":{"type":"press","key":"a"}}"#,
+        );
+        send_command(
+            &mut app,
+            &sender,
+            2,
+            r#"{"type":"time","action":{"type":"advance","frames":1,"step_nanoseconds":16666667}}"#,
+        );
+        assert!(
+            app.world()
+                .resource::<ButtonInput<KeyCode>>()
+                .pressed(KeyCode::KeyA)
+        );
+        app.world_mut().write_message(KeyboardFocusLost);
+        app.world_mut()
+            .write_message(WindowEvent::KeyboardFocusLost(KeyboardFocusLost));
+        app.update();
+        assert!(
+            app.world()
+                .resource::<ButtonInput<KeyCode>>()
+                .pressed(KeyCode::KeyA)
+        );
+        send_command(
+            &mut app,
+            &sender,
+            3,
+            r#"{"type":"keyboard","action":{"type":"press","key":"a"}}"#,
+        );
+        send_command(
+            &mut app,
+            &sender,
+            4,
+            r#"{"type":"keyboard","action":{"type":"release","key":"a"}}"#,
+        );
+        send_command(
+            &mut app,
+            &sender,
+            5,
+            r#"{"type":"time","action":{"type":"advance","frames":1,"step_nanoseconds":16666667}}"#,
+        );
+        send_command(&mut app, &sender, 6, r#"{"type":"text","text":"virtual"}"#);
+        send_command(
+            &mut app,
+            &sender,
+            7,
+            r#"{"type":"time","action":{"type":"advance","frames":1,"step_nanoseconds":16666667}}"#,
+        );
+        send_command(
+            &mut app,
+            &sender,
+            8,
+            r#"{"type":"observe","selector":{"type":"virtual_input"},"projection":{"type":"summary"},"limit":1}"#,
+        );
 
         let capture = app.world().resource::<KeyboardCapture>();
         assert_eq!(capture.presses, 1);
@@ -830,10 +1245,10 @@ mod tests {
         assert_eq!(app.world().resource::<TextCapture>().0, ["virtual"]);
         let responses = output.responses.lock().unwrap();
         assert_eq!(
-            responses[1].error.as_ref().map(|error| error.code.as_str()),
+            responses[2].error.as_ref().map(|error| error.code.as_str()),
             Some("key_already_pressed")
         );
-        let input = &responses[4].result.as_ref().unwrap()["items"][0];
+        let input = &responses[7].result.as_ref().unwrap()["items"][0];
         assert_eq!(input["keyboard"]["pressed"], json!([]));
         assert_eq!(input["text"]["focused"], json!(crate::Handle::from(target)));
         assert_eq!(input["text"]["last_text"], "virtual");
@@ -946,15 +1361,21 @@ mod tests {
                 1,
                 r#"{"type":"move","surface":null,"position":[20.0,30.0]}"#,
             ),
-            (2, r#"{"type":"press","button":"primary"}"#),
-            (3, r#"{"type":"release","button":"primary"}"#),
+            (3, r#"{"type":"press","button":"primary"}"#),
+            (5, r#"{"type":"release","button":"primary"}"#),
         ] {
-            sender
-                .send(Input::Line(format!(
-                    r#"{{"sequence":{sequence},"command":{{"type":"pointer","action":{action}}}}}"#
-                )))
-                .unwrap();
-            app.update();
+            send_command(
+                &mut app,
+                &sender,
+                sequence,
+                &format!(r#"{{"type":"pointer","action":{action}}}"#),
+            );
+            send_command(
+                &mut app,
+                &sender,
+                sequence + 1,
+                r#"{"type":"time","action":{"type":"advance","frames":1,"step_nanoseconds":16666667}}"#,
+            );
         }
 
         assert_eq!(app.world().resource::<PressCount>().0, 1);
@@ -966,7 +1387,7 @@ mod tests {
                 .iter()
                 .map(|response| response.sequence)
                 .collect::<Vec<_>>(),
-            [1, 2, 3]
+            [1, 2, 3, 4, 5, 6]
         );
     }
 }

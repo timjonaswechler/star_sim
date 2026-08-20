@@ -1,6 +1,6 @@
 use crate::{
     entity::Handle, keyboard::State as KeyboardState, pointer::State as PointerState,
-    target::AutomationTarget, text::State as TextState,
+    target::AutomationTarget, text::State as TextState, time::Clock,
 };
 use bevy::{
     camera::{
@@ -81,6 +81,7 @@ pub enum Selector {
     Pointers,
     Entity(Handle),
     VirtualInput,
+    Clock,
 }
 
 impl Serialize for Selector {
@@ -99,6 +100,7 @@ impl Serialize for Selector {
                 map.serialize_entry("generation", &handle.generation)?;
             }
             Self::VirtualInput => map.serialize_entry("type", "virtual_input")?,
+            Self::Clock => map.serialize_entry("type", "clock")?,
         }
         map.end()
     }
@@ -122,6 +124,7 @@ impl<'de> Deserialize<'de> for Selector {
                 .map(Self::Entity)
                 .map_err(D::Error::custom),
             "virtual_input" if object.is_empty() => Ok(Self::VirtualInput),
+            "clock" if object.is_empty() => Ok(Self::Clock),
             other => Err(D::Error::custom(format!(
                 "unsupported observation selector {other:?}"
             ))),
@@ -146,6 +149,7 @@ pub enum Error {
     UnknownEntity(Handle),
     InvalidComponentPath(String),
     UnsupportedVirtualInputProjection,
+    UnsupportedClockProjection,
 }
 
 impl fmt::Display for Error {
@@ -167,6 +171,9 @@ impl fmt::Display for Error {
             Self::UnsupportedVirtualInputProjection => {
                 formatter.write_str("virtual_input supports only the summary projection")
             }
+            Self::UnsupportedClockProjection => {
+                formatter.write_str("clock supports only the summary projection")
+            }
         }
     }
 }
@@ -178,6 +185,9 @@ pub fn observe_world(world: &World, request: &Request) -> Result<Value, Error> {
     request.validate()?;
     if request.selector == Selector::VirtualInput {
         return observe_virtual_input(world, request);
+    }
+    if request.selector == Selector::Clock {
+        return observe_clock(world, request);
     }
     let entities = select_entities(world, &request.selector)?;
     let cursor = request.cursor.unwrap_or(0) as usize;
@@ -221,6 +231,7 @@ fn select_entities(world: &World, selector: &Selector) -> Result<Vec<Entity>, Er
                 .map_err(|_| Error::UnknownEntity(*handle))?,
         ],
         Selector::VirtualInput => unreachable!("virtual input is observed from resources"),
+        Selector::Clock => unreachable!("clock is observed from a resource"),
     };
     entities.sort_by_key(|entity| Handle::from(*entity));
     Ok(entities)
@@ -259,6 +270,31 @@ fn observe_virtual_input(world: &World, request: &Request) -> Result<Value, Erro
                     "commits": 0,
                 })),
         })]
+    } else {
+        Vec::new()
+    };
+    Ok(json!({
+        "items": items,
+        "total": 1,
+        "next_cursor": Option::<u32>::None,
+    }))
+}
+
+fn observe_clock(world: &World, request: &Request) -> Result<Value, Error> {
+    if request.projection != Projection::Summary {
+        return Err(Error::UnsupportedClockProjection);
+    }
+    let cursor = request.cursor.unwrap_or(0);
+    if cursor > 1 {
+        return Err(Error::InvalidCursor);
+    }
+    let items = if cursor == 0 {
+        vec![
+            world
+                .get_resource::<Clock>()
+                .map(Clock::observation)
+                .unwrap_or_else(|| Clock::default().observation()),
+        ]
     } else {
         Vec::new()
     };
@@ -787,6 +823,29 @@ mod tests {
             )
             .unwrap_err(),
             Error::UnsupportedVirtualInputProjection
+        );
+    }
+
+    #[test]
+    fn clock_summary_reads_the_session_clock_without_mutating_it() {
+        let mut world = World::new();
+        let mut clock = Clock::default();
+        clock.complete_frame(std::time::Duration::from_nanos(20));
+        world.insert_resource(clock);
+
+        let value =
+            observe_world(&world, &Request::new(Selector::Clock, Projection::Summary)).unwrap();
+        assert_eq!(value["items"][0]["frame_index"], 1);
+        assert_eq!(value["items"][0]["elapsed_nanoseconds"], 20);
+        assert_eq!(value["items"][0]["last_step_nanoseconds"], 20);
+        assert_eq!(world.resource::<Clock>().frame_index(), 1);
+        assert_eq!(
+            observe_world(
+                &world,
+                &Request::new(Selector::Clock, Projection::ComponentNames),
+            )
+            .unwrap_err(),
+            Error::UnsupportedClockProjection
         );
     }
 

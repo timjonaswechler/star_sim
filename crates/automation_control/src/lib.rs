@@ -13,6 +13,7 @@ pub mod pointer;
 pub mod protocol;
 pub mod target;
 pub mod text;
+pub mod time;
 pub mod transport;
 
 pub use entity::{Handle, HandleError};
@@ -22,6 +23,7 @@ pub use protocol::{
     decode_request,
 };
 pub use target::AutomationTarget;
+pub use time::Clock as ControlledClock;
 pub use transport::{Input, JsonLinesInput, Output, StdoutOutput};
 
 /// Environment variable through which a controller supplies a child session's artifact root.

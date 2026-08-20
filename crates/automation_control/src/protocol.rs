@@ -1,6 +1,6 @@
 use crate::{
     keyboard::Command as KeyboardCommand, observation::Request as ObservationRequest,
-    pointer::Command as PointerCommand, text::Command as TextCommand,
+    pointer::Command as PointerCommand, text::Command as TextCommand, time::Command as TimeCommand,
 };
 use serde::{
     Deserialize, Deserializer, Serialize, Serializer, de::Error as DeError, ser::SerializeMap,
@@ -23,6 +23,7 @@ pub enum Command {
     Pointer(PointerCommand),
     Keyboard(KeyboardCommand),
     Text(TextCommand),
+    Time(TimeCommand),
     Shutdown,
 }
 
@@ -56,6 +57,10 @@ impl Serialize for Command {
             Self::Text(command) => {
                 map.serialize_entry("type", "text")?;
                 map.serialize_entry("text", &command.text)?;
+            }
+            Self::Time(command) => {
+                map.serialize_entry("type", "time")?;
+                map.serialize_entry("action", command)?;
             }
             Self::Shutdown => map.serialize_entry("type", "shutdown")?,
         }
@@ -98,6 +103,15 @@ impl<'de> Deserialize<'de> for Command {
             "text" => serde_json::from_value(Value::Object(object))
                 .map(Self::Text)
                 .map_err(D::Error::custom),
+            "time" => {
+                let action = object
+                    .remove("action")
+                    .ok_or_else(|| D::Error::custom("time command requires action"))?;
+                reject_extra_fields::<D::Error>(&object)?;
+                serde_json::from_value(action)
+                    .map(Self::Time)
+                    .map_err(D::Error::custom)
+            }
             "shutdown" => {
                 reject_extra_fields::<D::Error>(&object)?;
                 Ok(Self::Shutdown)
@@ -143,13 +157,19 @@ impl Ready {
             kind: "ready".into(),
             version: PROTOCOL_VERSION,
             mode,
-            controls: vec!["pointer".into(), "keyboard".into(), "text".into()],
+            controls: vec![
+                "pointer".into(),
+                "keyboard".into(),
+                "text".into(),
+                "time".into(),
+            ],
             observation_scopes: vec![
                 "targets".into(),
                 "ui".into(),
                 "pointers".into(),
                 "entity".into(),
                 "virtual_input".into(),
+                "clock".into(),
             ],
         }
     }
@@ -261,6 +281,9 @@ fn validate_command(command: &Command) -> Result<(), ProtocolError> {
         Command::Text(command) => command
             .validate()
             .map_err(|error| validation_error(error.code(), error)),
+        Command::Time(command) => command
+            .validate()
+            .map_err(|error| validation_error(error.code(), error)),
         Command::Shutdown => Ok(()),
     }
 }
@@ -281,6 +304,7 @@ mod tests {
         observation::{Projection, Selector},
         pointer::{Button, Command as Pointer},
         text::Command as Text,
+        time::{Command as Time, MAX_FRAMES, MAX_STEP_NANOSECONDS},
     };
 
     #[test]
@@ -290,9 +314,10 @@ mod tests {
         assert_eq!(serde_json::to_value(&ready).unwrap()["type"], "ready");
         assert_eq!(
             serde_json::to_value(&ready).unwrap()["controls"],
-            serde_json::json!(["pointer", "keyboard", "text"])
+            serde_json::json!(["pointer", "keyboard", "text", "time"])
         );
         assert!(ready.observation_scopes.contains(&"virtual_input".into()));
+        assert!(ready.observation_scopes.contains(&"clock".into()));
     }
 
     #[test]
@@ -323,6 +348,15 @@ mod tests {
         );
         let text = serde_json::to_value(Command::Text(Text::new("hello"))).unwrap();
         assert_eq!(text, serde_json::json!({"type":"text", "text":"hello"}));
+
+        let time = serde_json::to_value(Command::Time(Time::advance(60, 16_666_667))).unwrap();
+        assert_eq!(
+            time,
+            serde_json::json!({
+                "type":"time",
+                "action":{"type":"advance", "frames":60, "step_nanoseconds":16_666_667}
+            })
+        );
     }
 
     #[test]
@@ -370,6 +404,46 @@ mod tests {
                 .unwrap()
                 .code,
             "text_too_large"
+        );
+    }
+
+    #[test]
+    fn time_validation_returns_specific_errors_without_float_coercion() {
+        let cases = [
+            (
+                r#"{"sequence":1,"command":{"type":"time","action":{"type":"advance","frames":0,"step_nanoseconds":1}}}"#,
+                "invalid_time_frames",
+            ),
+            (
+                &format!(
+                    r#"{{"sequence":1,"command":{{"type":"time","action":{{"type":"advance","frames":{},"step_nanoseconds":1}}}}}}"#,
+                    MAX_FRAMES + 1
+                ),
+                "time_frames_too_large",
+            ),
+            (
+                r#"{"sequence":1,"command":{"type":"time","action":{"type":"advance","frames":1,"step_nanoseconds":0}}}"#,
+                "invalid_time_step",
+            ),
+            (
+                &format!(
+                    r#"{{"sequence":1,"command":{{"type":"time","action":{{"type":"advance","frames":1,"step_nanoseconds":{}}}}}}}"#,
+                    MAX_STEP_NANOSECONDS + 1
+                ),
+                "time_step_too_large",
+            ),
+        ];
+        for (input, expected_code) in cases {
+            assert_eq!(
+                decode_request(input).unwrap_err().error.unwrap().code,
+                expected_code
+            );
+        }
+
+        let float = r#"{"sequence":1,"command":{"type":"time","action":{"type":"advance","frames":1,"step_nanoseconds":1.5}}}"#;
+        assert_eq!(
+            decode_request(float).unwrap_err().error.unwrap().code,
+            "malformed_request"
         );
     }
 

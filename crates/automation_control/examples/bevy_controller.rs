@@ -6,6 +6,7 @@ use automation_control::{
     observation::{Projection, Request as ObservationRequest, Selector},
     pointer::{Button, Command as PointerCommand},
     text::Command as TextCommand,
+    time::Command as TimeCommand,
 };
 use serde_json::Value;
 use std::{
@@ -40,8 +41,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let ready = session.ready()?;
     assert_eq!(ready.version, 2);
     assert_eq!(ready.mode, automation_control::RunMode::Rendered);
-    assert_eq!(ready.controls, ["pointer", "keyboard", "text"]);
+    assert_eq!(ready.controls, ["pointer", "keyboard", "text", "time"]);
     assert!(ready.observation_scopes.contains(&"virtual_input".into()));
+    assert!(ready.observation_scopes.contains(&"clock".into()));
+    advance(&mut session)?;
 
     let targets = observe(&mut session, Selector::Targets)?;
     let button = find_named(&targets, "button")?;
@@ -62,6 +65,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     pointer(&mut session, PointerCommand::Scroll { delta: [0.0, -2.0] })?;
 
     session.request(Command::Keyboard(KeyboardCommand::Press { key: Key::A }))?;
+    advance(&mut session)?;
     let held = observe_session_state(&mut session, background_handle)?;
     assert_eq!(held["key_a_held"], true);
     assert_eq!(held["key_a_presses"], 1);
@@ -74,8 +78,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     assert_eq!(input["keyboard"]["pressed"], serde_json::json!(["a"]));
 
     session.request(Command::Keyboard(KeyboardCommand::Release { key: Key::A }))?;
+    advance(&mut session)?;
     click(&mut session, text_input_center)?;
     session.request(Command::Text(TextCommand::new("controlled text")))?;
+    advance(&mut session)?;
+    advance(&mut session)?;
 
     let input = observe_virtual_input(&mut session)?;
     assert_eq!(
@@ -206,6 +213,11 @@ fn pointer(
     command: PointerCommand,
 ) -> Result<(), Box<dyn std::error::Error>> {
     session.request(Command::Pointer(command))?;
+    advance(session)
+}
+
+fn advance(session: &mut Session) -> Result<(), Box<dyn std::error::Error>> {
+    session.request(Command::Time(TimeCommand::advance(1, 16_666_667)))?;
     Ok(())
 }
 

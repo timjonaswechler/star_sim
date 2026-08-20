@@ -10,7 +10,7 @@ The session emits one `ready` message. The host assigns request sequences beginn
 Controllers send only commands and do not provide protocol versions or request IDs.
 
 ```json
-{"type":"ready","version":2,"mode":"rendered","controls":["pointer","keyboard","text"],"observation_scopes":["targets","ui","pointers","entity","virtual_input"]}
+{"type":"ready","version":2,"mode":"rendered","controls":["pointer","keyboard","text","time"],"observation_scopes":["targets","ui","pointers","entity","virtual_input","clock"]}
 ```
 
 ```json
@@ -25,14 +25,22 @@ Controllers send only commands and do not provide protocol versions or request I
 {"sequence":3,"command":{"type":"keyboard","action":{"type":"press","key":"a"}}}
 {"sequence":4,"command":{"type":"keyboard","action":{"type":"release","key":"a"}}}
 {"sequence":5,"command":{"type":"text","text":"controlled text"}}
+{"sequence":6,"command":{"type":"time","action":{"type":"advance","frames":1,"step_nanoseconds":16666667}}}
 ```
 
-The public command groups are `Observe`, `Pointer`, `Keyboard`, `Text`, and `Shutdown`. Pointer
+The public command groups are `Observe`, `Pointer`, `Keyboard`, `Text`, `Time`, and `Shutdown`. Pointer
 actions are `Move`, `Press`, `Release`, and `Scroll`; there is no wire-level click. Keyboard press
 and release are separate requests. `keyboard::Key` defines the stable wire names for letters,
 digits, punctuation, modifiers, navigation keys, and F1 through F12. Text commands accept at most
 16 KiB of UTF-8 and commit the whole string to the focused Bevy `EditableText`. A missing,
 stale, or non-editable focus returns `text_focus_unavailable`.
+
+`time.advance` runs between 1 and 10,000 complete application frames. `step_nanoseconds` must be an
+integer between 1 and 1,000,000,000. Invalid frame counts and steps return
+`invalid_time_frames`, `time_frames_too_large`, `invalid_time_step`, or `time_step_too_large`
+without changing the clock. Controlled Sessions do not run Bevy simulation schedules while no
+advance command is pending. Input commands update session-local Virtual Input immediately, while
+Bevy application systems consume the queued transitions on the next controlled frame.
 
 ## Embed the plugin
 
@@ -55,8 +63,9 @@ Virtual keyboard commands
 write `KeyboardInput`, update Bevy's `ButtonInput<KeyCode>` and `ButtonInput<Key>` resources, and
 use Bevy's focused-input dispatch. Virtual text commands write `Ime::Commit`, which
 `EditableTextInputPlugin` routes to the focused `EditableText`. The plugin processes one request per
-update and responds after application observers and text-edit systems have run. `stdout` contains
-JSONL only. Diagnostics use `stderr`.
+event-loop update. Input responses acknowledge the queued session-local transition. An advance response is
+written only after every requested frame, including application observers and text-edit systems, has
+completed. `stdout` contains JSONL only. Diagnostics use `stderr`.
 
 ## Observation
 
@@ -67,13 +76,20 @@ by session-local `{index,generation}` handles and paged with a hard limit and st
 Reflection is read-only. Components that are absent, unregistered, not reflectable, not serializable,
 or too large receive an explicit status.
 
+The `clock` selector with the `summary` projection reports the completed frame index, elapsed
+controlled nanoseconds, and the last step in nanoseconds. Repeated observations do not change it.
+
+```json
+{"sequence":7,"command":{"type":"observe","selector":{"type":"clock"},"projection":{"type":"summary"},"limit":1}}
+```
+
 The `virtual_input` selector with the `summary` projection reports the session's pointer position,
 pressed pointer buttons, last scroll delta, held keyboard keys, current Bevy input focus, and last
 text commit. These resources belong to one Controlled Session and are never shared with another
 session.
 
 ```json
-{"sequence":6,"command":{"type":"observe","selector":{"type":"virtual_input"},"projection":{"type":"summary"},"limit":1}}
+{"sequence":8,"command":{"type":"observe","selector":{"type":"virtual_input"},"projection":{"type":"summary"},"limit":1}}
 ```
 
 `AutomationTarget` is an empty marker. It has no persistent semantic ID, role, label, or action
@@ -100,8 +116,8 @@ or examples. Diagnostics and report helpers remain available to host tools.
 
 ## Dummy app smoke test
 
-The `bevy_example` package is a context-menu application. Without features it is a normal native
-Bevy app. With `automation`, it disables `InputPlugin` and the native gamepad producer, enables the
+The `bevy_context_menu` package is a context-menu application. Without features it runs as a Player
+Run. With `automation`, it disables `InputPlugin` and the native gamepad producer, enables the
 Controlled Session plugin, marks the background, buttons, menu items, and editable text target, and
 exposes reflected pointer, keyboard, and text state.
 
