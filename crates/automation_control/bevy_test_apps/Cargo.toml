@@ -27,5 +27,9 @@ name = "mesh_picking"
 path = "src/bin/mesh_picking.rs"
 
 [[bin]]
+name = "game_menu"
+path = "src/bin/game_menu.rs"
+
+[[bin]]
 name = "ui_drag_drop"
 path = "src/bin/ui_drag_drop.rs"

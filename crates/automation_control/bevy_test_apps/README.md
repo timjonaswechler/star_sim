@@ -64,6 +64,22 @@ The rendered controller derives tile centers from observed UI bounds, then build
 cargo run -p automation_control --example ui_drag_drop_controller --features driver
 ```
 
+## Game menu
+
+Run the adapted multi-screen menu as a Player Run:
+
+```bash
+cargo run -p bevy_test_apps --bin game_menu
+```
+
+With `--features automation`, the persistent `game-menu-state` target reflects the active game state, menu state, display quality, volume, and both timer positions. Screen roots, navigation buttons, and setting buttons have stable names and session-local target handles.
+
+The rendered controller navigates with Virtual Pointer and Virtual Keyboard input, verifies state-scoped despawning and stale-handle rejection, and captures the main menu, settings, display settings, and game screen:
+
+```bash
+cargo run -p automation_control --example game_menu_controller --features driver
+```
+
 ## Application conventions
 
 - Put application systems, components, and semantic test state in the binary that owns them. Shared code is limited to run composition.
@@ -80,5 +96,7 @@ cargo run -p automation_control --example ui_drag_drop_controller --features dri
 `mesh_picking` adapts Bevy 0.19.1's [`examples/picking/mesh_picking.rs`](https://github.com/bevyengine/bevy/blob/v0.19.1/examples/picking/mesh_picking.rs). Star Sim reduces the scene to three stable targets and adds Controlled Session input, deterministic rotation checks, reflected interaction state, and screenshot assertions.
 
 `ui_drag_drop` adapts Bevy 0.19.1's [`examples/ui/ui_drag_and_drop.rs`](https://github.com/bevyengine/bevy/blob/v0.19.1/examples/ui/ui_drag_and_drop.rs). Star Sim uses a compact grid with stable targets and adds reflected lifecycle state, Controlled Session gestures, invalid-drop checks, and semantic screenshot assertions.
+
+`game_menu` adapts Bevy 0.19's [`examples/showcase/game_menu.rs`](https://github.com/bevyengine/bevy/blob/v0.19.0/examples/showcase/game_menu.rs). Star Sim removes external image assets, adds stable target names, reflects menu state and timer progress, supports keyboard navigation, and supplies a Controlled Session controller.
 
 Bevy distributes these examples under either the MIT License or Apache License 2.0, as recorded in Bevy's [repository license files](https://github.com/bevyengine/bevy/tree/v0.19.1#license).

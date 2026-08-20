@@ -30,6 +30,10 @@ name = "blend_modes_controller"
 required-features = ["driver"]
 
 [[example]]
+name = "game_menu_controller"
+required-features = ["driver"]
+
+[[example]]
 name = "ui_drag_drop_controller"
 required-features = ["driver"]
 
