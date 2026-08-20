@@ -18,6 +18,24 @@ The controller launches the automation composition and checks pointer buttons, s
 cargo run -p automation_control --example bevy_controller --features driver
 ```
 
+## Blend modes
+
+Run the adapted 3D blend-modes scene as a Player Run:
+
+```bash
+cargo run -p bevy_test_apps --bin blend_modes
+```
+
+Add `--features automation` to run it as a Controlled Session. The camera and five blend-mode spheres have stable names and `AutomationTarget` markers. The camera's reflected `blend_modes::SceneState` reports alpha, HDR, unlit mode, camera angle, color seed, color-change count, and the five sphere colors. Each sphere exposes its session-local material asset ID through the reflected `blend_modes::ObservedMaterialHandle` component, alongside Bevy's `MeshMaterial3d<StandardMaterial>` component.
+
+The scene uses seed `0x5eedb1e5`. Each `C` press derives colors from that seed, the color-change count, and the object's stable color slot. Identical seeds and key sequences therefore produce identical observed colors.
+
+The rendered controller checks held arrow keys, controlled time, separate mode-key presses, reflected state, camera and material components, and screenshots at fixed controlled frames:
+
+```bash
+cargo run -p automation_control --example blend_modes_controller --features driver
+```
+
 ## Application conventions
 
 - Put application systems, components, and semantic test state in the binary that owns them. Shared code is limited to run composition.
@@ -27,4 +45,8 @@ cargo run -p automation_control --example bevy_controller --features driver
 
 ## Source and license
 
-`context_menu` adapts Bevy 0.19.1's [`examples/usage/context_menu.rs`](https://github.com/bevyengine/bevy/blob/v0.19.1/examples/usage/context_menu.rs). The text-input field, semantic session state, stable names, and Controlled Session integration are Star Sim changes. Bevy distributes the example under either the MIT License or Apache License 2.0, as recorded in Bevy's [repository license files](https://github.com/bevyengine/bevy/tree/v0.19.1#license).
+`context_menu` adapts Bevy 0.19.1's [`examples/usage/context_menu.rs`](https://github.com/bevyengine/bevy/blob/v0.19.1/examples/usage/context_menu.rs). The text-input field, semantic session state, stable names, and Controlled Session integration are Star Sim changes.
+
+`blend_modes` adapts Bevy 0.19.1's [`examples/3d/blend_modes.rs`](https://github.com/bevyengine/bevy/blob/v0.19.1/examples/3d/blend_modes.rs). Stable targets, reflected state, deterministic colors, fixed window dimensions, and Controlled Session integration are Star Sim changes.
+
+Bevy distributes both examples under either the MIT License or Apache License 2.0, as recorded in Bevy's [repository license files](https://github.com/bevyengine/bevy/tree/v0.19.1#license).

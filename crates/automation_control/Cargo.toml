@@ -21,6 +21,10 @@ toml = { version = "0.8", optional = true }
 name = "bevy_controller"
 required-features = ["driver"]
 
+[[example]]
+name = "blend_modes_controller"
+required-features = ["driver"]
+
 [[test]]
 name = "driver_recording"
 required-features = ["driver"]

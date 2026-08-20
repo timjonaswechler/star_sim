@@ -8,6 +8,7 @@ autobins = false
 [dependencies]
 bevy = { version = "0.19.1", features = [] }
 automation_control = { path = "../", optional = true }
+rand = "0.9"
 
 [features]
 default = []
@@ -16,3 +17,7 @@ automation = ["dep:automation_control"]
 [[bin]]
 name = "context_menu"
 path = "src/bin/context_menu.rs"
+
+[[bin]]
+name = "blend_modes"
+path = "src/bin/blend_modes.rs"
