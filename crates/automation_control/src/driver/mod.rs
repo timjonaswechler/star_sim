@@ -5,6 +5,7 @@ pub mod github;
 mod launch;
 mod report;
 mod session;
+pub mod wait;
 
 pub use command_line::{
     CommandLine, CommandLineError, ReportOptions, RunOptions, USAGE as COMMAND_LINE_USAGE,

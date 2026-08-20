@@ -1,10 +1,12 @@
 # Bevy test applications
 
-This package holds rendered Bevy applications used to exercise `automation_control`. Each application is an explicit binary, so another application only needs a new `src/bin/*.rs` file and `[[bin]]` entry.
+This package holds small Bevy applications used to exercise `automation_control`. Each application is an explicit binary, so another application only needs a new `src/bin/*.rs` file and `[[bin]]` entry.
 
-Every binary uses `add_rendered_run_plugins` with its configured window. Without features, that helper builds a rendered Player Run with Bevy's native input plugins. With `--features automation`, it builds a rendered Controlled Session with `InputPlugin` and `GilrsPlugin` disabled, screenshot support enabled, and `automation_control` supplying Virtual Input over protocol v2.
+Rendered binaries use `composition::rendered` with a configured window. Without features, it builds a Player Run with Bevy's native input plugins. With `--features automation`, it builds a Rendered Mode Controlled Session with `InputPlugin` and `GilrsPlugin` disabled, screenshot support enabled, and `automation_control` supplying Virtual Input over protocol v2.
 
-The Controlled Session still registers the empty low-level Bevy input message channels and state resources required by UI, focus, and picking systems. These are compatibility prerequisites, not native input producers or operating-system connections. Native producers remain disabled, and native message buffers are cleared before focused-input dispatch.
+`logical_state` uses `composition::logical`. This composition installs no Winit, `WindowPlugin`, `RenderPlugin`, `InputPlugin`, Gilrs, or native pointer producer. It creates one data-only `Window` component with fixed dimensions so Bevy UI layout and Virtual Pointer coordinates share a session-local surface. No operating-system window backs that entity.
+
+Controlled compositions still register the empty low-level Bevy input message channels and state resources required by UI, focus, and picking systems. These are compatibility prerequisites, not native input producers or operating-system connections. The control plugin clears native message buffers before focused-input dispatch.
 
 ## Context menu
 
@@ -82,9 +84,23 @@ The rendered controller navigates with Virtual Pointer and Virtual Keyboard inpu
 cargo run -p automation_control --example game_menu_controller --features driver
 ```
 
+## Logical state
+
+`logical_state` covers UI layout, Virtual Pointer presses, held Virtual Keyboard input, timers, `Update`, `FixedUpdate`, and reflected state without a display server or render adapter:
+
+```bash
+cargo run -p bevy_test_apps --bin logical_state --features automation
+```
+
+The driver integration test removes display environment variables and controls the child through the public session API:
+
+```bash
+cargo test -p automation_control --features driver --test logical_state -- --test-threads=1
+```
+
 ## Application conventions
 
-- Put application systems, components, and semantic test state in the binary that owns them. Shared code is limited to the rendered run composition in `add_rendered_run_plugins`.
+- Put application systems, components, and semantic test state in the binary that owns them. Shared code belongs in `composition::rendered` or `composition::logical` only when every app in that mode needs it.
 - Give observable entities stable, descriptive `Name` values. Names must not depend on spawn order or an entity handle. Use lowercase kebab-case where a name has multiple words.
 - Add `AutomationTarget` only to entities a Controller must find or operate. Keep the marker behind `cfg(feature = "automation")`.
 - Store assertions that span several UI systems in a small application-owned component. Derive `Reflect`, add `#[reflect(Component)]`, and register the type with `App::register_type`.

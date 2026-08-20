@@ -84,10 +84,19 @@ where
 }
 
 impl AutomationControlPlugin {
+    /// Creates a Logical Mode Controlled Session using stdin/stdout JSONL.
+    pub fn logical_stdio() -> Self {
+        Self::stdio(RunMode::Logical)
+    }
+
     /// Creates a Rendered Mode Controlled Session using stdin/stdout JSONL.
     pub fn rendered_stdio() -> Self {
+        Self::stdio(RunMode::Rendered)
+    }
+
+    fn stdio(mode: RunMode) -> Self {
         Self {
-            mode: RunMode::Rendered,
+            mode,
             output: Arc::new(crate::transport::StdoutOutput),
             input_factory: Arc::new(|| JsonLinesInput::stdin(INPUT_CAPACITY)),
         }

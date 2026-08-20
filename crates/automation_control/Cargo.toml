@@ -52,3 +52,7 @@ required-features = ["driver"]
 [[test]]
 name = "github_report"
 required-features = ["driver"]
+
+[[test]]
+name = "logical_state"
+required-features = ["driver"]

@@ -5,7 +5,7 @@ use super::{
 };
 use crate::{
     AUTOMATION_CONTROL_ARTIFACT_DIR, Command, PROTOCOL_VERSION, Ready, Request, Response,
-    ResponseStatus,
+    ResponseStatus, observation::Request as ObservationRequest, time::Command as TimeCommand,
 };
 use serde_json::Value;
 use std::{
@@ -30,6 +30,10 @@ pub enum DriverError {
     Timeout(String),
     Child(String),
     RequestFailed(Response),
+    WaitLimitReached {
+        frame_limit: u64,
+        last_observation: Value,
+    },
 }
 
 impl fmt::Display for DriverError {
@@ -41,6 +45,10 @@ impl fmt::Display for DriverError {
             Self::Timeout(message) => write!(formatter, "timed out waiting for child: {message}"),
             Self::Child(message) => formatter.write_str(message),
             Self::RequestFailed(response) => write!(formatter, "request failed: {response:?}"),
+            Self::WaitLimitReached { frame_limit, .. } => write!(
+                formatter,
+                "observation condition was not met within {frame_limit} controlled frames"
+            ),
         }
     }
 }
@@ -256,6 +264,42 @@ impl Session {
             return Err(DriverError::RequestFailed(response));
         }
         Ok(response)
+    }
+
+    /// Repeats an observation and advances one controlled frame after each miss.
+    ///
+    /// The predicate runs first against the current state. At most `limit` controlled frames are
+    /// then advanced, and every command remains subject to the session's wall-clock timeout.
+    pub fn wait_for_observation<F>(
+        &mut self,
+        request: ObservationRequest,
+        limit: super::wait::FrameLimit,
+        mut predicate: F,
+    ) -> Result<Response, DriverError>
+    where
+        F: FnMut(&Value) -> bool,
+    {
+        let mut response = self.request(Command::Observe(request.clone()))?;
+        for advanced_frames in 0..=limit.frames {
+            let observation = response.result.as_ref().ok_or_else(|| {
+                DriverError::Protocol("completed observation has no result".into())
+            })?;
+            if predicate(observation) {
+                return Ok(response);
+            }
+            if advanced_frames == limit.frames {
+                return Err(DriverError::WaitLimitReached {
+                    frame_limit: limit.frames,
+                    last_observation: observation.clone(),
+                });
+            }
+            self.request(Command::Time(TimeCommand::advance(
+                1,
+                limit.step_nanoseconds,
+            )))?;
+            response = self.request(Command::Observe(request.clone()))?;
+        }
+        unreachable!("the bounded wait loop always returns")
     }
 
     pub fn shutdown(mut self) -> Result<(), DriverError> {

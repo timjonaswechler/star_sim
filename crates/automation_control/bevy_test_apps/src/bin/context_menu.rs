@@ -7,7 +7,7 @@ use bevy::{
     text::{EditableText, TextCursorStyle},
     window::WindowResolution,
 };
-use bevy_test_apps::add_rendered_run_plugins;
+use bevy_test_apps::composition;
 use std::fmt::Debug;
 
 #[cfg(feature = "automation")]
@@ -52,7 +52,7 @@ struct SessionState {
 
 fn main() {
     let mut app = App::new();
-    add_rendered_run_plugins(
+    composition::rendered(
         &mut app,
         Window {
             title: "Controlled context menu test".into(),

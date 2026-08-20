@@ -68,7 +68,8 @@ systems and GPUs are not guaranteed.
 ```rust
 use automation_control::AutomationControlPlugin;
 
-app.add_plugins(AutomationControlPlugin::rendered_stdio());
+app.add_plugins(AutomationControlPlugin::logical_stdio());
+// A rendered composition uses `rendered_stdio()` instead.
 ```
 
 Tests and embedding applications provide the protocol mode and transport adapters explicitly:
@@ -151,9 +152,29 @@ session.shutdown()?;
 timeouts, stderr streaming, and optional ordered recording. `LaunchSpec` can start Cargo binaries
 or examples. Diagnostics and report helpers remain available to host tools.
 
-## Bevy application smoke test
+Host waits compose existing observation and time commands. They do not add a wait command to the wire protocol. `FrameLimit` validates both the maximum frame count and each controlled time step against the protocol limits:
 
-The `bevy_test_apps` package contains the `context_menu` binary. Without features it runs as a Player
+```rust
+use automation_control::driver::wait::FrameLimit;
+
+let response = session.wait_for_observation(
+    observation,
+    FrameLimit::new(120, 16_666_667)?,
+    |result| result["items"].as_array().is_some_and(|items| !items.is_empty()),
+)?;
+```
+
+The predicate sees the current observation before any frame advances. After each miss, the driver advances one frame and observes again. Exhaustion returns `DriverError::WaitLimitReached` with the last observation.
+
+## Bevy application smoke tests
+
+The display-free `logical_state` binary runs in Logical Mode with a fixed data-only surface. It exercises Virtual Pointer and Keyboard input, controlled timers, `Update`, `FixedUpdate`, reflected state, deterministic observations, bounded host waits, and typed screenshot rejection through a real child process:
+
+```bash
+cargo test -p automation_control --features driver --test logical_state -- --test-threads=1
+```
+
+The `bevy_test_apps` package also contains the rendered `context_menu` binary. Without features it runs as a Player
 Run. With `automation`, it disables `InputPlugin` and the native gamepad producer, enables the
 Controlled Session plugin, marks the background, buttons, menu items, and editable text target, and
 exposes reflected pointer, keyboard, and text state. Package structure, run commands, target naming,
