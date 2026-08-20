@@ -1,6 +1,52 @@
 # Stellar Population Simulation
 
-This context describes the generated stellar population and the spatial region in which it exists.
+This context defines the project language for controlled Star Sim sessions, the generated stellar population, and the spatial region in which that population exists.
+
+## Controlled play and automation
+
+**Player Run**:
+A normal Star Sim run operated directly through native keyboard and pointer input. It exposes no automation behavior and is not a controlled session.
+_Avoid_: Normal session, automated app, production mode
+
+**Controlled Session**:
+An isolated Star Sim run created by the Debug Host and operated only through Virtual Input. A human, agent, script, or replay may control it without changing its session semantics.
+_Avoid_: Agent session, test scenario, automation mode
+
+**Debug Host**:
+The developer-facing Star Sim program that creates, observes, records, and stops Controlled Sessions and connects Controllers to them.
+_Avoid_: Game server, debug scenario, controlled app
+
+**Controller**:
+The source directing a Controlled Session. A Controller may be a human using the REPL, an agent, a Session Script, or a Session Replay.
+_Avoid_: Agent when the source may be human or scripted, input device
+
+**Native Input**:
+Keyboard, pointer, text, and scroll input received from the host operating system during a Player Run.
+_Avoid_: Physical input, real input
+
+**Virtual Input**:
+Session-local keyboard, pointer, text, and scroll input delivered directly to one Controlled Session without using or changing host operating-system input.
+_Avoid_: Synthetic OS input, native input, global input
+
+**Session Recording**:
+The ordered record of configuration, Controller actions, observations, results, failures, and artifacts from one Controlled Session. Its format does not depend on which Controller produced the actions.
+_Avoid_: Session Script, log file, agent recording
+
+**Session Script**:
+A human-authored sequence of actions, waits, and expectations for a Controlled Session.
+_Avoid_: Session Recording, replay fixture
+
+**Session Replay**:
+A fresh Controlled Session that repeats recorded actions and compares selected stable results without asking the original Controller to decide again.
+_Avoid_: Session Script, continuing a session, rerunning an agent
+
+**Logical Mode**:
+A Controlled Session execution mode without a window or renderer, driven by controlled time and intended for deterministic state interaction.
+_Avoid_: Logical scenario, visual mode, hidden window
+
+**Rendered Mode**:
+A Controlled Session execution mode with rendering and visual artifacts while still accepting only Virtual Input.
+_Avoid_: Interactive mode, Player Run, visual scenario
 
 ## Galactic environment
 

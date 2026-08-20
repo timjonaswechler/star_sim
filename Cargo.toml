@@ -5,6 +5,7 @@ members = [
     "apps/app",
     "apps/population_lab",
     "crates/automation_control",
+    "crates/automation_control/bevy_example",
     "crates/physics/units",
     "crates/simulation",
 ]

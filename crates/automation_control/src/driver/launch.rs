@@ -50,13 +50,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn builds_example_command_from_a_launch_spec() {
+    fn builds_controlled_binary_command_from_a_launch_spec() {
         let spec = LaunchSpec {
-            package: "automation_control".into(),
-            kind: LaunchTargetKind::Example,
-            target: "automation_control_headless".into(),
-            features: vec!["render-example".into()],
-            arguments: vec!["--automation".into(), "--seed".into(), "42".into()],
+            package: "bevy_example".into(),
+            kind: LaunchTargetKind::Binary,
+            target: "bevy_example".into(),
+            features: vec!["automation".into()],
+            arguments: vec![],
         };
         let command = spec.command();
         let args: Vec<_> = command
@@ -69,15 +69,12 @@ mod tests {
                 "run",
                 "-q",
                 "-p",
-                "automation_control",
-                "--example",
-                "automation_control_headless",
+                "bevy_example",
+                "--bin",
+                "bevy_example",
                 "--features",
-                "render-example",
-                "--",
-                "--automation",
-                "--seed",
-                "42"
+                "automation",
+                "--"
             ]
         );
     }

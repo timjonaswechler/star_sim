@@ -194,10 +194,8 @@ checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
 name = "app"
 version = "0.1.0"
 dependencies = [
- "automation_control",
  "bevy",
  "name_generator",
- "serde_json",
  "simulation",
  "ui",
 ]
@@ -384,7 +382,6 @@ name = "automation_control"
 version = "0.1.0"
 dependencies = [
  "bevy",
- "image 0.25.10",
  "serde",
  "serde_json",
  "toml",
@@ -820,6 +817,14 @@ checksum = "be03820f64f2279ae9d826c882e4ef764516ff75ab7bdc39bb40801891533b89"
 dependencies = [
  "bevy_macro_utils",
  "encase_derive_impl",
+]
+
+[[package]]
+name = "bevy_example"
+version = "0.1.0"
+dependencies = [
+ "automation_control",
+ "bevy",
 ]
 
 [[package]]

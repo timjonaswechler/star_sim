@@ -1,0 +1,9 @@
+# Controlled Bevy example
+
+This package is a small context-menu application used by the automation smoke test.
+
+Without features it is a normal native Bevy application. With `--features automation`, the Debug
+Host starts a Controlled Session that disables native input and accepts only protocol-v2 Virtual
+Pointer commands. The `bevy_controller` example observes the current World, moves the virtual
+pointer, presses and releases the primary button, opens the context menu, selects an item, and
+observes the reflected application state.

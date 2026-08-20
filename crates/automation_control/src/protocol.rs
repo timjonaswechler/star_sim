@@ -1,158 +1,121 @@
-use crate::coordinates::{Coordinate, OperationMode, validate_coordinate};
-use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use crate::{observation::Request as ObservationRequest, pointer::Command as PointerCommand};
+use serde::{
+    Deserialize, Deserializer, Serialize, Serializer, de::Error as DeError, ser::SerializeMap,
+};
+use serde_json::{Map, Value};
+use std::fmt;
 
-pub const PROTOCOL_VERSION: u32 = 1;
-pub const DEFAULT_CAMERA_DURATION_MS: u32 = 250;
-pub const MAX_STEP_FRAMES: u32 = 10_000;
-pub const MAX_STEP_SIMULATION_MS: u64 = 86_400_000;
-pub const DEFAULT_WAIT_TIMEOUT_FRAMES: u32 = 300;
-pub const MAX_WAIT_TIMEOUT_FRAMES: u32 = 60_000;
+pub const PROTOCOL_VERSION: u32 = 2;
 
-fn default_duration_ms() -> u32 {
-    DEFAULT_CAMERA_DURATION_MS
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct Request {
-    pub version: u32,
-    pub id: String,
+    pub sequence: u64,
     pub command: Command,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-#[serde(tag = "type", rename_all = "snake_case")]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Command {
-    InspectUi,
-    InspectScene,
-    InspectSelection,
-    InspectCamera,
-    Click {
-        target: String,
-    },
-    CameraFocus {
-        camera: String,
-        target: String,
-        #[serde(default = "default_duration_ms")]
-        duration_ms: u32,
-    },
-    CameraOrbit {
-        camera: String,
-        #[serde(default)]
-        mode: OperationMode,
-        yaw_deg: f32,
-        pitch_deg: f32,
-        #[serde(default = "default_duration_ms")]
-        duration_ms: u32,
-    },
-    CameraPan {
-        camera: String,
-        #[serde(default)]
-        mode: OperationMode,
-        offset: Coordinate,
-        #[serde(default = "default_duration_ms")]
-        duration_ms: u32,
-    },
-    CameraZoom {
-        camera: String,
-        #[serde(default)]
-        mode: OperationMode,
-        value: f32,
-        #[serde(default = "default_duration_ms")]
-        duration_ms: u32,
-    },
-    Screenshot {
-        source: ScreenshotSource,
-        #[serde(default)]
-        path: Option<String>,
-        #[serde(default)]
-        overwrite: bool,
-    },
-    Pause,
-    Resume,
-    StepFrames {
-        count: u32,
-    },
-    StepSimulation {
-        duration_ms: u64,
-    },
-    WaitUntil {
-        condition: WaitCondition,
-        #[serde(default = "default_wait_timeout_frames")]
-        timeout_frames: u32,
-    },
-    InspectRun,
+    Observe(ObservationRequest),
+    Pointer(PointerCommand),
     Shutdown,
 }
 
-fn default_wait_timeout_frames() -> u32 {
-    DEFAULT_WAIT_TIMEOUT_FRAMES
+impl Serialize for Command {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut map = serializer.serialize_map(None)?;
+        match self {
+            Self::Observe(request) => {
+                let content = serde_json::to_value(request).map_err(serde::ser::Error::custom)?;
+                let Value::Object(content) = content else {
+                    return Err(serde::ser::Error::custom(
+                        "observe payload must be an object",
+                    ));
+                };
+                map.serialize_entry("type", "observe")?;
+                for (key, value) in content {
+                    map.serialize_entry(&key, &value)?;
+                }
+            }
+            Self::Pointer(command) => {
+                map.serialize_entry("type", "pointer")?;
+                map.serialize_entry("action", command)?;
+            }
+            Self::Shutdown => map.serialize_entry("type", "shutdown")?,
+        }
+        map.end()
+    }
 }
 
-/// Closed, versioned set of conditions. It intentionally cannot express ECS queries.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(tag = "type", rename_all = "snake_case")]
-pub enum WaitCondition {
-    TargetExists { target: String },
-    TargetVisible { target: String },
-    TargetEnabled { target: String },
-    TargetAbsent { target: String },
-    ActiveScreen { screen: String },
-    SelectionIs { target: String },
-    CameraMotionComplete,
-    ScreenshotComplete,
-    SimulationPaused,
-    FramesElapsed { count: u64 },
+impl<'de> Deserialize<'de> for Command {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let mut object = Map::<String, Value>::deserialize(deserializer)?;
+        let kind = object
+            .remove("type")
+            .and_then(|value| value.as_str().map(str::to_owned))
+            .ok_or_else(|| D::Error::custom("command.type must be a string"))?;
+        match kind.as_str() {
+            "observe" => serde_json::from_value(Value::Object(object))
+                .map(Self::Observe)
+                .map_err(D::Error::custom),
+            "pointer" => {
+                let action = object
+                    .remove("action")
+                    .ok_or_else(|| D::Error::custom("pointer command requires action"))?;
+                serde_json::from_value(action)
+                    .map(Self::Pointer)
+                    .map_err(D::Error::custom)
+            }
+            "shutdown" => Ok(Self::Shutdown),
+            other => Err(D::Error::custom(format!(
+                "unsupported command type {other:?}"
+            ))),
+        }
+    }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(tag = "type", rename_all = "snake_case")]
-pub enum ScreenshotSource {
-    Window { target: String },
-    Camera { target: String },
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-pub struct Ready {
-    pub version: u32,
-    #[serde(rename = "type")]
-    pub kind: String,
-    pub capabilities: Vec<String>,
-    pub mode: RunMode,
-    pub seed: u64,
-    pub fixed_step_ms: u32,
-}
-
-#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum RunMode {
     Logical,
     Rendered,
 }
 
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+pub struct Ready {
+    #[serde(rename = "type")]
+    pub kind: String,
+    pub version: u32,
+    pub mode: RunMode,
+    pub controls: Vec<String>,
+    pub observation_scopes: Vec<String>,
+}
+
 impl Ready {
-    pub fn new(
-        capabilities: impl IntoIterator<Item = impl Into<String>>,
-        mode: RunMode,
-        seed: u64,
-        fixed_step_ms: u32,
-    ) -> Self {
+    pub fn new(mode: RunMode) -> Self {
         Self {
-            version: PROTOCOL_VERSION,
             kind: "ready".into(),
-            capabilities: capabilities.into_iter().map(Into::into).collect(),
+            version: PROTOCOL_VERSION,
             mode,
-            seed,
-            fixed_step_ms,
+            controls: vec!["pointer".into()],
+            observation_scopes: vec![
+                "targets".into(),
+                "ui".into(),
+                "pointers".into(),
+                "entity".into(),
+            ],
         }
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct Response {
-    pub version: u32,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub id: Option<String>,
+    pub sequence: u64,
     pub status: ResponseStatus,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub result: Option<Value>,
@@ -160,38 +123,32 @@ pub struct Response {
     pub error: Option<ProtocolError>,
 }
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ResponseStatus {
     Completed,
     Error,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct ProtocolError {
     pub code: String,
     pub message: String,
 }
 
 impl Response {
-    pub fn completed(id: impl Into<String>, result: Value) -> Self {
+    pub fn completed(sequence: u64, result: Value) -> Self {
         Self {
-            version: PROTOCOL_VERSION,
-            id: Some(id.into()),
+            sequence,
             status: ResponseStatus::Completed,
             result: Some(result),
             error: None,
         }
     }
 
-    pub fn error(
-        id: Option<impl Into<String>>,
-        code: impl Into<String>,
-        message: impl Into<String>,
-    ) -> Self {
+    pub fn error(sequence: u64, code: impl Into<String>, message: impl Into<String>) -> Self {
         Self {
-            version: PROTOCOL_VERSION,
-            id: id.map(Into::into),
+            sequence,
             status: ResponseStatus::Error,
             result: None,
             error: Some(ProtocolError {
@@ -202,157 +159,122 @@ impl Response {
     }
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum DecodeError {
+    Malformed(String),
+    UnsupportedVersion(u32),
+    InvalidSequence,
+    InvalidArguments(String),
+}
+
+impl fmt::Display for DecodeError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Malformed(message) => write!(formatter, "malformed request: {message}"),
+            Self::UnsupportedVersion(version) => {
+                write!(formatter, "unsupported protocol version {version}")
+            }
+            Self::InvalidSequence => {
+                formatter.write_str("request sequence must be greater than zero")
+            }
+            Self::InvalidArguments(message) => {
+                write!(formatter, "invalid request arguments: {message}")
+            }
+        }
+    }
+}
+
+impl std::error::Error for DecodeError {}
+
+/// Decodes one protocol-v2 request. The caller supplies no request ID or protocol version.
 pub fn decode_request(line: &str) -> Result<Request, Response> {
     let request = serde_json::from_str::<Request>(line)
-        .map_err(|error| Response::error(None::<String>, "malformed_request", error.to_string()))?;
-    if request.version != PROTOCOL_VERSION {
+        .map_err(|error| Response::error(0, "malformed_request", error.to_string()))?;
+    if request.sequence == 0 {
         return Err(Response::error(
-            Some(request.id.clone()),
-            "unsupported_version",
-            format!("expected version {PROTOCOL_VERSION}"),
+            0,
+            "invalid_sequence",
+            "request sequence must be greater than zero",
         ));
     }
-    if request.id.trim().is_empty() {
-        return Err(Response::error(
-            Some(request.id),
-            "invalid_request_id",
-            "request id must not be empty",
-        ));
-    }
-    validate_command(&request.command).map_err(|message| {
-        Response::error(Some(request.id.clone()), "invalid_arguments", message)
-    })?;
+    validate_command(&request.command)
+        .map_err(|message| Response::error(request.sequence, "invalid_arguments", message))?;
     Ok(request)
 }
 
 fn validate_command(command: &Command) -> Result<(), String> {
-    let finite = |value: f32, name: &str| {
-        value
-            .is_finite()
-            .then_some(())
-            .ok_or_else(|| format!("{name} must be finite"))
-    };
     match command {
-        Command::CameraOrbit {
-            yaw_deg, pitch_deg, ..
-        } => {
-            finite(*yaw_deg, "yaw_deg")?;
-            finite(*pitch_deg, "pitch_deg")
-        }
-        Command::CameraPan { offset, .. } => validate_coordinate(*offset).map_err(str::to_owned),
-        Command::CameraZoom { value, mode, .. } => {
-            finite(*value, "zoom value")?;
-            if (*mode == OperationMode::Relative && *value == 0.0)
-                || (*mode == OperationMode::Absolute && *value <= 0.0)
-            {
-                return Err(
-                    "relative zoom must be nonzero and absolute zoom must be positive".into(),
-                );
-            }
-            Ok(())
-        }
-        Command::Screenshot {
-            path: Some(path), ..
-        } if path.trim().is_empty() => Err("screenshot path must not be empty".into()),
-        Command::StepFrames { count } if *count == 0 || *count > MAX_STEP_FRAMES => Err(format!(
-            "frame count must be between 1 and {MAX_STEP_FRAMES}"
-        )),
-        Command::StepSimulation { duration_ms }
-            if *duration_ms == 0 || *duration_ms > MAX_STEP_SIMULATION_MS =>
-        {
-            Err(format!(
-                "simulation duration_ms must be between 1 and {MAX_STEP_SIMULATION_MS}"
-            ))
-        }
-        Command::WaitUntil { timeout_frames, .. }
-            if *timeout_frames == 0 || *timeout_frames > MAX_WAIT_TIMEOUT_FRAMES =>
-        {
-            Err(format!(
-                "timeout_frames must be between 1 and {MAX_WAIT_TIMEOUT_FRAMES}"
-            ))
-        }
-        _ => Ok(()),
+        Command::Observe(request) => request.validate().map_err(|error| error.to_string()),
+        Command::Pointer(command) => command.validate().map_err(|error| error.to_string()),
+        Command::Shutdown => Ok(()),
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{
+        entity::Handle,
+        observation::{Projection, Selector},
+        pointer::{Button, Command as Pointer},
+    };
 
     #[test]
-    fn camera_protocol_defaults_to_relative_and_250ms() {
-        let request = decode_request(r#"{"version":1,"id":"orbit","command":{"type":"camera_orbit","camera":"camera.main","yaw_deg":90,"pitch_deg":-10}}"#).unwrap();
+    fn ready_is_negotiated_once_and_uses_v2_capability_names() {
+        let ready = Ready::new(RunMode::Rendered);
+        assert_eq!(ready.version, 2);
+        assert_eq!(serde_json::to_value(&ready).unwrap()["type"], "ready");
         assert_eq!(
-            request.command,
-            Command::CameraOrbit {
-                camera: "camera.main".into(),
-                mode: OperationMode::Relative,
-                yaw_deg: 90.0,
-                pitch_deg: -10.0,
-                duration_ms: 250
-            }
+            serde_json::to_value(&ready).unwrap()["controls"],
+            serde_json::json!(["pointer"])
         );
     }
 
     #[test]
-    fn accepts_absolute_zero_duration_and_tagged_coordinates() {
-        let request = decode_request(r#"{"version":1,"id":"pan","command":{"type":"camera_pan","camera":"camera.main","mode":"absolute","offset":{"space":"world","x":1,"y":2,"z":3},"duration_ms":0}}"#).unwrap();
-        assert!(matches!(
-            request.command,
-            Command::CameraPan {
-                mode: OperationMode::Absolute,
-                duration_ms: 0,
-                ..
-            }
-        ));
+    fn observe_and_pointer_wire_forms_are_flat_and_version_free() {
+        let observe = serde_json::to_value(Command::Observe(ObservationRequest::new(
+            Selector::Entity(Handle::new(42, 3)),
+            Projection::Summary,
+        )))
+        .unwrap();
+        assert_eq!(observe["type"], "observe");
+        assert_eq!(observe["selector"]["type"], "entity");
+        assert!(observe.get("version").is_none());
+
+        let pointer = serde_json::to_value(Command::Pointer(Pointer::Press {
+            button: Button::Primary,
+        }))
+        .unwrap();
+        assert_eq!(
+            pointer,
+            serde_json::json!({"type":"pointer", "action":{"type":"press", "button":"primary"}})
+        );
     }
 
     #[test]
-    fn rejects_nonfinite_and_invalid_normalized_values() {
-        let nan = r#"{"version":1,"id":"zoom","command":{"type":"camera_zoom","camera":"camera.main","value":1e400}}"#;
-        assert_eq!(
-            decode_request(nan).unwrap_err().error.unwrap().code,
-            "malformed_request"
-        );
-        let invalid = r#"{"version":1,"id":"pan","command":{"type":"camera_pan","camera":"camera.main","offset":{"space":"viewport_normalized","x":2,"y":0}}}"#;
+    fn decodes_and_validates_every_pointer_variant() {
+        let inputs = [
+            r#"{"sequence":1,"command":{"type":"pointer","action":{"type":"move","surface":null,"position":[1.0,2.0]}}}"#,
+            r#"{"sequence":2,"command":{"type":"pointer","action":{"type":"press","button":"primary"}}}"#,
+            r#"{"sequence":3,"command":{"type":"pointer","action":{"type":"release","button":"middle"}}}"#,
+            r#"{"sequence":4,"command":{"type":"pointer","action":{"type":"press","button":"secondary"}}}"#,
+            r#"{"sequence":5,"command":{"type":"pointer","action":{"type":"scroll","delta":[0.0,-1.0]}}}"#,
+        ];
+        for input in inputs {
+            assert!(decode_request(input).is_ok(), "failed to decode {input}");
+        }
+        let invalid = r#"{"sequence":1,"command":{"type":"pointer","action":{"type":"move","surface":null,"position":[null,2.0]}}}"#;
         assert_eq!(
             decode_request(invalid).unwrap_err().error.unwrap().code,
-            "invalid_arguments"
+            "malformed_request"
         );
     }
 
     #[test]
-    fn screenshot_sources_are_explicit() {
-        let request = decode_request(r#"{"version":1,"id":"shot","command":{"type":"screenshot","source":{"type":"camera","target":"camera.main"}}}"#).unwrap();
-        assert!(matches!(
-            request.command,
-            Command::Screenshot {
-                source: ScreenshotSource::Camera { .. },
-                path: None,
-                overwrite: false
-            }
-        ));
-    }
-
-    #[test]
-    fn step_and_wait_limits_are_validated() {
-        for line in [
-            r#"{"version":1,"id":"frames","command":{"type":"step_frames","count":0}}"#,
-            r#"{"version":1,"id":"simulation","command":{"type":"step_simulation","duration_ms":0}}"#,
-            r#"{"version":1,"id":"wait","command":{"type":"wait_until","condition":{"type":"simulation_paused"},"timeout_frames":0}}"#,
-        ] {
-            assert_eq!(
-                decode_request(line).unwrap_err().error.unwrap().code,
-                "invalid_arguments"
-            );
-        }
-        let wait = decode_request(r#"{"version":1,"id":"wait","command":{"type":"wait_until","condition":{"type":"target_visible","target":"button"}}}"#).unwrap();
-        assert!(matches!(
-            wait.command,
-            Command::WaitUntil {
-                timeout_frames: 300,
-                ..
-            }
-        ));
+    fn response_has_sequence_without_a_controller_id() {
+        let response = Response::completed(7, serde_json::json!({"ok": true}));
+        let value = serde_json::to_value(response).unwrap();
+        assert_eq!(value["sequence"], 7);
+        assert!(value.get("id").is_none());
     }
 }

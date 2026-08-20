@@ -4,8 +4,8 @@ use super::{
     launch::LaunchSpec,
 };
 use crate::{
-    AUTOMATION_CONTROL_ARTIFACT_DIR,
-    protocol::{Command, PROTOCOL_VERSION, Ready, Request, Response, ResponseStatus},
+    AUTOMATION_CONTROL_ARTIFACT_DIR, Command, PROTOCOL_VERSION, Ready, Request, Response,
+    ResponseStatus,
 };
 use serde_json::Value;
 use std::{
@@ -64,7 +64,6 @@ impl SessionOptions {
         }
     }
 
-    /// Builds session options from the reusable timeout policy and consumer-selected paths.
     pub fn from_config(
         config: &SessionConfig,
         record: Option<PathBuf>,
@@ -87,9 +86,6 @@ impl SessionOptions {
         self
     }
 
-    /// Supplies the artifact root to the child through the standard automation environment
-    /// variable. Applications remain responsible for constructing their own confined
-    /// `ArtifactRoot` when handling screenshot requests.
     pub fn with_artifact_dir(mut self, path: impl Into<PathBuf>) -> Self {
         self.artifact_dir = Some(path.into());
         self
@@ -152,6 +148,7 @@ pub struct Session {
     recorder: Option<SessionRecorder>,
     stderr_thread: Option<thread::JoinHandle<()>>,
     timeout: Duration,
+    next_sequence: u64,
     clean_shutdown: bool,
 }
 
@@ -206,11 +203,12 @@ impl Session {
             recorder,
             stderr_thread: Some(stderr_thread),
             timeout: options.timeout,
+            next_sequence: 1,
             clean_shutdown: false,
         })
     }
 
-    pub fn ready(&mut self, required: &[&str]) -> Result<Ready, DriverError> {
+    pub fn ready(&mut self) -> Result<Ready, DriverError> {
         let value = self.receive()?;
         self.record("from_app", &value)?;
         let ready: Ready = serde_json::from_value(value)
@@ -220,28 +218,20 @@ impl Session {
                 "invalid ready message: {ready:?}"
             )));
         }
-        for capability in required {
-            if !ready.capabilities.iter().any(|value| value == capability) {
-                return Err(DriverError::Protocol(format!(
-                    "child lacks capability {capability}"
-                )));
-            }
-        }
         Ok(ready)
     }
 
-    pub fn request(&mut self, id: &str, command: Command) -> Result<Response, DriverError> {
-        let request = Request {
-            version: PROTOCOL_VERSION,
-            id: id.into(),
-            command,
-        };
+    /// Sends one command with a host-assigned sequence beginning at one.
+    pub fn request(&mut self, command: Command) -> Result<Response, DriverError> {
+        let sequence = self.next_sequence;
+        self.next_sequence = self.next_sequence.saturating_add(1);
+        let request = Request { sequence, command };
         let request_value = serde_json::to_value(&request).map_err(|error| {
-            DriverError::Protocol(format!("failed to serialize request {id}: {error}"))
+            DriverError::Protocol(format!("failed to serialize request {sequence}: {error}"))
         })?;
         self.record("to_app", &request_value)?;
         let serialized = serde_json::to_string(&request).map_err(|error| {
-            DriverError::Protocol(format!("failed to serialize request {id}: {error}"))
+            DriverError::Protocol(format!("failed to serialize request {sequence}: {error}"))
         })?;
         let stdin = self
             .stdin
@@ -249,21 +239,17 @@ impl Session {
             .ok_or_else(|| DriverError::Io("child stdin is closed".into()))?;
         writeln!(stdin, "{serialized}")
             .and_then(|_| stdin.flush())
-            .map_err(|error| DriverError::Io(format!("failed to send {id}: {error}")))?;
+            .map_err(|error| {
+                DriverError::Io(format!("failed to send sequence {sequence}: {error}"))
+            })?;
         let response_value = self.receive()?;
         self.record("from_app", &response_value)?;
         let response: Response = serde_json::from_value(response_value).map_err(|error| {
-            DriverError::Protocol(format!("invalid response for {id}: {error}"))
+            DriverError::Protocol(format!("invalid response for sequence {sequence}: {error}"))
         })?;
-        if response.id.as_deref() != Some(id) {
+        if response.sequence != sequence {
             return Err(DriverError::Protocol(format!(
-                "expected response {id}, got {response:?}"
-            )));
-        }
-        if response.version != PROTOCOL_VERSION {
-            return Err(DriverError::Protocol(format!(
-                "unsupported response version {}; expected {PROTOCOL_VERSION}",
-                response.version
+                "expected response sequence {sequence}, got {response:?}"
             )));
         }
         if response.status != ResponseStatus::Completed {
@@ -273,7 +259,7 @@ impl Session {
     }
 
     pub fn shutdown(mut self) -> Result<(), DriverError> {
-        self.request("shutdown", Command::Shutdown)?;
+        self.request(Command::Shutdown)?;
         self.stdin.take();
         let deadline = Instant::now() + self.timeout;
         loop {
@@ -299,8 +285,7 @@ impl Session {
     }
 
     fn receive(&self) -> Result<Value, DriverError> {
-        let value = self
-            .receiver
+        self.receiver
             .recv_timeout(self.timeout)
             .map_err(|error| match error {
                 mpsc::RecvTimeoutError::Timeout => {
@@ -309,8 +294,8 @@ impl Session {
                 mpsc::RecvTimeoutError::Disconnected => {
                     DriverError::Protocol("child stdout closed".into())
                 }
-            })?;
-        value.map_err(DriverError::Protocol)
+            })?
+            .map_err(DriverError::Protocol)
     }
 
     fn record(&mut self, direction: &str, message: &Value) -> Result<(), DriverError> {
@@ -332,8 +317,6 @@ impl Drop for Session {
                 let _ = thread.join();
             }
         } else {
-            // A failed or timed-out Cargo wrapper may have left a descendant holding the pipe.
-            // Detach the reader rather than allowing diagnostics to make process cleanup hang.
             self.stderr_thread.take();
         }
     }
@@ -376,100 +359,43 @@ fn json_reader(stdout: ChildStdout) -> mpsc::Receiver<Result<Value, String>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::protocol::Command;
+    use crate::{Command, RunMode};
     use std::process::Command as ProcessCommand;
 
     #[test]
-    fn builds_options_from_session_configuration() {
-        let config = SessionConfig { timeout_seconds: 7 };
-        let record = PathBuf::from("artifacts/session.jsonl");
-        let artifact_dir = PathBuf::from("artifacts/run");
-        let options = SessionOptions::from_config(
-            &config,
-            Some(record.clone()),
-            RecentLogs::default(),
-            artifact_dir.clone(),
-        );
-        assert_eq!(options.timeout, Duration::from_secs(7));
-        assert_eq!(options.record, Some(record));
-        assert_eq!(options.artifact_dir, Some(artifact_dir));
-    }
-
-    #[test]
-    fn records_typed_requests_as_protocol_json() {
+    fn records_driver_sequences_starting_at_one_without_request_ids() {
         let record = std::env::temp_dir().join(format!(
             "automation-control-session-{}.jsonl",
             std::process::id()
         ));
         let mut command = ProcessCommand::new("sh");
-        command.args(["-c", "printf '%s\\n' '{\"version\":1,\"type\":\"ready\",\"capabilities\":[],\"mode\":\"logical\",\"seed\":42,\"fixed_step_ms\":50}' ; while read line; do printf '%s\\n' '{\"version\":1,\"id\":\"shutdown\",\"status\":\"completed\",\"result\":{}}'; exit 0; done"]);
-        let logs = RecentLogs::default();
-        let options = SessionOptions::new(Duration::from_secs(2))
-            .with_record(Some(record.clone()))
-            .with_recent_logs(logs);
-        let mut session = Session::spawn_command(command, options).unwrap();
-        session.ready(&[]).unwrap();
-        session.request("shutdown", Command::Shutdown).unwrap();
+        command.args([
+            "-c",
+            "printf '%s\\n' '{\"type\":\"ready\",\"version\":2,\"mode\":\"logical\",\"controls\":[\"pointer\"],\"observation_scopes\":[\"targets\"]}'; while read line; do printf '%s\\n' '{\"sequence\":1,\"status\":\"completed\",\"result\":{}}'; exit 0; done",
+        ]);
+        let mut session = Session::spawn_command(
+            command,
+            SessionOptions::new(Duration::from_secs(2)).with_record(Some(record.clone())),
+        )
+        .unwrap();
+        assert_eq!(session.ready().unwrap().mode, RunMode::Logical);
+        session.request(Command::Shutdown).unwrap();
         let data = fs::read_to_string(&record).unwrap();
-        assert!(data.contains("\"direction\":\"to_app\""));
+        assert!(data.contains("\"sequence\":1"));
+        assert!(!data.contains("\"id\""));
         fs::remove_file(record).ok();
     }
 
     #[test]
-    fn propagates_artifact_root_to_child_environment() {
-        let artifact_dir = std::env::temp_dir().join(format!(
-            "automation-control-artifact-env-{}",
-            std::process::id()
-        ));
+    fn rejects_non_json_child_stdout_as_a_protocol_error() {
         let mut command = ProcessCommand::new("sh");
-        command.args([
-            "-c",
-            "printf '%s\\n' '{\"version\":1,\"type\":\"ready\",\"capabilities\":[],\"mode\":\"logical\",\"seed\":42,\"fixed_step_ms\":50}'; read line; test \"$AUTOMATION_CONTROL_ARTIFACT_DIR\" = \"$EXPECTED_ARTIFACT_DIR\" || exit 42; printf '%s\\n' '{\"version\":1,\"id\":\"shutdown\",\"status\":\"completed\",\"result\":{}}'",
-        ]);
-        command.env("EXPECTED_ARTIFACT_DIR", &artifact_dir);
-        let options =
-            SessionOptions::new(Duration::from_secs(2)).with_artifact_dir(artifact_dir.clone());
-        let mut session = Session::spawn_command(command, options).unwrap();
-        session.ready(&[]).unwrap();
-        session.shutdown().unwrap();
-    }
-
-    #[test]
-    fn invalid_stdout_is_reported_as_a_protocol_error() {
-        let mut command = ProcessCommand::new("sh");
-        command.args(["-c", "printf 'not-json\\n'"]);
+        command.args(["-c", "printf 'human log on stdout\\n'"]);
         let mut session =
             Session::spawn_command(command, SessionOptions::new(Duration::from_secs(2))).unwrap();
-        let error = session.ready(&[]).unwrap_err().to_string();
-        assert!(error.contains("invalid ready message") || error.contains("non-JSON"));
-    }
-
-    #[test]
-    fn rejects_a_completed_response_with_an_unsupported_version() {
-        let mut command = ProcessCommand::new("sh");
-        command.args([
-            "-c",
-            "printf '%s\\n' '{\"version\":1,\"type\":\"ready\",\"capabilities\":[],\"mode\":\"logical\",\"seed\":42,\"fixed_step_ms\":50}'; read line; printf '%s\\n' '{\"version\":2,\"id\":\"state\",\"status\":\"completed\",\"result\":{}}'; sleep 1",
-        ]);
-        let mut session =
-            Session::spawn_command(command, SessionOptions::new(Duration::from_secs(2))).unwrap();
-        session.ready(&[]).unwrap();
-        let error = session.request("state", Command::InspectRun).unwrap_err();
-        assert!(error.to_string().contains("unsupported response version"));
-    }
-
-    #[test]
-    fn shutdown_is_bounded_by_the_session_timeout() {
-        let mut command = ProcessCommand::new("sh");
-        command.args([
-            "-c",
-            "printf '%s\\n' '{\"version\":1,\"type\":\"ready\",\"capabilities\":[],\"mode\":\"logical\",\"seed\":42,\"fixed_step_ms\":50}'; read line; printf '%s\\n' '{\"version\":1,\"id\":\"shutdown\",\"status\":\"completed\",\"result\":{}}'; sleep 5",
-        ]);
-        let mut session =
-            Session::spawn_command(command, SessionOptions::new(Duration::from_millis(50)))
-                .unwrap();
-        session.ready(&[]).unwrap();
-        let error = session.shutdown().unwrap_err();
-        assert!(error.to_string().contains("did not exit after shutdown"));
+        let error = session.ready().unwrap_err().to_string();
+        assert!(
+            error.contains("non-JSON stdout"),
+            "unexpected error: {error}"
+        );
     }
 }

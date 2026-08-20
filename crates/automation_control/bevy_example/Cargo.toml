@@ -1,0 +1,12 @@
+[package]
+name = "bevy_example"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+bevy = { version = "0.19.1", features = [] }
+automation_control = { path = "../", optional = true }
+
+[features]
+default = []
+automation = ["dep:automation_control"]

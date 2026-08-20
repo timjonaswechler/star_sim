@@ -1,27 +1,17 @@
 use automation_control::{
-    Command, RunMode, ScreenshotSource, WaitCondition,
-    driver::{
-        Config, LaunchSpec, RecentLogs, RunOptions, Session, SessionConfig, SessionOptions,
-        response_path, validate_png,
-    },
+    Command, RunMode,
+    driver::{Config, LaunchSpec, RecentLogs, RunOptions, Session, SessionConfig, SessionOptions},
+    observation::{Projection, Request as ObservationRequest, Selector},
 };
-use serde_json::{Value, json};
-use std::{fs, path::PathBuf};
+use serde_json::json;
+use std::path::PathBuf;
 
 const DEFAULT_ARTIFACT_DIR: &str = "artifacts/debug-ci";
-const LOGICAL_REQUIRED_CAPABILITIES: &[&str] =
-    &["inspect_ui", "click", "wait_until", "inspect_run"];
-const LOGICAL_TAB_TARGET: &str = "menu.tab.museum";
-const LOGICAL_SCREEN: &str = "museum";
-const VISUAL_REQUIRED_CAPABILITIES: &[&str] = &["screenshot"];
-const VISUAL_WINDOW_TARGET: &str = "window.primary";
-const VISUAL_WINDOW_PATH: &str = "window.png";
-const VISUAL_WINDOW_SIZE: [u32; 2] = [640, 360];
 
-/// Runs a star-sim scenario against the configured application.
+/// Runs a small protocol-v2 compatibility probe against the configured application.
 ///
-/// The launch configuration is generic, while target IDs, protocol commands, artifact paths,
-/// image dimensions, and result assertions remain owned by this application-specific module.
+/// The public REPL, scripts, replay, and recording orchestration are follow-up work. This keeps
+/// the existing Debug Host binary compiling while the Controlled Session interface is rebuilt.
 pub fn execute(options: RunOptions, config: Config) -> Result<(), String> {
     let RunOptions {
         scenario,
@@ -31,139 +21,67 @@ pub fn execute(options: RunOptions, config: Config) -> Result<(), String> {
     } = options;
     let artifact_dir = artifact_dir.unwrap_or_else(|| PathBuf::from(DEFAULT_ARTIFACT_DIR));
     let recent_logs = RecentLogs::default();
-    let result = match scenario.as_str() {
-        "logical" => run_logical(
-            &config.application,
-            &config.session,
-            artifact_dir.clone(),
-            record.clone(),
-            recent_logs.clone(),
-        ),
-        "visual" => run_visual(
-            &config.application,
-            &config.session,
-            artifact_dir.clone(),
-            record.clone(),
-            recent_logs.clone(),
-        ),
-        scenario => {
-            return Err(format!(
-                "unknown scenario {scenario:?}; expected logical or visual"
-            ));
-        }
-    };
+    let result = run_probe(
+        &config.application,
+        &config.session,
+        scenario.as_str(),
+        artifact_dir.clone(),
+        record.clone(),
+        recent_logs.clone(),
+    );
     let cli_error = result.as_ref().err().map(String::as_str);
     if cli_error.is_some() || recent_logs.failure().is_some() {
-        match recent_logs.persist_failure_artifacts(&artifact_dir, cli_error, record.as_deref()) {
-            Ok(artifacts) => {
-                eprintln!("recent log: {}", artifacts.recent_log.display());
-                eprintln!("failure metadata: {}", artifacts.failure_report.display());
-            }
-            Err(error) => eprintln!("warning: could not save failure artifacts: {error}"),
+        if let Err(error) =
+            recent_logs.persist_failure_artifacts(&artifact_dir, cli_error, record.as_deref())
+        {
+            eprintln!("warning: could not save failure artifacts: {error}");
         }
     }
     result
 }
 
-fn run_logical(
+fn run_probe(
     application: &LaunchSpec,
     session_config: &SessionConfig,
+    requested_mode: &str,
     artifact_dir: PathBuf,
     record: Option<PathBuf>,
     recent_logs: RecentLogs,
 ) -> Result<(), String> {
-    let mut client = Session::spawn(
+    let expected_mode = match requested_mode {
+        "rendered" => RunMode::Rendered,
+        other => {
+            return Err(format!(
+                "mode {other:?} is unavailable in this compatibility probe; expected rendered"
+            ));
+        }
+    };
+    let mut session = Session::spawn(
         application,
         SessionOptions::from_config(session_config, record, recent_logs, artifact_dir),
     )
     .map_err(|error| error.to_string())?;
-    let ready = client
-        .ready(LOGICAL_REQUIRED_CAPABILITIES)
-        .map_err(|error| error.to_string())?;
-    client
-        .request("ui", Command::InspectUi)
-        .map_err(|error| error.to_string())?;
-    client
-        .request(
-            "click-museum",
-            Command::Click {
-                target: LOGICAL_TAB_TARGET.into(),
-            },
-        )
-        .map_err(|error| error.to_string())?;
-    client
-        .request(
-            "wait-screen",
-            Command::WaitUntil {
-                condition: WaitCondition::ActiveScreen {
-                    screen: LOGICAL_SCREEN.into(),
-                },
-                timeout_frames: 10,
-            },
-        )
-        .map_err(|error| error.to_string())?;
-    let state = client
-        .request("state", Command::InspectRun)
-        .map_err(|error| error.to_string())?;
-    client.shutdown().map_err(|error| error.to_string())?;
-    println!(
-        "{}",
-        json!({
-            "status": "passed",
-            "mode": "logical",
-            "ready": ready,
-            "state": state.result.unwrap_or(Value::Null),
-        })
-    );
-    Ok(())
-}
-
-fn run_visual(
-    application: &LaunchSpec,
-    session_config: &SessionConfig,
-    artifact_dir: PathBuf,
-    record: Option<PathBuf>,
-    recent_logs: RecentLogs,
-) -> Result<(), String> {
-    fs::create_dir_all(&artifact_dir).map_err(|error| error.to_string())?;
-    let artifact_dir = artifact_dir
-        .canonicalize()
-        .map_err(|error| error.to_string())?;
-    let mut client = Session::spawn(
-        application,
-        SessionOptions::from_config(session_config, record, recent_logs, artifact_dir),
-    )
-    .map_err(|error| error.to_string())?;
-    let ready = client
-        .ready(VISUAL_REQUIRED_CAPABILITIES)
-        .map_err(|error| error.to_string())?;
-    if ready.mode != RunMode::Rendered {
+    let ready = session.ready().map_err(|error| error.to_string())?;
+    if ready.mode != expected_mode {
         return Err(format!(
-            "visual scenario requires rendered mode, got {:?}",
+            "requested {expected_mode:?}, child reported {:?}",
             ready.mode
         ));
     }
-    let window = client
-        .request(
-            "window",
-            Command::Screenshot {
-                source: ScreenshotSource::Window {
-                    target: VISUAL_WINDOW_TARGET.into(),
-                },
-                path: Some(VISUAL_WINDOW_PATH.into()),
-                overwrite: false,
-            },
-        )
+    let observation = session
+        .request(Command::Observe(ObservationRequest::new(
+            Selector::Targets,
+            Projection::Summary,
+        )))
         .map_err(|error| error.to_string())?;
-    client.shutdown().map_err(|error| error.to_string())?;
-    let window_path = response_path(&window)?;
-    validate_png(&window_path, VISUAL_WINDOW_SIZE).map_err(|error| error.to_string())?;
+    session.shutdown().map_err(|error| error.to_string())?;
     println!(
         "{}",
         json!({
             "status": "passed",
-            "mode": "visual",
-            "window_png": window_path,
+            "mode": ready.mode,
+            "ready": ready,
+            "targets": observation.result.unwrap_or_default(),
         })
     );
     Ok(())
