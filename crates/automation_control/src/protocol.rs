@@ -1,4 +1,7 @@
-use crate::{observation::Request as ObservationRequest, pointer::Command as PointerCommand};
+use crate::{
+    keyboard::Command as KeyboardCommand, observation::Request as ObservationRequest,
+    pointer::Command as PointerCommand, text::Command as TextCommand,
+};
 use serde::{
     Deserialize, Deserializer, Serialize, Serializer, de::Error as DeError, ser::SerializeMap,
 };
@@ -8,6 +11,7 @@ use std::fmt;
 pub const PROTOCOL_VERSION: u32 = 2;
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct Request {
     pub sequence: u64,
     pub command: Command,
@@ -17,6 +21,8 @@ pub struct Request {
 pub enum Command {
     Observe(ObservationRequest),
     Pointer(PointerCommand),
+    Keyboard(KeyboardCommand),
+    Text(TextCommand),
     Shutdown,
 }
 
@@ -43,6 +49,14 @@ impl Serialize for Command {
                 map.serialize_entry("type", "pointer")?;
                 map.serialize_entry("action", command)?;
             }
+            Self::Keyboard(command) => {
+                map.serialize_entry("type", "keyboard")?;
+                map.serialize_entry("action", command)?;
+            }
+            Self::Text(command) => {
+                map.serialize_entry("type", "text")?;
+                map.serialize_entry("text", &command.text)?;
+            }
             Self::Shutdown => map.serialize_entry("type", "shutdown")?,
         }
         map.end()
@@ -67,15 +81,42 @@ impl<'de> Deserialize<'de> for Command {
                 let action = object
                     .remove("action")
                     .ok_or_else(|| D::Error::custom("pointer command requires action"))?;
+                reject_extra_fields::<D::Error>(&object)?;
                 serde_json::from_value(action)
                     .map(Self::Pointer)
                     .map_err(D::Error::custom)
             }
-            "shutdown" => Ok(Self::Shutdown),
+            "keyboard" => {
+                let action = object
+                    .remove("action")
+                    .ok_or_else(|| D::Error::custom("keyboard command requires action"))?;
+                reject_extra_fields::<D::Error>(&object)?;
+                serde_json::from_value(action)
+                    .map(Self::Keyboard)
+                    .map_err(D::Error::custom)
+            }
+            "text" => serde_json::from_value(Value::Object(object))
+                .map(Self::Text)
+                .map_err(D::Error::custom),
+            "shutdown" => {
+                reject_extra_fields::<D::Error>(&object)?;
+                Ok(Self::Shutdown)
+            }
             other => Err(D::Error::custom(format!(
                 "unsupported command type {other:?}"
             ))),
         }
+    }
+}
+
+fn reject_extra_fields<E: DeError>(object: &Map<String, Value>) -> Result<(), E> {
+    if object.is_empty() {
+        Ok(())
+    } else {
+        Err(E::custom(format!(
+            "unexpected command fields: {}",
+            object.keys().cloned().collect::<Vec<_>>().join(", ")
+        )))
     }
 }
 
@@ -102,12 +143,13 @@ impl Ready {
             kind: "ready".into(),
             version: PROTOCOL_VERSION,
             mode,
-            controls: vec!["pointer".into()],
+            controls: vec!["pointer".into(), "keyboard".into(), "text".into()],
             observation_scopes: vec![
                 "targets".into(),
                 "ui".into(),
                 "pointers".into(),
                 "entity".into(),
+                "virtual_input".into(),
             ],
         }
     }
@@ -188,8 +230,11 @@ impl std::error::Error for DecodeError {}
 
 /// Decodes one protocol-v2 request. The caller supplies no request ID or protocol version.
 pub fn decode_request(line: &str) -> Result<Request, Response> {
-    let request = serde_json::from_str::<Request>(line)
+    let value = serde_json::from_str::<Value>(line)
         .map_err(|error| Response::error(0, "malformed_request", error.to_string()))?;
+    let sequence = value.get("sequence").and_then(Value::as_u64).unwrap_or(0);
+    let request = serde_json::from_value::<Request>(value)
+        .map_err(|error| Response::error(sequence, "malformed_request", error.to_string()))?;
     if request.sequence == 0 {
         return Err(Response::error(
             0,
@@ -198,15 +243,32 @@ pub fn decode_request(line: &str) -> Result<Request, Response> {
         ));
     }
     validate_command(&request.command)
-        .map_err(|message| Response::error(request.sequence, "invalid_arguments", message))?;
+        .map_err(|error| Response::error(request.sequence, error.code, error.message))?;
     Ok(request)
 }
 
-fn validate_command(command: &Command) -> Result<(), String> {
+fn validate_command(command: &Command) -> Result<(), ProtocolError> {
     match command {
-        Command::Observe(request) => request.validate().map_err(|error| error.to_string()),
-        Command::Pointer(command) => command.validate().map_err(|error| error.to_string()),
+        Command::Observe(request) => request
+            .validate()
+            .map_err(|error| validation_error("invalid_arguments", error)),
+        Command::Pointer(command) => command
+            .validate()
+            .map_err(|error| validation_error("invalid_arguments", error)),
+        Command::Keyboard(command) => command
+            .validate()
+            .map_err(|error| validation_error(error.code(), error)),
+        Command::Text(command) => command
+            .validate()
+            .map_err(|error| validation_error(error.code(), error)),
         Command::Shutdown => Ok(()),
+    }
+}
+
+fn validation_error(code: impl Into<String>, error: impl fmt::Display) -> ProtocolError {
+    ProtocolError {
+        code: code.into(),
+        message: error.to_string(),
     }
 }
 
@@ -215,8 +277,10 @@ mod tests {
     use super::*;
     use crate::{
         entity::Handle,
+        keyboard::{Command as Keyboard, Key},
         observation::{Projection, Selector},
         pointer::{Button, Command as Pointer},
+        text::Command as Text,
     };
 
     #[test]
@@ -226,12 +290,13 @@ mod tests {
         assert_eq!(serde_json::to_value(&ready).unwrap()["type"], "ready");
         assert_eq!(
             serde_json::to_value(&ready).unwrap()["controls"],
-            serde_json::json!(["pointer"])
+            serde_json::json!(["pointer", "keyboard", "text"])
         );
+        assert!(ready.observation_scopes.contains(&"virtual_input".into()));
     }
 
     #[test]
-    fn observe_and_pointer_wire_forms_are_flat_and_version_free() {
+    fn command_wire_forms_are_grouped_and_version_free() {
         let observe = serde_json::to_value(Command::Observe(ObservationRequest::new(
             Selector::Entity(Handle::new(42, 3)),
             Projection::Summary,
@@ -249,6 +314,15 @@ mod tests {
             pointer,
             serde_json::json!({"type":"pointer", "action":{"type":"press", "button":"primary"}})
         );
+
+        let keyboard =
+            serde_json::to_value(Command::Keyboard(Keyboard::Press { key: Key::A })).unwrap();
+        assert_eq!(
+            keyboard,
+            serde_json::json!({"type":"keyboard", "action":{"type":"press", "key":"a"}})
+        );
+        let text = serde_json::to_value(Command::Text(Text::new("hello"))).unwrap();
+        assert_eq!(text, serde_json::json!({"type":"text", "text":"hello"}));
     }
 
     #[test]
@@ -264,10 +338,58 @@ mod tests {
             assert!(decode_request(input).is_ok(), "failed to decode {input}");
         }
         let invalid = r#"{"sequence":1,"command":{"type":"pointer","action":{"type":"move","surface":null,"position":[null,2.0]}}}"#;
+        let response = decode_request(invalid).unwrap_err();
+        assert_eq!(response.sequence, 1);
+        assert_eq!(response.error.unwrap().code, "malformed_request");
+    }
+
+    #[test]
+    fn keyboard_and_text_validation_return_typed_protocol_errors() {
+        let invalid_key = r#"{"sequence":1,"command":{"type":"keyboard","action":{"type":"press","key":"hyperdrive"}}}"#;
         assert_eq!(
-            decode_request(invalid).unwrap_err().error.unwrap().code,
-            "malformed_request"
+            decode_request(invalid_key).unwrap_err().error.unwrap().code,
+            "invalid_key"
         );
+        let empty_key =
+            r#"{"sequence":1,"command":{"type":"keyboard","action":{"type":"press","key":""}}}"#;
+        assert_eq!(
+            decode_request(empty_key).unwrap_err().error.unwrap().code,
+            "invalid_key"
+        );
+        let oversized = serde_json::json!({
+            "sequence": 1,
+            "command": {
+                "type": "text",
+                "text": "x".repeat(crate::text::MAX_BYTES + 1),
+            }
+        });
+        assert_eq!(
+            decode_request(&oversized.to_string())
+                .unwrap_err()
+                .error
+                .unwrap()
+                .code,
+            "text_too_large"
+        );
+    }
+
+    #[test]
+    fn rejects_controller_ids_versions_and_extra_command_fields() {
+        for input in [
+            r#"{"sequence":1,"version":2,"command":{"type":"shutdown"}}"#,
+            r#"{"sequence":1,"id":"controller","command":{"type":"shutdown"}}"#,
+            r#"{"sequence":1,"command":{"type":"shutdown","extra":true}}"#,
+            r#"{"sequence":1,"command":{"type":"keyboard","extra":true,"action":{"type":"press","key":"a"}}}"#,
+            r#"{"sequence":1,"command":{"type":"keyboard","action":{"type":"press","key":"a","extra":true}}}"#,
+        ] {
+            let response = decode_request(input).unwrap_err();
+            assert_eq!(response.sequence, 1, "wrong response sequence for {input}");
+            assert_eq!(
+                response.error.unwrap().code,
+                "malformed_request",
+                "accepted {input}"
+            );
+        }
     }
 
     #[test]

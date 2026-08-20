@@ -2,6 +2,7 @@ use bevy::{
     color::palettes::basic,
     ecs::{relationship::RelatedSpawner, spawn::SpawnWith},
     prelude::*,
+    text::{EditableText, TextCursorStyle},
 };
 use std::fmt::Debug;
 
@@ -30,12 +31,19 @@ struct ContextMenuItem {
     color: Srgba,
 }
 
+#[derive(Component)]
+struct DummyTextInput;
+
 /// Small reflected application state used by the observation smoke test.
 #[derive(Component, Reflect)]
 #[reflect(Component)]
 struct SessionState {
     menu_open: bool,
     selected_item: String,
+    key_a_held: bool,
+    key_a_presses: u32,
+    key_a_releases: u32,
+    text: String,
 }
 
 fn main() {
@@ -47,8 +55,7 @@ fn main() {
             DefaultPlugins
                 .build()
                 .disable::<bevy::input::InputPlugin>()
-                .disable::<bevy::gilrs::GilrsPlugin>()
-                .disable::<bevy::input_focus::InputDispatchPlugin>(),
+                .disable::<bevy::gilrs::GilrsPlugin>(),
         )
         .add_plugins(AutomationControlPlugin::stdio());
     #[cfg(not(feature = "automation"))]
@@ -56,6 +63,7 @@ fn main() {
 
     app.register_type::<SessionState>()
         .add_systems(Startup, setup)
+        .add_systems(Update, observe_keyboard_and_text)
         .add_observer(on_trigger_menu)
         .add_observer(on_trigger_close_menus)
         .add_observer(text_color_on_hover::<Out>(basic::WHITE.into()))
@@ -90,6 +98,10 @@ fn setup(mut commands: Commands) {
             SessionState {
                 menu_open: false,
                 selected_item: "none".into(),
+                key_a_held: false,
+                key_a_presses: 0,
+                key_a_releases: 0,
+                text: String::new(),
             },
             #[cfg(feature = "automation")]
             AutomationTarget,
@@ -98,6 +110,21 @@ fn setup(mut commands: Commands) {
         .observe(|_: On<Pointer<Press>>, mut commands: Commands| {
             commands.trigger(CloseContextMenus);
         });
+}
+
+fn observe_keyboard_and_text(
+    keys: Res<ButtonInput<KeyCode>>,
+    input: Single<&EditableText, With<DummyTextInput>>,
+    mut state: Single<&mut SessionState, With<Background>>,
+) {
+    state.key_a_held = keys.pressed(KeyCode::KeyA);
+    if keys.just_pressed(KeyCode::KeyA) {
+        state.key_a_presses += 1;
+    }
+    if keys.just_released(KeyCode::KeyA) {
+        state.key_a_releases += 1;
+    }
+    state.text = input.value().to_string();
 }
 
 fn on_trigger_close_menus(
@@ -194,6 +221,8 @@ fn background_and_button() -> impl Bundle {
         Node {
             width: percent(100),
             height: percent(100),
+            flex_direction: FlexDirection::Column,
+            row_gap: px(20),
             align_items: AlignItems::Center,
             justify_content: JustifyContent::Center,
             ..default()
@@ -235,6 +264,32 @@ fn background_and_button() -> impl Bundle {
                         pos: event.pointer_location.position,
                     });
                 });
+            parent.spawn((
+                Name::new("text-input"),
+                DummyTextInput,
+                #[cfg(feature = "automation")]
+                AutomationTarget,
+                EditableText {
+                    visible_width: Some(20.0),
+                    allow_newlines: false,
+                    ..default()
+                },
+                TextCursorStyle::default(),
+                TextLayout::no_wrap(),
+                TextFont {
+                    font_size: FontSize::Px(24.0),
+                    ..default()
+                },
+                Node {
+                    width: px(250),
+                    min_height: px(45),
+                    border: UiRect::all(px(2)),
+                    padding: UiRect::all(px(8)),
+                    ..default()
+                },
+                BorderColor::all(Color::WHITE),
+                BackgroundColor(Color::linear_rgb(0.08, 0.08, 0.08)),
+            ));
         })),
     )
 }

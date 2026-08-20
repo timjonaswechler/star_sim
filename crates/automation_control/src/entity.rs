@@ -10,6 +10,7 @@ use std::fmt;
 #[derive(
     Clone, Copy, Debug, Default, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize,
 )]
+#[serde(deny_unknown_fields)]
 pub struct Handle {
     pub index: u32,
     pub generation: u32,

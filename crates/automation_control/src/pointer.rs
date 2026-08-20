@@ -36,7 +36,7 @@ impl From<Button> for BevyPointerButton {
 
 /// Virtual pointer transitions accepted by a Controlled Session.
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
+#[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Command {
     Move {
         surface: Option<Handle>,
@@ -76,6 +76,7 @@ pub struct State {
     pub position: Option<[f32; 2]>,
     pub surface: Option<Handle>,
     pub pressed: BTreeSet<Button>,
+    pub scroll_delta: [f32; 2],
 }
 
 impl State {
@@ -88,6 +89,7 @@ impl State {
             "position": self.position,
             "surface": self.surface,
             "pressed": self.pressed.iter().copied().collect::<Vec<_>>(),
+            "scroll_delta": self.scroll_delta,
         })
     }
 }
@@ -235,6 +237,7 @@ pub fn pointer_event(
         }
         Command::Scroll { delta } => {
             let (surface, position) = current_location(state, world)?;
+            state.scroll_delta = delta;
             Ok(PointerInput::new(
                 PointerId::Mouse,
                 Location {
@@ -357,6 +360,12 @@ mod tests {
         assert_eq!(
             pointer_event(&mut state, &world, &release).unwrap_err(),
             PointerError::ButtonNotPressed(Button::Secondary)
+        );
+        pointer_event(&mut state, &world, &Command::Scroll { delta: [1.0, -2.0] }).unwrap();
+        assert_eq!(state.scroll_delta, [1.0, -2.0]);
+        assert_eq!(
+            state.observation()["scroll_delta"],
+            serde_json::json!([1.0, -2.0])
         );
     }
 }

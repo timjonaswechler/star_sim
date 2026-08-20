@@ -6,11 +6,13 @@
 #[cfg(feature = "driver")]
 pub mod driver;
 pub mod entity;
+pub mod keyboard;
 pub mod observation;
 mod plugin;
 pub mod pointer;
 pub mod protocol;
 pub mod target;
+pub mod text;
 pub mod transport;
 
 pub use entity::{Handle, HandleError};

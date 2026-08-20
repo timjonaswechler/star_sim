@@ -2,8 +2,10 @@
 use automation_control::{
     Command, Handle,
     driver::{LaunchSpec, LaunchTargetKind, Session, SessionOptions},
+    keyboard::{Command as KeyboardCommand, Key},
     observation::{Projection, Request as ObservationRequest, Selector},
     pointer::{Button, Command as PointerCommand},
+    text::Command as TextCommand,
 };
 use serde_json::Value;
 use std::{
@@ -38,56 +40,49 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let ready = session.ready()?;
     assert_eq!(ready.version, 2);
     assert_eq!(ready.mode, automation_control::RunMode::Rendered);
+    assert_eq!(ready.controls, ["pointer", "keyboard", "text"]);
+    assert!(ready.observation_scopes.contains(&"virtual_input".into()));
 
     let targets = observe(&mut session, Selector::Targets)?;
     let button = find_named(&targets, "button")?;
     let background = find_named(&targets, "background")?;
     let background_handle: Handle = serde_json::from_value(background["entity"].clone())?;
+    let text_input = find_named(&targets, "text-input")?;
+    let text_input_handle: Handle = serde_json::from_value(text_input["entity"].clone())?;
+    let text_input_center = center(&text_input["bounds"])?;
     let background_bounds = Bounds::from_value(&background["bounds"])?;
     let button_center = center(&button["bounds"])?;
 
-    pointer(
-        &mut session,
-        PointerCommand::Move {
-            surface: None,
-            position: button_center,
-        },
-    )?;
-    pointer(
-        &mut session,
-        PointerCommand::Press {
-            button: Button::Primary,
-        },
-    )?;
-    pointer(
-        &mut session,
-        PointerCommand::Release {
-            button: Button::Primary,
-        },
-    )?;
+    click(&mut session, button_center)?;
 
     let menu = observe(&mut session, Selector::Targets)?;
     let item = find_named(&menu, "item-fuchsia")?;
     let item_center = center(&item["bounds"])?;
-    pointer(
-        &mut session,
-        PointerCommand::Move {
-            surface: None,
-            position: item_center,
-        },
-    )?;
-    pointer(
-        &mut session,
-        PointerCommand::Press {
-            button: Button::Primary,
-        },
-    )?;
-    pointer(
-        &mut session,
-        PointerCommand::Release {
-            button: Button::Primary,
-        },
-    )?;
+    click(&mut session, item_center)?;
+    pointer(&mut session, PointerCommand::Scroll { delta: [0.0, -2.0] })?;
+
+    session.request(Command::Keyboard(KeyboardCommand::Press { key: Key::A }))?;
+    let held = observe_session_state(&mut session, background_handle)?;
+    assert_eq!(held["key_a_held"], true);
+    assert_eq!(held["key_a_presses"], 1);
+
+    let input = observe_virtual_input(&mut session)?;
+    assert_eq!(
+        input["pointer"]["scroll_delta"],
+        serde_json::json!([0.0, -2.0])
+    );
+    assert_eq!(input["keyboard"]["pressed"], serde_json::json!(["a"]));
+
+    session.request(Command::Keyboard(KeyboardCommand::Release { key: Key::A }))?;
+    click(&mut session, text_input_center)?;
+    session.request(Command::Text(TextCommand::new("controlled text")))?;
+
+    let input = observe_virtual_input(&mut session)?;
+    assert_eq!(
+        input["text"]["focused"],
+        serde_json::json!(text_input_handle)
+    );
+    assert_eq!(input["text"]["last_text"], "controlled text");
 
     let state = session.request(Command::Observe(ObservationRequest::new(
         Selector::Entity(background_handle),
@@ -100,6 +95,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     assert_eq!(value["status"], "available");
     assert_eq!(value["value"]["menu_open"], false);
     assert_eq!(value["value"]["selected_item"], "fuchsia");
+    assert_eq!(value["value"]["key_a_held"], false);
+    assert_eq!(value["value"]["key_a_releases"], 1);
+    assert_eq!(value["value"]["text"], "controlled text");
 
     move_pointer_in_circles(&mut session, background_bounds, options.duration)?;
     session.shutdown()?;
@@ -209,6 +207,59 @@ fn pointer(
 ) -> Result<(), Box<dyn std::error::Error>> {
     session.request(Command::Pointer(command))?;
     Ok(())
+}
+
+fn click(session: &mut Session, position: [f32; 2]) -> Result<(), Box<dyn std::error::Error>> {
+    pointer(
+        session,
+        PointerCommand::Move {
+            surface: None,
+            position,
+        },
+    )?;
+    pointer(
+        session,
+        PointerCommand::Press {
+            button: Button::Primary,
+        },
+    )?;
+    pointer(
+        session,
+        PointerCommand::Release {
+            button: Button::Primary,
+        },
+    )
+}
+
+fn observe_virtual_input(session: &mut Session) -> Result<Value, Box<dyn std::error::Error>> {
+    let response = session.request(Command::Observe(ObservationRequest::new(
+        Selector::VirtualInput,
+        Projection::Summary,
+    )))?;
+    response
+        .result
+        .and_then(|value| {
+            value["items"]
+                .as_array()
+                .and_then(|items| items.first())
+                .cloned()
+        })
+        .ok_or_else(|| "virtual input observation did not return an item".into())
+}
+
+fn observe_session_state(
+    session: &mut Session,
+    background: Handle,
+) -> Result<Value, Box<dyn std::error::Error>> {
+    let response = session.request(Command::Observe(ObservationRequest::new(
+        Selector::Entity(background),
+        Projection::Components {
+            type_paths: vec!["bevy_example::SessionState".into()],
+        },
+    )))?;
+    Ok(response.result.ok_or("state observation has no result")?["items"][0]["components"]
+        ["bevy_example::SessionState"]["value"]
+        .clone())
 }
 
 fn find_named<'a>(items: &'a [Value], name: &str) -> Result<&'a Value, Box<dyn std::error::Error>> {

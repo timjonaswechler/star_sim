@@ -1,4 +1,7 @@
-use crate::{entity::Handle, target::AutomationTarget};
+use crate::{
+    entity::Handle, keyboard::State as KeyboardState, pointer::State as PointerState,
+    target::AutomationTarget, text::State as TextState,
+};
 use bevy::{
     camera::{
         NormalizedRenderTarget,
@@ -26,6 +29,7 @@ pub const MAX_HIERARCHY_DEPTH: u8 = 32;
 pub const MAX_COMPONENT_BYTES: usize = 64 * 1024;
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct Request {
     pub selector: Selector,
     pub projection: Projection,
@@ -76,6 +80,7 @@ pub enum Selector {
     Ui,
     Pointers,
     Entity(Handle),
+    VirtualInput,
 }
 
 impl Serialize for Selector {
@@ -93,6 +98,7 @@ impl Serialize for Selector {
                 map.serialize_entry("index", &handle.index)?;
                 map.serialize_entry("generation", &handle.generation)?;
             }
+            Self::VirtualInput => map.serialize_entry("type", "virtual_input")?,
         }
         map.end()
     }
@@ -115,6 +121,7 @@ impl<'de> Deserialize<'de> for Selector {
             "entity" => serde_json::from_value(Value::Object(object))
                 .map(Self::Entity)
                 .map_err(D::Error::custom),
+            "virtual_input" if object.is_empty() => Ok(Self::VirtualInput),
             other => Err(D::Error::custom(format!(
                 "unsupported observation selector {other:?}"
             ))),
@@ -138,6 +145,7 @@ pub enum Error {
     InvalidDepth(u8),
     UnknownEntity(Handle),
     InvalidComponentPath(String),
+    UnsupportedVirtualInputProjection,
 }
 
 impl fmt::Display for Error {
@@ -156,6 +164,9 @@ impl fmt::Display for Error {
             Self::InvalidComponentPath(path) => {
                 write!(formatter, "component type path must not be empty: {path:?}")
             }
+            Self::UnsupportedVirtualInputProjection => {
+                formatter.write_str("virtual_input supports only the summary projection")
+            }
         }
     }
 }
@@ -165,6 +176,9 @@ impl std::error::Error for Error {}
 /// Computes an observation directly from the current World. No observation cache is maintained.
 pub fn observe_world(world: &World, request: &Request) -> Result<Value, Error> {
     request.validate()?;
+    if request.selector == Selector::VirtualInput {
+        return observe_virtual_input(world, request);
+    }
     let entities = select_entities(world, &request.selector)?;
     let cursor = request.cursor.unwrap_or(0) as usize;
     if cursor > entities.len() {
@@ -206,9 +220,53 @@ fn select_entities(world: &World, selector: &Selector) -> Result<Vec<Entity>, Er
                 .resolve(world)
                 .map_err(|_| Error::UnknownEntity(*handle))?,
         ],
+        Selector::VirtualInput => unreachable!("virtual input is observed from resources"),
     };
     entities.sort_by_key(|entity| Handle::from(*entity));
     Ok(entities)
+}
+
+fn observe_virtual_input(world: &World, request: &Request) -> Result<Value, Error> {
+    if request.projection != Projection::Summary {
+        return Err(Error::UnsupportedVirtualInputProjection);
+    }
+    let cursor = request.cursor.unwrap_or(0);
+    if cursor > 1 {
+        return Err(Error::InvalidCursor);
+    }
+    let items = if cursor == 0 {
+        vec![json!({
+            "pointer": world
+                .get_resource::<PointerState>()
+                .map(PointerState::observation)
+                .unwrap_or_else(|| json!({
+                    "position": null,
+                    "surface": null,
+                    "pressed": [],
+                    "scroll_delta": [0.0, 0.0],
+                })),
+            "keyboard": world
+                .get_resource::<KeyboardState>()
+                .map(KeyboardState::observation)
+                .unwrap_or_else(|| json!({"pressed": []})),
+            "text": world
+                .get_resource::<TextState>()
+                .map(|state| state.observation(world))
+                .unwrap_or_else(|| json!({
+                    "focused": null,
+                    "last_target": null,
+                    "last_text": null,
+                    "commits": 0,
+                })),
+        })]
+    } else {
+        Vec::new()
+    };
+    Ok(json!({
+        "items": items,
+        "total": 1,
+        "next_cursor": Option::<u32>::None,
+    }))
 }
 
 fn project_entity(world: &World, entity: Entity, projection: &Projection) -> Result<Value, Error> {
@@ -692,6 +750,43 @@ mod tests {
         assert_eq!(
             components["not::registered::Component"]["status"],
             "not_registered"
+        );
+    }
+
+    #[test]
+    fn virtual_input_summary_observes_session_resources() {
+        let mut world = World::new();
+        world.insert_resource(PointerState {
+            position: Some([12.0, 24.0]),
+            scroll_delta: [0.0, -3.0],
+            ..default()
+        });
+        world.init_resource::<KeyboardState>();
+        world.init_resource::<TextState>();
+
+        let value = observe_world(
+            &world,
+            &Request::new(Selector::VirtualInput, Projection::Summary),
+        )
+        .unwrap();
+        assert_eq!(
+            value["items"][0]["pointer"]["position"],
+            json!([12.0, 24.0])
+        );
+        assert_eq!(
+            value["items"][0]["pointer"]["scroll_delta"],
+            json!([0.0, -3.0])
+        );
+        assert_eq!(value["items"][0]["keyboard"]["pressed"], json!([]));
+        assert_eq!(value["items"][0]["text"]["commits"], 0);
+
+        assert_eq!(
+            observe_world(
+                &world,
+                &Request::new(Selector::VirtualInput, Projection::ComponentNames),
+            )
+            .unwrap_err(),
+            Error::UnsupportedVirtualInputProjection
         );
     }
 
