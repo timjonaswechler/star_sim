@@ -89,8 +89,10 @@ renderer; the embedding application remains responsible for composing the matchi
 
 The rendered `bevy_test_apps` composition disables `InputPlugin` and `GilrsPlugin`. The control
 plugin also disables Bevy's native mouse and touch picking producers, writes `PointerInput` into
-Bevy's picking pipeline, and clears the OS cursor stored on Bevy windows. Because UI, focus, and
-picking systems still require low-level Bevy input message channels and state resources when
+Bevy's picking pipeline, and clears the OS cursor stored on Bevy windows. After the first Virtual
+Pointer move, Rendered Mode displays a red circular position helper above the UI. The helper is
+ignored by picking and is not installed in Logical Mode. Because UI, focus, and picking systems
+still require low-level Bevy input message channels and state resources when
 `InputPlugin` is absent, the plugin registers them empty as
 compatibility prerequisites. Registration neither creates native input producers nor opens an OS
 input connection; the composition's native producers remain disabled. The plugin clears native

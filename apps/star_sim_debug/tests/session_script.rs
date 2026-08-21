@@ -49,6 +49,53 @@ fn museum_script_drives_a_fresh_logical_session_and_uses_session_recording() {
 }
 
 #[test]
+#[ignore = "requires a display and render adapter"]
+fn rendered_pointer_move_is_visible_as_a_red_cursor_helper() {
+    let _guard = SESSION_SCRIPT
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let artifact_dir = temporary_artifact_dir("pointer-helper");
+    let script = write_script(
+        &artifact_dir,
+        "pointer-helper.json",
+        json!({
+            "version": 1,
+            "session": {"mode": "rendered"},
+            "steps": [
+                {"type": "pointer", "action": {"type": "move", "x": 0.5, "y": 0.5}},
+                {
+                    "type": "screenshot",
+                    "path": "screenshots/pointer-helper.png",
+                    "expect": {"mime_type": "image/png", "width": 640, "height": 360}
+                }
+            ]
+        }),
+    );
+
+    let output = run_script(&script, &artifact_dir, &[]);
+    assert_success(&output);
+    let screenshot = image::open(artifact_dir.join("screenshots/pointer-helper.png"))
+        .unwrap()
+        .to_rgb8();
+    let red_pixels = screenshot
+        .enumerate_pixels()
+        .filter(|(x, y, pixel)| {
+            x.abs_diff(320) <= 8
+                && y.abs_diff(180) <= 8
+                && pixel[0] >= 220
+                && pixel[1] <= 40
+                && pixel[2] <= 40
+        })
+        .count();
+    assert!(
+        red_pixels >= 50,
+        "expected a red cursor helper at (320, 180)"
+    );
+
+    fs::remove_dir_all(artifact_dir).ok();
+}
+
+#[test]
 fn script_failures_have_distinct_exit_codes_and_step_context() {
     let _guard = SESSION_SCRIPT
         .lock()

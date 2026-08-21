@@ -130,7 +130,7 @@ help
 quit
 ```
 
-`pointer move X Y` uses normalized coordinates in the half-open range `[0, 1)`. Pointer buttons are `left`, `right`, and `middle`. Key names are case-insensitive and use names such as `A`, `Escape`, and `ArrowLeft`. `text` sends the rest of the line as one text commit.
+`pointer move X Y` uses normalized coordinates in the half-open range `[0, 1)`. In Rendered Mode, a red circular helper marks the current Virtual Pointer position after its first move; it does not intercept input. Logical Mode has no visual helper. Pointer buttons are `left`, `right`, and `middle`. Key names are case-insensitive and use names such as `A`, `Escape`, and `ArrowLeft`. `text` sends the rest of the line as one text commit.
 
 `click menu.tab.museum` is a Star Sim host macro. The host observes that known menu target, moves to its current bounds, presses and releases the primary pointer button, and waits for the reflected active screen. It does not add a Click command to the child protocol or a generic target registry.
 

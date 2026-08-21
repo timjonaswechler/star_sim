@@ -17,6 +17,11 @@ use bevy::{
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeSet, fmt};
 
+const HELPER_DIAMETER: f32 = 16.0;
+
+#[derive(Component)]
+pub(crate) struct Helper;
+
 /// A pointer-device button, not a semantic UI action.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -325,6 +330,35 @@ fn current_location(state: &State, world: &World) -> Result<(Surface, [f32; 2]),
 pub fn ensure_mouse_pointer(mut commands: Commands, pointers: Query<&PointerId>) {
     if !pointers.iter().any(PointerId::is_mouse) {
         commands.spawn(PointerId::Mouse);
+    }
+}
+
+pub(crate) fn spawn_helper(mut commands: Commands) {
+    commands.spawn((
+        Helper,
+        Pickable::IGNORE,
+        GlobalZIndex(i32::MAX),
+        Node {
+            position_type: PositionType::Absolute,
+            width: px(HELPER_DIAMETER),
+            height: px(HELPER_DIAMETER),
+            border_radius: BorderRadius::MAX,
+            display: Display::None,
+            ..default()
+        },
+        BackgroundColor(Color::srgb(1.0, 0.0, 0.0)),
+    ));
+}
+
+pub(crate) fn update_helper(state: Res<State>, mut helpers: Query<&mut Node, With<Helper>>) {
+    for mut node in &mut helpers {
+        let Some([x, y]) = state.position else {
+            node.display = Display::None;
+            continue;
+        };
+        node.display = Display::Flex;
+        node.left = px(x - HELPER_DIAMETER / 2.0);
+        node.top = px(y - HELPER_DIAMETER / 2.0);
     }
 }
 
