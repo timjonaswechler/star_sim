@@ -1,3 +1,9 @@
+//! Read-only World observations with selectors, projections, and stateless pagination.
+//!
+//! Entity-backed selectors are ordered deterministically by session-local [`Handle`]. Results use
+//! `{items,total,next_cursor}` pages. Reflection projections bound component output so a Controller
+//! cannot accidentally request unbounded serialized state.
+
 use crate::{
     entity::Handle, keyboard::State as KeyboardState, pointer::State as PointerState,
     target::AutomationTarget, text::State as TextState, time::Clock,
@@ -23,25 +29,36 @@ use serde::{
 use serde_json::{Map, Value, json};
 use std::{collections::BTreeSet, fmt};
 
+/// Default maximum items returned by one observation page.
 pub const DEFAULT_LIMIT: u32 = 64;
+/// Largest accepted page limit.
 pub const MAX_LIMIT: u32 = 256;
+/// Largest accepted descendant depth for [`Projection::Hierarchy`].
 pub const MAX_HIERARCHY_DEPTH: u8 = 32;
+/// Maximum serialized JSON bytes returned for one reflected component value.
 pub const MAX_COMPONENT_BYTES: usize = 64 * 1024;
 
+/// Selector, projection, and stateless page position for one observation.
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Request {
+    /// Set of entities or session resource to inspect.
     pub selector: Selector,
+    /// Shape requested for each selected item.
     pub projection: Projection,
+    /// Maximum page size, from one through [`MAX_LIMIT`].
     #[serde(default = "default_limit")]
     pub limit: u32,
+    /// Zero-based offset into the current deterministic selection.
     #[serde(default)]
     pub cursor: Option<u32>,
 }
 
+/// Compatibility name for [`Request`].
 pub type ObservationRequest = Request;
 
 impl Request {
+    /// Creates a first-page request using [`DEFAULT_LIMIT`].
     pub fn new(selector: Selector, projection: Projection) -> Self {
         Self {
             selector,
@@ -51,6 +68,7 @@ impl Request {
         }
     }
 
+    /// Validates pagination and hierarchy bounds.
     pub fn validate(&self) -> Result<(), Error> {
         if self.limit == 0 || self.limit > MAX_LIMIT {
             return Err(Error::InvalidLimit(self.limit));
@@ -74,13 +92,20 @@ fn default_limit() -> u32 {
     DEFAULT_LIMIT
 }
 
+/// Read-only selection scope.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Selector {
+    /// Entities marked with [`AutomationTarget`].
     Targets,
+    /// Entities containing Bevy UI [`Node`] components.
     Ui,
+    /// Entities containing Bevy [`PointerId`] components, distinct from Virtual Input state.
     Pointers,
+    /// One live session-local entity.
     Entity(Handle),
+    /// Session-local pointer, keyboard, and text resources; supports only summary projection.
     VirtualInput,
+    /// Session-local controlled [`Clock`]; supports only summary projection.
     Clock,
 }
 
@@ -132,23 +157,48 @@ impl<'de> Deserialize<'de> for Selector {
     }
 }
 
+/// Output shape for selected entities.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Projection {
+    /// Stable built-in identity, target/UI/pointer metadata, and visibility summary.
     Summary,
+    /// Sorted reflected/registered type paths plus stable fallback names for opaque or
+    /// unregistered components attached to the entity.
     ComponentNames,
-    Components { type_paths: Vec<String> },
-    Hierarchy { depth: u8 },
+    /// Status and optional serialized value for each requested reflected component.
+    ///
+    /// Statuses are `available`, `not_present`, `not_registered`, `not_reflectable`,
+    /// `not_serializable`, and `value_too_large`.
+    Components {
+        /// Fully qualified reflected component type paths.
+        type_paths: Vec<String>,
+    },
+    /// Nested `{ "entity": handle, "children": [...] }` nodes through `depth` child edges.
+    ///
+    /// Depth zero returns the selected entity with an empty `children` array.
+    Hierarchy {
+        /// Maximum number of child edges below each selected entity.
+        depth: u8,
+    },
 }
 
+/// Observation validation or resolution failure.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Error {
+    /// Page limit is zero or exceeds [`MAX_LIMIT`].
     InvalidLimit(u32),
+    /// Cursor is outside the supported or current selection range.
     InvalidCursor,
+    /// Hierarchy depth exceeds [`MAX_HIERARCHY_DEPTH`].
     InvalidDepth(u8),
+    /// Entity handle does not resolve in the current World.
     UnknownEntity(Handle),
+    /// A requested reflected component type path is empty.
     InvalidComponentPath(String),
+    /// Virtual Input resources support only [`Projection::Summary`].
     UnsupportedVirtualInputProjection,
+    /// Controlled clock resources support only [`Projection::Summary`].
     UnsupportedClockProjection,
 }
 
@@ -180,7 +230,37 @@ impl fmt::Display for Error {
 
 impl std::error::Error for Error {}
 
-/// Computes an observation directly from the current World. No observation cache is maintained.
+/// Computes an observation directly from the current World without a cache.
+///
+/// Entity-backed results have the JSON shape `{ "items": [...], "total": n,
+/// "next_cursor": number|null }` and are sorted by [`Handle`]. Cursors are stateless offsets, so
+/// changes to the World between calls may change page membership. Virtual Input and clock summary
+/// selectors use the same page envelope with one resource item.
+///
+/// Reflected component values are limited by [`MAX_COMPONENT_BYTES`] after JSON serialization.
+/// Hierarchy results contain nested `{ "entity": handle, "children": [...] }` nodes. Depth counts
+/// child edges, and depth zero returns the selected entity with an empty `children` array.
+///
+/// Target discovery and a second page can be requested as follows:
+///
+/// ```
+/// use automation_control::observation::{Projection, Request, Selector};
+/// let first = Request { limit: 10, ..Request::new(Selector::Targets, Projection::Summary) };
+/// let second = Request { cursor: Some(10), ..first.clone() };
+/// assert!(first.validate().is_ok() && second.validate().is_ok());
+/// ```
+///
+/// Component and clock requests:
+///
+/// ```
+/// use automation_control::{Handle, observation::{Projection, Request, Selector}};
+/// let components = Request::new(
+///     Selector::Entity(Handle::new(1, 1)),
+///     Projection::Components { type_paths: vec!["my_app::Health".into()] },
+/// );
+/// let clock = Request::new(Selector::Clock, Projection::Summary);
+/// assert!(components.validate().is_ok() && clock.validate().is_ok());
+/// ```
 pub fn observe_world(world: &World, request: &Request) -> Result<Value, Error> {
     request.validate()?;
     if request.selector == Selector::VirtualInput {

@@ -1,3 +1,9 @@
+//! Virtual pointer and picking events for window-backed render surfaces.
+//!
+//! A move establishes the session-local location used by later press, release, and line-unit scroll
+//! actions. Successful bridge calls update state and construct Bevy events; event consumption
+//! still occurs later in the application schedule.
+
 use crate::entity::Handle;
 use bevy::{
     camera::{NormalizedRenderTarget, RenderTarget},
@@ -15,13 +21,19 @@ use std::{collections::BTreeSet, fmt};
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Button {
+    /// Primary selection button, typically the left mouse button.
     Primary,
+    /// Secondary action button, typically the right mouse button.
     Secondary,
+    /// Middle mouse button.
     Middle,
 }
 
+/// Compatibility alias for [`Button`].
 pub type PointerButton = Button;
+/// Compatibility alias for [`Command`].
 pub type PointerCommand = Command;
+/// Compatibility alias for [`State`].
 pub type PointerState = State;
 
 impl From<Button> for BevyPointerButton {
@@ -38,22 +50,34 @@ impl From<Button> for BevyPointerButton {
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Command {
+    /// Moves the virtual mouse pointer on a window surface.
     Move {
+        /// Window handle, or `None` to resolve the sole primary window.
         surface: Option<Handle>,
+        /// Surface coordinates in logical pixels.
         position: [f32; 2],
     },
+    /// Presses a pointer button at the established location.
     Press {
+        /// Button to press.
         button: Button,
     },
+    /// Releases a pointer button at the established location.
     Release {
+        /// Button to release.
         button: Button,
     },
+    /// Scrolls at the established location using Bevy line units.
     Scroll {
+        /// Horizontal and vertical line delta.
         delta: [f32; 2],
     },
 }
 
 impl Command {
+    /// Checks that move coordinates or scroll deltas are finite.
+    ///
+    /// Surface, location, and button-transition checks occur in [`pointer_event`].
     pub fn validate(&self) -> Result<(), PointerError> {
         let finite = |values: &[f32; 2]| {
             values
@@ -73,17 +97,23 @@ impl Command {
 /// Session-local virtual pointer state. It is never shared between Controlled Sessions.
 #[derive(Clone, Debug, Default, Resource)]
 pub struct State {
+    /// Latest established pointer coordinates, or `None` before the first move.
     pub position: Option<[f32; 2]>,
+    /// Latest resolved window surface, or `None` before the first move.
     pub surface: Option<Handle>,
+    /// Buttons currently held by Virtual Input.
     pub pressed: BTreeSet<Button>,
+    /// Most recent scroll delta; this is not an accumulated total.
     pub scroll_delta: [f32; 2],
 }
 
 impl State {
+    /// Returns whether `button` is held in this session.
     pub fn is_pressed(&self, button: Button) -> bool {
         self.pressed.contains(&button)
     }
 
+    /// Serializes the current pointer state for a Virtual Input summary observation.
     pub fn observation(&self) -> serde_json::Value {
         serde_json::json!({
             "position": self.position,
@@ -94,15 +124,24 @@ impl State {
     }
 }
 
+/// Pointer validation, surface-resolution, or transition failure.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum PointerError {
+    /// A move position or scroll delta contains a non-finite value.
     NonFinitePosition,
+    /// No primary window is available for `surface: None`.
     NoPrimarySurface,
+    /// More than one primary window is available.
     AmbiguousPrimarySurface,
+    /// The requested surface handle is not live.
     SurfaceNotLive(Handle),
+    /// The live requested entity is not a window.
     SurfaceNotWindow(Handle),
+    /// Press, release, or scroll was requested before a successful move.
     NoLocation,
+    /// A press was requested for an already-held button.
     ButtonAlreadyPressed(Button),
+    /// A release was requested for a button that is not held.
     ButtonNotPressed(Button),
 }
 
@@ -138,10 +177,15 @@ impl std::error::Error for PointerError {}
 /// A resolved render surface used by the pointer bridge.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Surface {
+    /// Session-local handle of the backing window entity.
     pub handle: Handle,
+    /// Bevy normalized render target for pointer picking.
     pub target: NormalizedRenderTarget,
 }
 
+/// Resolves a requested window surface, or the sole primary window when `requested` is `None`.
+///
+/// Virtual pointer surfaces currently represent only window-backed normalized render targets.
 pub fn resolve_surface(world: &World, requested: Option<Handle>) -> Result<Surface, PointerError> {
     let entity = match requested {
         Some(handle) => {
@@ -181,6 +225,20 @@ pub fn resolve_surface(world: &World, requested: Option<Handle>) -> Result<Surfa
     })
 }
 
+/// Applies one virtual pointer transition and constructs a Bevy [`PointerInput`] event.
+///
+/// A successful call updates [`State`] but does not itself dispatch or guarantee consumption of the
+/// event. Call move before actions that require a location.
+///
+/// ```
+/// use automation_control::pointer::{Button, Command};
+/// let sequence = [
+///     Command::Move { surface: None, position: [10.0, 20.0] },
+///     Command::Press { button: Button::Primary },
+///     Command::Release { button: Button::Primary },
+/// ];
+/// assert!(sequence.iter().all(|command| command.validate().is_ok()));
+/// ```
 pub fn pointer_event(
     state: &mut State,
     world: &World,
@@ -261,8 +319,9 @@ fn current_location(state: &State, world: &World) -> Result<(Surface, [f32; 2]),
     Ok((resolve_surface(world, Some(handle))?, position))
 }
 
-/// Ensures the picking core has the virtual mouse pointer even when a small test composition omits
-/// Bevy's native PointerInputPlugin.
+/// Ensures the picking core has a virtual mouse pointer entity.
+///
+/// This supports small compositions that omit Bevy's native pointer-input plugin.
 pub fn ensure_mouse_pointer(mut commands: Commands, pointers: Query<&PointerId>) {
     if !pointers.iter().any(PointerId::is_mouse) {
         commands.spawn(PointerId::Mouse);

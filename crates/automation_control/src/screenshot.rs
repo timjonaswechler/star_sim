@@ -1,3 +1,9 @@
+//! Optional PNG screenshot artifacts for Rendered Mode Controlled Sessions.
+//!
+//! [`Plugin`] advertises the capability only when Bevy rendering and screenshot resources already
+//! exist. Artifact paths are sandboxed beneath a session artifact root and checked against absolute
+//! paths, traversal, and symbolic-link escape.
+
 use crate::artifact_root_path;
 use bevy::{
     prelude::*,
@@ -21,43 +27,71 @@ use std::{
     path::{Component, Path, PathBuf},
 };
 
+/// Capability name advertised in [`crate::Ready::controls`].
 pub const CONTROL_NAME: &str = "screenshot";
+/// MIME type reported for completed screenshot artifacts.
 pub const MIME_TYPE: &str = "image/png";
 
 #[cfg(test)]
 static TEMP_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
-/// Captures the primary rendered window into a session artifact.
+/// Requests capture of the primary rendered window into a session artifact.
+///
+/// Constructing or validating this value does not establish renderer capability or capture
+/// success; execution occurs later through [`Plugin`].
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Command {
+    /// Relative forward-slash `.png` path below the session artifact root.
     pub path: String,
 }
 
 impl Command {
+    /// Creates a screenshot request without validating its path.
     pub fn new(path: impl Into<String>) -> Self {
         Self { path: path.into() }
     }
 
+    /// Validates lexical artifact-path rules only.
+    ///
+    /// Paths must be relative UTF-8 forward-slash paths ending in `.png`, with no empty, `.`, or
+    /// `..` components.
+    ///
+    /// ```
+    /// use automation_control::screenshot::Command;
+    /// assert!(Command::new("captures/current.png").validate().is_ok());
+    /// assert!(Command::new("../outside.png").validate().is_err());
+    /// ```
     pub fn validate(&self) -> Result<(), Error> {
         validate_relative_path(Path::new(&self.path)).map(|_| ())
     }
 }
 
+/// Screenshot validation, capability, sandbox, I/O, or capture failure.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Error {
+    /// The composition did not register screenshot capability.
     CapabilityUnavailable,
+    /// The requested artifact path is empty.
     EmptyPath,
+    /// The requested artifact path is absolute.
     AbsolutePath,
+    /// The path contains `.` or `..` traversal components.
     PathTraversal,
+    /// The path violates another UTF-8, separator, component, or extension rule.
     InvalidPath(String),
+    /// A target path crosses a symbolic link.
     SymlinkEscape(PathBuf),
+    /// Canonical containment would leave the configured artifact root.
     OutsideArtifactRoot(PathBuf),
+    /// Artifact-directory or PNG-writing I/O failed.
     Io(String),
+    /// Renderer capture setup or completion failed.
     Capture(String),
 }
 
 impl Error {
+    /// Returns the stable protocol error code.
     pub const fn code(&self) -> &'static str {
         match self {
             Self::CapabilityUnavailable => "screenshot_capability_unavailable",
@@ -119,6 +153,10 @@ impl Default for Plugin {
 }
 
 impl Plugin {
+    /// Creates the plugin with an explicit session artifact root.
+    ///
+    /// This root takes precedence over [`crate::AUTOMATION_CONTROL_ARTIFACT_DIR`]. [`Default`]
+    /// instead resolves the environment-aware fallback through [`crate::artifact_root_path`].
     pub fn with_artifact_root(path: impl Into<PathBuf>) -> Self {
         Self {
             artifact_root: Some(path.into()),

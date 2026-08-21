@@ -1,3 +1,8 @@
+//! Session-local Bevy entity handles and live-World resolution.
+//!
+//! Handles preserve an entity index and generation without relying on a lossy JSON integer. They
+//! are meaningful only in the Controlled Session and World that produced them.
+
 use bevy::ecs::entity::{Entity, EntityGeneration, EntityIndex};
 use bevy::prelude::World;
 use serde::{Deserialize, Serialize};
@@ -12,15 +17,19 @@ use std::fmt;
 )]
 #[serde(deny_unknown_fields)]
 pub struct Handle {
+    /// Raw Bevy entity index bits.
     pub index: u32,
+    /// Raw Bevy entity generation bits.
     pub generation: u32,
 }
 
 impl Handle {
+    /// Creates a handle from raw Bevy index and generation bits.
     pub const fn new(index: u32, generation: u32) -> Self {
         Self { index, generation }
     }
 
+    /// Losslessly encodes a Bevy entity for the current session.
     pub const fn from_entity(entity: Entity) -> Self {
         Self {
             index: entity.index_u32(),
@@ -28,6 +37,10 @@ impl Handle {
         }
     }
 
+    /// Reconstructs an [`Entity`] when the raw index bits are representable.
+    ///
+    /// This does not check whether the entity is live. Use [`Self::resolve`] for validation against
+    /// a particular [`World`].
     pub fn entity(self) -> Option<Entity> {
         let index = EntityIndex::from_raw_u32(self.index)?;
         Some(Entity::from_index_and_generation(
@@ -36,7 +49,10 @@ impl Handle {
         ))
     }
 
-    /// Resolves and validates this handle against the current World.
+    /// Resolves and validates this handle against the current [`World`].
+    ///
+    /// Despawned entities and reused indices with another generation return
+    /// [`HandleError::NotLive`].
     pub fn resolve(self, world: &World) -> Result<Entity, HandleError> {
         let entity = self.entity().ok_or(HandleError::InvalidBits(self))?;
         world
@@ -66,9 +82,12 @@ impl fmt::Display for Handle {
     }
 }
 
+/// Failure while reconstructing or resolving a session-local [`Handle`].
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum HandleError {
+    /// The raw entity index bits cannot represent a Bevy entity.
     InvalidBits(Handle),
+    /// The encoded entity and generation are not live in the inspected World.
     NotLive(Handle),
 }
 

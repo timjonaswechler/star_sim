@@ -1,3 +1,8 @@
+//! GitHub issue draft preparation and optional publishing through the external `gh` CLI.
+//!
+//! Preparing a draft is local. Publishing requires an installed, authenticated `gh` command and
+//! may access the network.
+
 use super::{
     config::ReportConfig,
     report::{IssueDraft, ReportError},
@@ -40,7 +45,8 @@ impl Report {
     /// Publishes the prepared draft through the authenticated `gh` CLI.
     ///
     /// An existing open or closed issue with the exact title is returned instead of creating a
-    /// duplicate.
+    /// duplicate. Detection searches at most the 1,000 issues returned by `gh issue list`; it is
+    /// not an unlimited repository-wide guarantee.
     pub fn publish(self) -> Result<Outcome, Error> {
         if let Some(issue) = find_existing_issue(&self.title)? {
             return Ok(Outcome::Existing {
@@ -74,31 +80,60 @@ impl Report {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(tag = "status", rename_all = "snake_case")]
 pub enum Outcome {
-    Drafted { title: String, path: PathBuf },
-    Existing { title: String, issue: Issue },
-    Created { title: String, url: String },
+    /// A local draft was written without contacting GitHub.
+    Drafted {
+        /// Proposed issue title.
+        title: String,
+        /// Local Markdown path.
+        path: PathBuf,
+    },
+    /// Duplicate detection found an exact-title issue.
+    Existing {
+        /// Proposed and matched title.
+        title: String,
+        /// Existing GitHub issue.
+        issue: Issue,
+    },
+    /// A new GitHub issue was created.
+    Created {
+        /// Published title.
+        title: String,
+        /// URL returned by `gh issue create`.
+        url: String,
+    },
 }
 
 /// The GitHub issue fields returned when exact-title duplicate detection succeeds.
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub struct Issue {
+    /// Repository issue number.
     pub number: u64,
+    /// Exact issue title.
     pub title: String,
+    /// Web URL returned by GitHub CLI.
     pub url: String,
 }
 
 /// Errors produced while preparing a draft or invoking the GitHub CLI.
 #[derive(Debug)]
 pub enum Error {
+    /// Local draft preparation failed.
     Report(ReportError),
+    /// The external `gh` process could not start.
     Start {
+        /// GitHub CLI operation.
         operation: &'static str,
+        /// Process-start error.
         error: io::Error,
     },
+    /// GitHub CLI exited unsuccessfully.
     Failed {
+        /// GitHub CLI operation.
         operation: &'static str,
+        /// Trimmed stderr output.
         stderr: String,
     },
+    /// Duplicate-query JSON could not be decoded.
     InvalidResponse(serde_json::Error),
 }
 

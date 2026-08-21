@@ -1,3 +1,8 @@
+//! Host-side bounded observation polling.
+//!
+//! There is no wire-level wait command. [`crate::driver::Session::wait_for_observation`] alternates
+//! observations with explicit one-frame controlled-time advances.
+
 use crate::time;
 
 /// A hard upper bound for one host-side observation wait.
@@ -8,6 +13,7 @@ pub struct FrameLimit {
 }
 
 impl FrameLimit {
+    /// Validates a maximum frame count and the controlled step used after each missed observation.
     pub fn new(frames: u64, step_nanoseconds: u64) -> Result<Self, time::Error> {
         time::Command::advance(frames, step_nanoseconds).validate()?;
         Ok(Self {

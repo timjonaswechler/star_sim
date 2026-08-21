@@ -1,7 +1,14 @@
 //! Transport and Bevy integration for isolated Controlled Sessions.
 //!
-//! The crate exposes one small machine interface: protocol-v2 commands, read-only World
-//! observations, and Virtual Input. A Player Run does not depend on this crate.
+//! A Controller communicates with one Controlled Session through protocol-v2 [`Command`] values,
+//! reads session state with [`observation::observe_world`], and supplies session-local Virtual
+//! Input. Mark entities with [`AutomationTarget`] to make them discoverable. Rendered compositions
+//! may opt into PNG artifacts with [`screenshot::Plugin`]. [`AutomationControlPlugin`] connects
+//! these services to [`JsonLinesInput`] and an [`Output`] implementation.
+//!
+//! The `driver` feature additionally exposes Debug Host process management, Session Recording,
+//! diagnostics, and report helpers in [`driver`]. Those host-side utilities are not part of a
+//! Player Run. A Player Run does not depend on this crate or expose automation behavior.
 
 #[cfg(feature = "driver")]
 pub mod driver;
@@ -27,10 +34,15 @@ pub use target::AutomationTarget;
 pub use time::Clock as ControlledClock;
 pub use transport::{Input, JsonLinesInput, Output, StdoutOutput};
 
-/// Environment variable through which a controller supplies a child session's artifact root.
+/// Environment variable through which a Debug Host supplies a Controlled Session's artifact root.
+///
+/// The root contains artifacts produced by the child session, such as screenshots. It is distinct
+/// from the host-side Session Recording root used by the feature-gated driver.
 pub const AUTOMATION_CONTROL_ARTIFACT_DIR: &str = "AUTOMATION_CONTROL_ARTIFACT_DIR";
 
-/// Resolves the controller-provided artifact root, falling back to `default` for standalone runs.
+/// Resolves [`AUTOMATION_CONTROL_ARTIFACT_DIR`], falling back to `default` when absent or empty.
+///
+/// An explicit root passed to [`screenshot::Plugin::with_artifact_root`] bypasses this helper.
 pub fn artifact_root_path(default: impl Into<std::path::PathBuf>) -> std::path::PathBuf {
     std::env::var_os(AUTOMATION_CONTROL_ARTIFACT_DIR)
         .filter(|value| !value.is_empty())

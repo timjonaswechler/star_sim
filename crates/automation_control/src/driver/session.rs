@@ -1,3 +1,9 @@
+//! Child-process lifecycle and synchronous JSONL protocol client.
+//!
+//! A Debug Host normally follows `spawn` → [`Session::ready`] → requests/waits →
+//! [`Session::shutdown`]. Child stdout is protocol-only; stderr is streamed separately into the
+//! rolling diagnostics buffer.
+
 use super::{
     config::SessionConfig,
     diagnostics::{RecentLogs, stream_stderr},
@@ -25,16 +31,26 @@ use std::{
 #[cfg(unix)]
 use std::os::unix::process::CommandExt;
 
+/// Process, transport, protocol, request, or bounded-wait failure.
 #[derive(Debug)]
 pub enum DriverError {
+    /// Child process could not be launched or piped.
     Launch(String),
+    /// Host-side transport or Session Recording I/O failed.
     Io(String),
+    /// Child JSONL violated the protocol contract.
     Protocol(String),
+    /// Response receipt or shutdown exceeded the wall-clock timeout.
     Timeout(String),
+    /// Child status or exit was unsuccessful.
     Child(String),
+    /// The child returned a protocol-level error response.
     RequestFailed(Response),
+    /// An observation predicate remained false after the configured controlled frames.
     WaitLimitReached {
+        /// Number of frames advanced before stopping.
         frame_limit: u64,
+        /// Final observation result received.
         last_observation: Value,
     },
 }
@@ -58,16 +74,38 @@ impl fmt::Display for DriverError {
 
 impl std::error::Error for DriverError {}
 
+/// Host and child settings used when spawning a [`Session`].
+///
+/// `artifact_dir` is the host root for Session Recordings and driver artifacts.
+/// `session_artifact_dir` is the child root supplied through
+/// [`crate::AUTOMATION_CONTROL_ARTIFACT_DIR`]. It is not automatically nested beneath the host
+/// root. If omitted, the child root falls back to `artifact_dir`, then to `artifacts`.
+///
+/// ```
+/// use automation_control::driver::SessionOptions;
+/// use std::time::Duration;
+/// let options = SessionOptions::new(Duration::from_secs(30))
+///     .with_artifact_dir("artifacts/host")
+///     .with_session_artifact_dir("artifacts/sessions/alpha");
+/// assert_ne!(options.artifact_dir, options.session_artifact_dir);
+/// ```
 pub struct SessionOptions {
+    /// Wall-clock response and shutdown timeout.
     pub timeout: Duration,
+    /// Optional relative recording path to start during spawn.
     pub record: Option<PathBuf>,
+    /// Shared rolling child-stderr diagnostics.
     pub recent_logs: RecentLogs,
+    /// Host-side root for recordings and driver artifacts.
     pub artifact_dir: Option<PathBuf>,
+    /// Child/session artifact root exported to the child process.
     pub session_artifact_dir: Option<PathBuf>,
+    /// Recording context defaults; configure it through the provided builders.
     pub recording: recording::Options,
 }
 
 impl SessionOptions {
+    /// Creates options with no automatic recording and default diagnostics.
     pub fn new(timeout: Duration) -> Self {
         Self {
             timeout,
@@ -79,6 +117,10 @@ impl SessionOptions {
         }
     }
 
+    /// Builds options from session configuration and host-side artifact settings.
+    ///
+    /// This does not set a separate child root; call [`Self::with_session_artifact_dir`] when the
+    /// Controlled Session must write artifacts elsewhere.
     pub fn from_config(
         config: &SessionConfig,
         record: Option<PathBuf>,
@@ -91,26 +133,33 @@ impl SessionOptions {
             .with_artifact_dir(artifact_dir)
     }
 
+    /// Selects an optional Session Recording path to start during spawn.
     pub fn with_record(mut self, path: Option<PathBuf>) -> Self {
         self.record = path;
         self
     }
 
+    /// Replaces the rolling stderr diagnostics buffer.
     pub fn with_recent_logs(mut self, recent_logs: RecentLogs) -> Self {
         self.recent_logs = recent_logs;
         self
     }
 
+    /// Sets the host root used for Session Recordings and driver artifacts.
     pub fn with_artifact_dir(mut self, path: impl Into<PathBuf>) -> Self {
         self.artifact_dir = Some(path.into());
         self
     }
 
+    /// Sets the child artifact root exported through the environment.
+    ///
+    /// The driver sets the value but does not create this child root.
     pub fn with_session_artifact_dir(mut self, path: impl Into<PathBuf>) -> Self {
         self.session_artifact_dir = Some(path.into());
         self
     }
 
+    /// Sets explicit Session Recording identity, expected mode, and opaque host configuration.
     pub fn with_recording_context(
         mut self,
         session_id: impl Into<String>,
@@ -122,12 +171,17 @@ impl SessionOptions {
         self
     }
 
+    /// Sets the source-neutral Controller identity stored with recorded actions.
     pub fn with_controller(mut self, controller: Controller) -> Self {
         self.recording.controller = controller;
         self
     }
 }
 
+/// A live child Controlled Session owned by the Debug Host.
+///
+/// Dropping a live session terminates the child. If recording is active, drop writes an aborted
+/// terminal event; [`Self::shutdown`] writes a clean completed terminal event.
 pub struct Session {
     child: Child,
     stdin: Option<ChildStdin>,
@@ -140,10 +194,15 @@ pub struct Session {
 }
 
 impl Session {
+    /// Builds and spawns the Cargo command described by `spec`.
     pub fn spawn(spec: &LaunchSpec, options: SessionOptions) -> Result<Self, DriverError> {
         Self::spawn_command(spec.command(), options)
     }
 
+    /// Spawns an explicitly constructed child command with piped stdin, stdout, and stderr.
+    ///
+    /// Stdout must contain only protocol JSONL. Stderr is streamed separately. The configured
+    /// child artifact root is exported but not created by the driver.
     pub fn spawn_command(
         mut command: ProcessCommand,
         options: SessionOptions,
@@ -210,6 +269,10 @@ impl Session {
         Ok(session)
     }
 
+    /// Consumes and validates the startup [`Ready`] handshake.
+    ///
+    /// Call this before normal requests. Protocol version is always checked; an explicitly
+    /// configured recording context also requires the reported mode to match.
     pub fn ready(&mut self) -> Result<Ready, DriverError> {
         let value = match self.receive() {
             Ok(value) => value,
@@ -249,6 +312,10 @@ impl Session {
     }
 
     /// Sends one command with a host-assigned protocol sequence beginning at one.
+    ///
+    /// Response sequences and result/error shape are validated. Protocol error responses become
+    /// [`DriverError::RequestFailed`]. Successful observations are recorded as observation events;
+    /// other responses are recorded as game-response events.
     pub fn request(&mut self, command: Command) -> Result<Response, DriverError> {
         let sequence = self.next_sequence;
         self.next_sequence = self.next_sequence.saturating_add(1);
@@ -409,6 +476,7 @@ impl Session {
         Ok(path)
     }
 
+    /// Returns the current host-side recording path, if a segment is active.
     pub fn active_recording_path(&self) -> Option<&Path> {
         self.recording.writer.as_ref().map(recording::Writer::path)
     }
@@ -481,6 +549,10 @@ impl Session {
         }
     }
 
+    /// Consumes the session, sends the shutdown command, and waits for a successful child exit.
+    ///
+    /// Do not send [`Command::Shutdown`] separately. The wall-clock timeout applies to both the
+    /// shutdown response and process exit. A clean exit records `session_ended/completed`.
     pub fn shutdown(mut self) -> Result<(), DriverError> {
         self.request(Command::Shutdown)?;
         self.stdin.take();

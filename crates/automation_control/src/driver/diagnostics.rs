@@ -1,3 +1,8 @@
+//! Rolling child-stderr diagnostics and versioned failure artifacts.
+//!
+//! Session Recording sanitization does not apply to `recent.log`; callers must treat captured
+//! stderr as potentially sensitive.
+
 use serde::{Deserialize, Serialize};
 use std::{
     collections::VecDeque,
@@ -8,12 +13,17 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+/// Default number of child-stderr lines retained.
 pub const DEFAULT_RECENT_LOG_CAPACITY: usize = 50;
+/// Current `failure.json` schema version.
 pub const FAILURE_REPORT_VERSION: u32 = 1;
 
+/// Most useful failure detected in recent child stderr.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FailureHeadline {
+    /// Machine-readable `panic` or `error` kind.
     pub kind: &'static str,
+    /// Human-readable extracted line or panic message.
     pub message: String,
 }
 
@@ -21,17 +31,24 @@ pub struct FailureHeadline {
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct FailureReport {
+    /// Schema version, normally [`FAILURE_REPORT_VERSION`].
     pub version: u32,
+    /// Machine-readable failure kind.
     pub kind: String,
+    /// Primary human-readable failure message.
     pub message: String,
+    /// Optional Debug Host/controller error.
     #[serde(default)]
     pub cli_error: Option<String>,
+    /// Optional Session Recording path; validation does not check that it exists.
     #[serde(default)]
     pub record_path: Option<PathBuf>,
 }
 
 impl FailureReport {
-    /// Builds failure metadata from the retained application headline and controller error.
+    /// Builds failure metadata from the retained application headline and Controller error.
+    ///
+    /// Without a headline, this uses `cli_error` or the fallback `automation run failed`.
     pub fn new(
         failure: Option<&FailureHeadline>,
         cli_error: Option<&str>,
@@ -67,6 +84,8 @@ impl FailureReport {
     }
 
     /// Validates the version and required values of this report format.
+    ///
+    /// This does not check whether [`Self::record_path`] exists.
     pub fn validate(&self) -> Result<(), String> {
         if self.version != FAILURE_REPORT_VERSION {
             return Err(format!(
@@ -117,24 +136,38 @@ fn require_value(name: &str, value: &str) -> Result<(), String> {
 /// Paths produced together when a failed run's diagnostics are persisted.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DiagnosticArtifacts {
+    /// Fixed `recent.log` path containing unsanitized retained stderr.
     pub recent_log: PathBuf,
+    /// Fixed `failure.json` path containing typed metadata.
     pub failure_report: PathBuf,
 }
 
+/// Diagnostic artifact I/O, JSON, or schema failure.
 #[derive(Debug)]
 pub enum DiagnosticsError {
+    /// Filesystem operation failed.
     Io {
+        /// Attempted operation.
         operation: &'static str,
+        /// Affected path.
         path: PathBuf,
+        /// Underlying I/O error.
         error: io::Error,
     },
+    /// JSON parsing or writing failed.
     Json {
+        /// Attempted operation.
         operation: &'static str,
+        /// Affected path.
         path: PathBuf,
+        /// Serializer diagnostic.
         error: String,
     },
+    /// Failure report violated a schema invariant.
     Invalid {
+        /// Affected report path.
         path: PathBuf,
+        /// Validation diagnostic.
         message: String,
     },
 }
@@ -206,6 +239,10 @@ struct RecentLogState {
     pending_panic_location: Option<String>,
 }
 
+/// Shared synchronized rolling child-stderr state.
+///
+/// Clones observe and update the same buffer. Snapshots are ordered oldest to newest. Panic
+/// headlines take precedence over Bevy error headlines.
 #[derive(Clone)]
 pub struct RecentLogs(Arc<Mutex<RecentLogState>>);
 
@@ -216,6 +253,11 @@ impl Default for RecentLogs {
 }
 
 impl RecentLogs {
+    /// Creates shared rolling storage for `capacity` lines.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `capacity` is zero.
     pub fn with_capacity(capacity: usize) -> Self {
         assert!(capacity > 0, "recent log capacity must be positive");
         Self(Arc::new(Mutex::new(RecentLogState {
@@ -224,6 +266,7 @@ impl RecentLogs {
         })))
     }
 
+    /// Adds one stderr line and updates typed panic/error detection.
     pub fn push(&self, line: String) {
         let mut state = self.0.lock().expect("recent log mutex poisoned");
         if let Some(location) = state.pending_panic_location.take() {
@@ -261,6 +304,7 @@ impl RecentLogs {
         state.lines.push_back(line);
     }
 
+    /// Returns retained lines from oldest to newest.
     pub fn snapshot(&self) -> Vec<String> {
         self.0
             .lock()
@@ -271,6 +315,7 @@ impl RecentLogs {
             .collect()
     }
 
+    /// Returns the best detected headline, preferring a panic over a Bevy error.
     pub fn failure(&self) -> Option<FailureHeadline> {
         self.0
             .lock()
@@ -311,6 +356,9 @@ impl RecentLogs {
     }
 }
 
+/// Copies child stderr line-by-line to a terminal and [`RecentLogs`].
+///
+/// Lines persisted later in `recent.log` are not passed through Session Recording redaction.
 pub fn stream_stderr(
     reader: impl BufRead,
     mut terminal: impl Write,

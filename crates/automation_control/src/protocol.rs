@@ -1,3 +1,10 @@
+//! Protocol-v2 JSON wire values and request decoding.
+//!
+//! A Controlled Session emits one [`Ready`] handshake, then accepts newline-delimited [`Request`]
+//! values and emits correlated [`Response`] values. Request sequences are assigned by the host,
+//! begin above zero, and are not Controller identifiers. Requests intentionally carry no protocol
+//! version; the version is negotiated only by the ready handshake.
+
 use crate::{
     keyboard::Command as KeyboardCommand, observation::Request as ObservationRequest,
     pointer::Command as PointerCommand, screenshot::Command as ScreenshotCommand,
@@ -9,23 +16,41 @@ use serde::{
 use serde_json::{Map, Value};
 use std::fmt;
 
+/// Protocol version advertised in the startup [`Ready`] message.
 pub const PROTOCOL_VERSION: u32 = 2;
 
+/// One host-to-session request.
+///
+/// Unknown fields are rejected. In particular, a request has no version or Controller ID.
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Request {
+    /// Host-assigned response-correlation sequence; must be greater than zero.
     pub sequence: u64,
+    /// Operation requested from the Controlled Session.
     pub command: Command,
 }
 
+/// Operations supported by protocol v2.
+///
+/// On the wire, `observe` flattens its selector, projection, limit, and cursor beside `type`.
+/// Pointer, keyboard, and time commands use an `action` object; text and screenshot flatten their
+/// payload field; shutdown contains only `type`.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Command {
+    /// Read state through an [`ObservationRequest`].
     Observe(ObservationRequest),
+    /// Deliver a [`PointerCommand`] Virtual Input transition.
     Pointer(PointerCommand),
+    /// Deliver a [`KeyboardCommand`] Virtual Input transition.
     Keyboard(KeyboardCommand),
+    /// Request a focused-text commit through a [`TextCommand`].
     Text(TextCommand),
+    /// Advance controlled time through a [`TimeCommand`].
     Time(TimeCommand),
+    /// Request a rendered PNG artifact through a [`ScreenshotCommand`].
     Screenshot(ScreenshotCommand),
+    /// Ask the Controlled Session to terminate cleanly.
     Shutdown,
 }
 
@@ -143,24 +168,40 @@ fn reject_extra_fields<E: DeError>(object: &Map<String, Value>) -> Result<(), E>
     }
 }
 
+/// Execution-mode metadata reported by a Controlled Session.
+///
+/// Selecting a value does not install or remove a renderer; the embedding application chooses its
+/// Bevy composition.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum RunMode {
+    /// No window or renderer, driven only by controlled time.
     Logical,
+    /// A composition with rendering and visual artifacts.
     Rendered,
 }
 
+/// Startup handshake and capability metadata emitted before responses.
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct Ready {
+    /// Wire discriminator, normally `"ready"`.
     #[serde(rename = "type")]
     pub kind: String,
+    /// Negotiated protocol version, normally [`PROTOCOL_VERSION`].
     pub version: u32,
+    /// Composition metadata supplied to the control plugin.
     pub mode: RunMode,
+    /// Supported command capability names.
     pub controls: Vec<String>,
+    /// Supported observation selector names.
     pub observation_scopes: Vec<String>,
 }
 
 impl Ready {
+    /// Creates the baseline ready metadata for `mode`.
+    ///
+    /// Screenshot support is added later only when a rendered composition has installed
+    /// [`crate::screenshot::Plugin`] and the required Bevy screenshot resources.
     pub fn new(mode: RunMode) -> Self {
         Self {
             kind: "ready".into(),
@@ -189,30 +230,42 @@ impl Ready {
     }
 }
 
+/// Session-to-host result correlated by request sequence.
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct Response {
+    /// Sequence copied from the corresponding [`Request`], or zero when none could be decoded.
     pub sequence: u64,
+    /// Whether this response carries a result or an error.
     pub status: ResponseStatus,
+    /// Command-specific JSON value for a completed response.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub result: Option<Value>,
+    /// Machine-readable failure for an error response.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<ProtocolError>,
 }
 
+/// Wire status of a [`Response`].
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ResponseStatus {
+    /// The result is present and the error is absent.
     Completed,
+    /// The error is present; a result is not required.
     Error,
 }
 
+/// Machine-readable protocol failure.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct ProtocolError {
+    /// Stable error code for Controller branching.
     pub code: String,
+    /// Human-readable diagnostic message.
     pub message: String,
 }
 
 impl Response {
+    /// Constructs a successful response with `result` and no error.
     pub fn completed(sequence: u64, result: Value) -> Self {
         Self {
             sequence,
@@ -222,6 +275,7 @@ impl Response {
         }
     }
 
+    /// Constructs an error response with no result.
     pub fn error(sequence: u64, code: impl Into<String>, message: impl Into<String>) -> Self {
         Self {
             sequence,
@@ -235,11 +289,20 @@ impl Response {
     }
 }
 
+/// Legacy decoding-error vocabulary retained for source compatibility.
+///
+/// Current callers do **not** receive this type: [`decode_request`] returns an error [`Response`].
+/// Protocol-v2 requests contain no version field, so `UnsupportedVersion` does not describe active
+/// version negotiation; unknown request fields are reported as malformed responses.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum DecodeError {
+    /// A legacy malformed-input diagnostic.
     Malformed(String),
+    /// A legacy version diagnostic; current requests do not carry versions.
     UnsupportedVersion(u32),
+    /// A legacy zero-sequence diagnostic.
     InvalidSequence,
+    /// A legacy command-validation diagnostic.
     InvalidArguments(String),
 }
 
@@ -262,7 +325,11 @@ impl fmt::Display for DecodeError {
 
 impl std::error::Error for DecodeError {}
 
-/// Decodes one protocol-v2 request. The caller supplies no request ID or protocol version.
+/// Decodes and validates one protocol-v2 request line.
+///
+/// The caller supplies neither a Controller ID nor a protocol version. Malformed JSON and invalid
+/// commands are returned as error responses; when a sequence can be recovered it is preserved for
+/// correlation, otherwise it is zero.
 pub fn decode_request(line: &str) -> Result<Request, Response> {
     let value = serde_json::from_str::<Value>(line)
         .map_err(|error| Response::error(0, "malformed_request", error.to_string()))?;

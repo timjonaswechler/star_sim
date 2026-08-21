@@ -1,3 +1,10 @@
+//! Bevy integration for controlled schedules, Virtual Input isolation, and protocol transport.
+//!
+//! The plugin runs controlled schedules only for explicit time advances, queues Virtual Input for
+//! controlled frames, and discards native keyboard, pointer, text, and scroll input. [`RunMode`] is
+//! handshake metadata, not a request to install or remove a renderer or window. Screenshot
+//! capability remains conditional on the embedding composition.
+
 use crate::{
     keyboard::{self as virtual_keyboard, Command as KeyboardCommand, State as KeyboardState},
     observation::{self, Request as ObservationRequest},
@@ -35,6 +42,10 @@ use std::sync::{Arc, Mutex};
 
 const INPUT_CAPACITY: usize = 64;
 
+/// Installs the Controlled Session protocol and schedule bridge in a Bevy application.
+///
+/// [`Default`] is equivalent to [`Self::rendered_stdio`]. The embedding application remains
+/// responsible for selecting plugins, windows, rendering, and [`crate::screenshot::Plugin`].
 #[derive(Clone)]
 pub struct AutomationControlPlugin {
     mode: RunMode,
@@ -57,7 +68,12 @@ impl Default for AutomationControlPlugin {
     }
 }
 
+/// Converts an input source into the factory used when the Bevy plugin is built.
+///
+/// The factory is invoked once for one plugin installation. Passing a [`JsonLinesInput`] uses a
+/// one-shot factory and panics if invoked more than once; a closure may define other behavior.
 pub trait InputFactory: Send + Sync + 'static {
+    /// Produces the one-session input factory.
     fn factory(self) -> Arc<dyn Fn() -> JsonLinesInput + Send + Sync>;
 }
 
@@ -84,12 +100,16 @@ where
 }
 
 impl AutomationControlPlugin {
-    /// Creates a Logical Mode Controlled Session using stdin/stdout JSONL.
+    /// Configures Logical Mode metadata and stdin/stdout JSONL transport.
+    ///
+    /// This does not itself create an application composition or remove a renderer.
     pub fn logical_stdio() -> Self {
         Self::stdio(RunMode::Logical)
     }
 
-    /// Creates a Rendered Mode Controlled Session using stdin/stdout JSONL.
+    /// Configures Rendered Mode metadata and stdin/stdout JSONL transport.
+    ///
+    /// This does not install rendering, a window, or screenshot support.
     pub fn rendered_stdio() -> Self {
         Self::stdio(RunMode::Rendered)
     }
@@ -102,7 +122,11 @@ impl AutomationControlPlugin {
         }
     }
 
-    /// Creates a Controlled Session with explicit mode metadata and custom transport adapters.
+    /// Configures explicit mode metadata and custom transport adapters.
+    ///
+    /// The input factory supplies the [`JsonLinesInput`]. The [`Output`] receives the startup
+    /// [`crate::Ready`] and subsequent [`Response`] values. `mode` is metadata and does not select
+    /// the embedding Bevy composition.
     pub fn with_io(mode: RunMode, input: impl InputFactory, output: Arc<dyn Output>) -> Self {
         Self {
             mode,

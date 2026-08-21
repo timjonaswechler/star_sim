@@ -1,3 +1,8 @@
+//! Virtual keyboard tokens, held-key state, and the Bevy event bridge.
+//!
+//! Wire tokens are stable and layout-independent. Validation checks token support; event creation
+//! additionally requires exactly one primary window and a valid press/release state transition.
+
 use bevy::{
     input::{
         ButtonState,
@@ -13,14 +18,21 @@ use std::{collections::BTreeSet, fmt};
 macro_rules! define_keys {
     ($( $variant:ident => ($wire:literal, $code:ident, $logical:expr) ),+ $(,)?) => {
         /// A stable, layout-independent key name supported by Virtual Input.
+        ///
+        /// Deserialization preserves unsupported tokens as [`Key::Unknown`], allowing validation
+        /// to return [`Error::InvalidKey`] instead of rejecting JSON structurally.
         #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
         pub enum Key {
-            $( $variant, )+
+            $(
+                #[doc = concat!("Stable Virtual Input wire token `", $wire, "`.")]
+                $variant,
+            )+
             /// Preserves an unknown wire value so validation can return a typed error.
             Unknown(String),
         }
 
         impl Key {
+            /// Returns the stable wire token, including an unsupported token in [`Key::Unknown`].
             pub fn as_str(&self) -> &str {
                 match self {
                     $( Self::$variant => $wire, )+
@@ -154,11 +166,22 @@ impl<'de> Deserialize<'de> for Key {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Command {
-    Press { key: Key },
-    Release { key: Key },
+    /// Presses a supported key that is not already held.
+    Press {
+        /// Stable key token to press.
+        key: Key,
+    },
+    /// Releases a supported key that is currently held.
+    Release {
+        /// Stable key token to release.
+        key: Key,
+    },
 }
 
 impl Command {
+    /// Checks only that the key token is supported.
+    ///
+    /// Window availability and duplicate state transitions are checked by [`keyboard_event`].
     pub fn validate(&self) -> Result<(), Error> {
         match self {
             Self::Press { key } | Self::Release { key } => key.resolve().map(|_| ()),
@@ -173,10 +196,13 @@ pub struct State {
 }
 
 impl State {
+    /// Returns whether `key` is currently held by Virtual Input in this session.
     pub fn is_pressed(&self, key: &Key) -> bool {
         self.pressed.contains(key)
     }
 
+    /// Returns `{ "pressed": [...] }` with stable wire tokens in deterministic [`Key`] enum
+    /// order (the declaration order), not lexicographic wire-token order.
     pub fn observation(&self) -> serde_json::Value {
         json!({
             "pressed": self.pressed.iter().map(Key::as_str).collect::<Vec<_>>(),
@@ -184,16 +210,23 @@ impl State {
     }
 }
 
+/// Keyboard validation or event-construction failure.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Error {
+    /// The deserialized wire token is not supported.
     InvalidKey(String),
+    /// No entity is both a Bevy window and primary window.
     NoPrimaryWindow,
+    /// More than one primary window is available.
     AmbiguousPrimaryWindow,
+    /// A press was requested for an already-held key.
     KeyAlreadyPressed(Key),
+    /// A release was requested for a key that is not held.
     KeyNotPressed(Key),
 }
 
 impl Error {
+    /// Returns the stable protocol error code.
     pub const fn code(&self) -> &'static str {
         match self {
             Self::InvalidKey(_) => "invalid_key",
@@ -228,6 +261,16 @@ impl fmt::Display for Error {
 
 impl std::error::Error for Error {}
 
+/// Applies a virtual key transition and constructs the corresponding Bevy [`KeyboardInput`].
+///
+/// A successful call updates session-local [`State`], but does not itself dispatch the returned
+/// event or guarantee that application systems consume it. Press before release:
+///
+/// ```
+/// use automation_control::keyboard::{Command, Key};
+/// let commands = [Command::Press { key: Key::A }, Command::Release { key: Key::A }];
+/// assert!(commands.iter().all(|command| command.validate().is_ok()));
+/// ```
 pub fn keyboard_event(
     state: &mut State,
     world: &World,

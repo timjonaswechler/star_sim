@@ -1,3 +1,5 @@
+//! Portable Markdown issue drafts built from Debug Host failure artifacts.
+
 use super::diagnostics::{DiagnosticsError, FailureReport};
 use std::{
     fmt, fs, io,
@@ -14,12 +16,17 @@ const ISSUE_TITLE_PREFIX: &str = "[automation failure] ";
 /// A portable Markdown issue draft generated from an automation failure artifact set.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct IssueDraft {
+    /// Generated issue title.
     pub title: String,
+    /// Generated Markdown issue body.
     pub body: String,
 }
 
 impl IssueDraft {
-    /// Loads `failure.json` and the optional diagnostic files beneath `artifact_dir`.
+    /// Loads required `failure.json` and optional `recent.log` beneath `artifact_dir`.
+    ///
+    /// If failure metadata supplies `record_path`, that path is read directly and need not be below
+    /// `artifact_dir`; otherwise optional `session.jsonl` is read below it.
     pub fn from_artifacts(artifact_dir: impl AsRef<Path>) -> Result<Self, ReportError> {
         let artifact_dir = artifact_dir.as_ref();
         let failure = FailureReport::load(artifact_dir.join(FAILURE_JSON_NAME))?;
@@ -27,6 +34,9 @@ impl IssueDraft {
     }
 
     /// Builds a draft from validated failure metadata and its artifact directory.
+    ///
+    /// Lookup order is `recent.log` below the directory, then the supplied `record_path` or the
+    /// fallback `session.jsonl` below the directory.
     pub fn from_failure_report(
         failure: &FailureReport,
         artifact_dir: impl AsRef<Path>,
@@ -66,7 +76,7 @@ impl IssueDraft {
         self
     }
 
-    /// Writes `github-issue.md` beneath `artifact_dir` and returns its path.
+    /// Creates `artifact_dir`, overwrites `github-issue.md` beneath it, and returns that path.
     pub fn write_to(&self, artifact_dir: impl AsRef<Path>) -> Result<PathBuf, ReportError> {
         let artifact_dir = artifact_dir.as_ref();
         fs::create_dir_all(artifact_dir)
@@ -81,14 +91,22 @@ impl IssueDraft {
 /// Errors produced while loading diagnostic artifacts or writing a Markdown draft.
 #[derive(Debug)]
 pub enum ReportError {
+    /// Required failure metadata could not be loaded.
     Failure(DiagnosticsError),
+    /// Optional artifact reading or draft writing failed.
     Io {
+        /// Attempted operation.
         operation: &'static str,
+        /// Affected path.
         path: PathBuf,
+        /// Underlying I/O error.
         error: io::Error,
     },
+    /// Supplied failure metadata was invalid.
     Invalid {
+        /// Associated failure-report path.
         path: PathBuf,
+        /// Validation diagnostic.
         message: String,
     },
 }

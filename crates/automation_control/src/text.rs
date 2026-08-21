@@ -1,3 +1,8 @@
+//! Focused text Virtual Input through Bevy IME commit events.
+//!
+//! Commands are UTF-8-size validated. Event construction additionally requires one primary window,
+//! a live focused entity, and Bevy [`EditableText`] on that entity.
+
 use crate::entity::Handle;
 use bevy::{
     input_focus::InputFocus,
@@ -12,18 +17,23 @@ use std::fmt;
 /// Maximum UTF-8 payload accepted by one text command.
 pub const MAX_BYTES: usize = 16 * 1024;
 
-/// Text committed to the UI entity that currently owns Bevy input focus.
+/// A request to commit text to the UI entity that currently owns Bevy input focus.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Command {
+    /// UTF-8 text requested for commit.
     pub text: String,
 }
 
 impl Command {
+    /// Creates a text-commit request.
     pub fn new(text: impl Into<String>) -> Self {
         Self { text: text.into() }
     }
 
+    /// Checks only the [`MAX_BYTES`] UTF-8 byte limit.
+    ///
+    /// Window and focus requirements are checked by [`text_event`].
     pub fn validate(&self) -> Result<(), Error> {
         if self.text.len() > MAX_BYTES {
             return Err(Error::TooLarge(self.text.len()));
@@ -41,6 +51,7 @@ pub struct State {
 }
 
 impl State {
+    /// Returns focused handle, last requested target/text, and successful bridge-call count.
     pub fn observation(&self, world: &World) -> serde_json::Value {
         let focused = world
             .get_resource::<InputFocus>()
@@ -56,18 +67,27 @@ impl State {
     }
 }
 
+/// Text validation or event-construction failure.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Error {
+    /// Payload exceeds [`MAX_BYTES`]; contains the actual UTF-8 byte length.
     TooLarge(usize),
+    /// No primary window exists.
     NoPrimaryWindow,
+    /// More than one primary window exists.
     AmbiguousPrimaryWindow,
+    /// Bevy's input-focus resource is not installed.
     NoFocusState,
+    /// No entity currently owns input focus.
     NoFocusedEntity,
+    /// The focused handle no longer resolves.
     FocusNotLive(Handle),
+    /// The focused entity does not contain [`EditableText`].
     FocusNotEditable(Handle),
 }
 
 impl Error {
+    /// Returns the stable protocol error code.
     pub const fn code(&self) -> &'static str {
         match self {
             Self::TooLarge(_) => "text_too_large",
@@ -108,6 +128,10 @@ impl fmt::Display for Error {
 
 impl std::error::Error for Error {}
 
+/// Records a valid focused commit and constructs Bevy's [`Ime::Commit`] event.
+///
+/// State is updated before the returned event is dispatched; success therefore records bridge
+/// construction, not proof that application systems consumed or applied the text.
 pub fn text_event(state: &mut State, world: &World, command: &Command) -> Result<Ime, Error> {
     command.validate()?;
     let window = primary_window(world)?;

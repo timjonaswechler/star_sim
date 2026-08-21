@@ -1,3 +1,7 @@
+//! Versioned TOML configuration for Debug Host tools.
+//!
+//! All configuration structs reject unknown fields when deserialized.
+
 use super::launch::LaunchSpec;
 use serde::Deserialize;
 use std::{
@@ -5,29 +9,40 @@ use std::{
     path::{Path, PathBuf},
 };
 
+/// Supported Debug Host configuration schema version.
 pub const CONFIG_VERSION: u32 = 1;
+/// Default wall-clock response timeout used when `session.timeout_seconds` is omitted.
 pub const DEFAULT_TIMEOUT_SECONDS: u64 = 60;
 
+/// Top-level versioned automation TOML configuration.
 #[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Config {
+    /// Schema version, which must equal [`CONFIG_VERSION`].
     pub version: u32,
+    /// Cargo target used to launch the Controlled Session.
     pub application: LaunchSpec,
+    /// Driver timeout settings.
     #[serde(default)]
     pub session: SessionConfig,
+    /// Failure-report attribution settings.
     #[serde(default)]
     pub report: ReportConfig,
 }
 
+/// Configuration for generated issue reports.
 #[derive(Clone, Debug, Default, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ReportConfig {
+    /// Optional tool attribution appended to the generated report.
     pub generated_by: Option<String>,
 }
 
+/// Wall-clock driver settings for one Controlled Session.
 #[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SessionConfig {
+    /// Wall-clock response/shutdown timeout, not controlled simulation time.
     #[serde(default = "default_timeout_seconds")]
     pub timeout_seconds: u64,
 }
@@ -41,6 +56,7 @@ impl Default for SessionConfig {
 }
 
 impl Config {
+    /// Reads, parses, and validates TOML from `path`.
     pub fn load(path: impl AsRef<Path>) -> Result<Self, ConfigError> {
         let path = path.as_ref();
         let contents = fs::read_to_string(path).map_err(|error| ConfigError::Read {
@@ -55,6 +71,7 @@ impl Config {
         Ok(config)
     }
 
+    /// Validates the version, required strings, and positive timeout.
     pub fn validate(&self) -> Result<(), String> {
         if self.version != CONFIG_VERSION {
             return Err(format!(
@@ -73,16 +90,24 @@ impl Config {
     }
 }
 
+/// Configuration load, TOML parse, or semantic validation failure.
 #[derive(Debug)]
 pub enum ConfigError {
+    /// File reading failed.
     Read {
+        /// Configuration path.
         path: PathBuf,
+        /// Underlying I/O error.
         error: std::io::Error,
     },
+    /// TOML deserialization failed, including unknown fields.
     Parse {
+        /// Configuration path.
         path: PathBuf,
+        /// Parser diagnostic.
         error: String,
     },
+    /// Parsed configuration violated a semantic invariant.
     Invalid(String),
 }
 

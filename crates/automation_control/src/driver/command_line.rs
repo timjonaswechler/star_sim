@@ -1,25 +1,36 @@
+//! Shared command-line parser for running named Controlled Sessions or reporting artifacts.
+//!
+//! The literal first argument `report` is reserved for report generation; all other run names
+//! remain opaque to this crate.
+
 use std::{
     ffi::{OsStr, OsString},
     fmt,
     path::PathBuf,
 };
 
-/// Parses the controller commands shared by automation tools.
+/// Parses the Controller commands shared by automation tools.
 ///
-/// Scenario names remain opaque strings so a consuming tool can define its own scenarios without
-/// making them part of this crate's interface.
+/// Run names other than the reserved `report` command remain opaque strings so a consuming tool
+/// can define them without making them part of this crate's interface.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CommandLine {
+    /// Runs a consumer-defined Controlled Session.
     Run(RunOptions),
+    /// Generates or publishes a report from an artifact directory.
     Report(ReportOptions),
 }
 
-/// Options for a consumer-defined automation scenario.
+/// Options for a consumer-defined Controlled Session run.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RunOptions {
+    /// Optional Debug Host configuration path.
     pub config_path: Option<PathBuf>,
+    /// Opaque consumer-defined run name; `report` is reserved.
     pub scenario: String,
+    /// Optional host artifact root, not a distinct child-session artifact root.
     pub artifact_dir: Option<PathBuf>,
+    /// Optional relative Session Recording path.
     pub record: Option<PathBuf>,
 }
 
@@ -28,13 +39,16 @@ pub struct RunOptions {
 pub struct ReportOptions {
     /// Retained for consistent global option parsing; report generation does not load it.
     pub config_path: Option<PathBuf>,
+    /// Host artifact directory containing `failure.json`.
     pub artifact_dir: PathBuf,
+    /// Whether to publish through GitHub rather than only writing a local draft.
     pub create: bool,
 }
 
 /// The usage text shared by command-line errors and consumers that need to print help.
 pub const USAGE: &str = "usage: TOOL [--config PATH] SCENARIO [--artifact-dir PATH] [--record PATH] | report ARTIFACT_DIR [--create]";
 
+/// Invalid shared command-line syntax.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CommandLineError(String);
 
@@ -49,8 +63,8 @@ impl std::error::Error for CommandLineError {}
 impl CommandLine {
     /// Parses arguments after the executable name.
     ///
-    /// `--config` is accepted before or after the scenario. Other run options are parsed after
-    /// the opaque scenario name, while report arguments follow the `report ARTIFACT_DIR` form.
+    /// `--config` is accepted before or after the run name. Other run options are parsed after the
+    /// opaque run name, while report arguments follow the reserved `report ARTIFACT_DIR` form.
     pub fn parse<I, T>(args: I) -> Result<Self, CommandLineError>
     where
         I: IntoIterator<Item = T>,

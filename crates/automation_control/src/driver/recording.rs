@@ -1,3 +1,15 @@
+//! Versioned host-side Session Recording JSONL format.
+//!
+//! [`FORMAT_VERSION`] versions this persisted schema independently of [`crate::PROTOCOL_VERSION`].
+//! Every valid recording begins with [`Event::SessionStarted`], uses strictly increasing host
+//! sequences, and ends with [`Event::RecordingStopped`] or [`Event::SessionEnded`]. Host sequences
+//! order recording entries; `request_sequence` fields correlate with protocol requests.
+//!
+//! Writers used by [`crate::driver::Session`] bound, sanitize, and redact recorded values before
+//! persistence. Directly serializing the public data types does not apply those protections, and
+//! public [`Recording::entries`] can be mutated into an invalid value; call [`Recording::validate`]
+//! before consuming or publishing manually constructed recordings.
+
 use crate::{Command, PROTOCOL_VERSION, ProtocolError, ResponseStatus, RunMode, observation};
 use cap_std::{ambient_authority, fs::Dir};
 use serde::{Deserialize, Serialize};
@@ -11,6 +23,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
+/// Current Session Recording schema version, independent of the wire protocol version.
 pub const FORMAT_VERSION: u32 = 1;
 const MAX_DEPTH: usize = 8;
 const MAX_COLLECTION_ITEMS: usize = 128;
@@ -20,61 +33,95 @@ const REDACTED: &str = "[redacted]";
 
 static AUTOMATIC_PATH_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
+/// One line in a Session Recording.
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct Entry {
+    /// Persisted schema version, normally [`FORMAT_VERSION`].
     pub version: u32,
+    /// Strictly increasing host recording sequence, independent of wire sequences.
     pub sequence: u64,
+    /// Flattened typed event payload.
     #[serde(flatten)]
     pub event: Event,
 }
 
+/// Typed events persisted in host order.
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Event {
+    /// Required first event describing the Controlled Session.
     SessionStarted {
+        /// Immutable context for this recording segment.
         context: SessionContext,
     },
+    /// Source-neutral Controller action.
     ControllerAction {
+        /// Controller origin metadata.
         controller: Controller,
+        /// Opaque action JSON after Session writer sanitization.
         action: Value,
     },
+    /// Non-observation protocol response.
     GameResponse {
+        /// Correlated wire request sequence.
         request_sequence: u64,
+        /// Response status.
         status: ResponseStatus,
+        /// Optional command result.
         #[serde(skip_serializing_if = "Option::is_none")]
         result: Option<Value>,
+        /// Optional protocol failure.
         #[serde(skip_serializing_if = "Option::is_none")]
         error: Option<ProtocolError>,
     },
+    /// Read-only observation and its result.
     Observation {
+        /// Correlated wire request sequence.
         request_sequence: u64,
+        /// Observation request sent to the child.
         request: observation::Request,
+        /// Observation result after Session writer sanitization.
         result: Value,
     },
+    /// Host or child failure summary.
     Error {
+        /// Machine-readable failure kind.
         kind: String,
+        /// Bounded human-readable message.
         message: String,
     },
+    /// Artifact metadata extracted from a protocol result.
     Artifact {
+        /// Correlated wire request sequence.
         request_sequence: u64,
+        /// Child-reported artifact reference.
         artifact: ArtifactReference,
     },
+    /// Terminal event for a deliberately stopped recording segment.
     RecordingStopped,
+    /// Terminal event for the Controlled Session lifecycle.
     SessionEnded {
+        /// Clean or aborted session outcome.
         outcome: SessionOutcome,
     },
 }
 
+/// Immutable context written in the first event of a recording segment.
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct SessionContext {
+    /// Host-chosen identity for one Controlled Session.
     pub session_id: String,
+    /// Expected or negotiated session mode.
     pub mode: RunMode,
+    /// Wire protocol version used by the session.
     pub protocol_version: u32,
+    /// Opaque host-provided configuration snapshot.
     pub configuration: Value,
 }
 
 impl SessionContext {
+    /// Creates context using the crate's current wire protocol version.
     pub fn new(session_id: impl Into<String>, mode: RunMode, configuration: Value) -> Self {
         Self {
             session_id: session_id.into(),
@@ -85,6 +132,11 @@ impl SessionContext {
     }
 }
 
+/// Internal-default recording metadata exposed through [`crate::driver::SessionOptions`].
+///
+/// Its fields are intentionally not directly configurable; use
+/// [`crate::driver::SessionOptions::with_recording_context`] and
+/// [`crate::driver::SessionOptions::with_controller`].
 #[derive(Clone, Debug)]
 pub struct Options {
     pub(crate) context: SessionContext,
@@ -106,13 +158,16 @@ impl Default for Options {
     }
 }
 
+/// Provenance for the source directing a Controlled Session.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Controller {
+    /// Source-neutral origin such as a REPL, agent, Session Script, or Session Replay.
     pub origin: String,
 }
 
 impl Controller {
+    /// Creates Controller provenance from an origin label.
     pub fn new(origin: impl Into<String>) -> Self {
         Self {
             origin: origin.into(),
@@ -120,14 +175,22 @@ impl Controller {
     }
 }
 
+/// Artifact metadata reported by a child Controlled Session.
+///
+/// `path` is normally relative to the child/session artifact root; it is not a host recording path.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct ArtifactReference {
+    /// Artifact kind, for example `screenshot`.
     pub kind: String,
+    /// Child-reported path.
     pub path: String,
+    /// Media type reported by the child.
     pub mime_type: String,
+    /// Optional pixel width.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub width: Option<u32>,
+    /// Optional pixel height.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub height: Option<u32>,
 }
@@ -151,19 +214,28 @@ impl ArtifactReference {
     }
 }
 
+/// Terminal outcome of a recorded Controlled Session.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SessionOutcome {
+    /// Clean shutdown completed successfully.
     Completed,
+    /// The session ended through failure or drop.
     Aborted,
 }
 
+/// Parsed Session Recording.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Recording {
+    /// Public event lines; direct mutation can violate recording invariants.
     pub entries: Vec<Entry>,
 }
 
 impl Recording {
+    /// Parses strict JSONL and validates lifecycle and sequence invariants.
+    ///
+    /// Empty lines, unknown event fields, unsupported versions, and malformed event shapes are
+    /// rejected rather than ignored.
     pub fn parse_reader(reader: impl BufRead) -> Result<Self, Error> {
         let mut entries = Vec::new();
         for (index, line) in reader.lines().enumerate() {
@@ -192,6 +264,7 @@ impl Recording {
         Ok(recording)
     }
 
+    /// Opens and parses a Session Recording path.
     pub fn parse_path(path: impl AsRef<Path>) -> Result<Self, Error> {
         let path = path.as_ref();
         let file = File::open(path)
@@ -199,6 +272,7 @@ impl Recording {
         Self::parse_reader(BufReader::new(file))
     }
 
+    /// Validates first/terminal events, versions, increasing host sequences, and event shapes.
     pub fn validate(&self) -> Result<(), Error> {
         let Some(first) = self.entries.first() else {
             return Err(Error::Invalid("recording is empty".into()));
@@ -535,13 +609,20 @@ fn compact_event(event: &Event, original_bytes: usize) -> Event {
     }
 }
 
+/// Recording parse, validation, path, or persistence failure.
 #[derive(Debug)]
 pub enum Error {
+    /// Recording filesystem operation failed.
     Io(String),
+    /// Create-new semantics found an existing requested recording.
     AlreadyExists(PathBuf),
+    /// JSON serialization or deserialization failed.
     Json(String),
+    /// Recording lifecycle or schema invariant failed.
     Invalid(String),
+    /// Recording schema version is unsupported.
     UnsupportedVersion(u64),
+    /// Requested relative `.jsonl` path is invalid or unsafe for the writer.
     InvalidPath(String),
 }
 
@@ -780,6 +861,11 @@ fn validate_relative_path(path: &Path) -> Result<PathBuf, Error> {
     Ok(normalized)
 }
 
+/// Lexically validates a relative forward-slash `.jsonl` path and joins it to a root.
+///
+/// This helper does not create or canonicalize the root, inspect symlinks, or guarantee canonical
+/// filesystem containment. The internal Session Recording writer performs stronger checks before
+/// creating files.
 pub fn path_below_artifact_root(
     artifact_root: impl AsRef<Path>,
     requested: impl AsRef<Path>,
