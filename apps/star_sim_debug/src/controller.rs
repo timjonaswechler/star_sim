@@ -7,6 +7,7 @@ use automation_control::{
     keyboard::{Command as KeyboardCommand, Key},
     observation::{Projection, Request as ObservationRequest, Selector},
     pointer::{Button as WireButton, Command as PointerCommand},
+    screenshot::Command as ScreenshotCommand,
     text::Command as TextCommand,
     time::{Command as TimeCommand, MAX_FRAMES},
 };
@@ -236,10 +237,16 @@ pub(crate) enum ControllerError {
     Launch(String),
     Communication(String),
     Child(String),
-    Request { code: String, message: String },
+    Request {
+        code: String,
+        message: String,
+    },
     Invalid(String),
     PausedWait,
-    WaitLimitReached { frames: u64 },
+    WaitLimitReached {
+        frames: u64,
+        last_observation: Value,
+    },
     Shutdown,
 }
 
@@ -259,7 +266,7 @@ impl fmt::Display for ControllerError {
             Self::PausedWait => formatter.write_str(
                 "wait condition is not met and the session is paused; use step or resume",
             ),
-            Self::WaitLimitReached { frames } => {
+            Self::WaitLimitReached { frames, .. } => {
                 write!(
                     formatter,
                     "wait condition was not met within {frames} controlled frames"
@@ -297,6 +304,7 @@ impl ControllerSession {
         artifact_dir: PathBuf,
         record: Option<PathBuf>,
         recent_logs: RecentLogs,
+        controller: Controller,
     ) -> Result<Self, ControllerError> {
         let launch = ControlledApp::launch(mode);
         let options = SessionOptions::new(Duration::from_secs(180))
@@ -308,7 +316,7 @@ impl ControllerSession {
                 mode.wire(),
                 session_configuration(mode, surface, false),
             )
-            .with_controller(Controller::new("repl"));
+            .with_controller(controller);
         let mut driver = DriverSession::spawn(&launch, options).map_err(map_driver_error)?;
         let ready = driver.ready().map_err(map_driver_error)?;
         if ready.mode != mode.wire() {
@@ -445,6 +453,7 @@ impl ControllerSession {
         }
         Err(ControllerError::WaitLimitReached {
             frames: frame_limit,
+            last_observation: value,
         })
     }
 
@@ -464,6 +473,16 @@ impl ControllerSession {
         self.paused = false;
         self.last_action = "resume".into();
         Ok(())
+    }
+
+    pub(crate) fn capture_screenshot(
+        &mut self,
+        command: ScreenshotCommand,
+    ) -> Result<Value, ControllerError> {
+        let path = command.path.clone();
+        let result = self.request(WireCommand::Screenshot(command))?;
+        self.last_action = format!("screenshot {path}");
+        Ok(result)
     }
 
     pub(crate) fn start_recording(
@@ -490,6 +509,12 @@ impl ControllerSession {
                 "invalid_controller_command",
                 "Controller command was invalid",
             );
+        }
+    }
+
+    pub(crate) fn capture_script_error(&mut self, kind: &str) {
+        if let Some(driver) = &mut self.driver {
+            let _ = driver.capture_error(kind, "Session Script execution failed");
         }
     }
 
@@ -757,8 +782,12 @@ fn map_driver_error(error: DriverError) -> ControllerError {
         }
         DriverError::Io(message) => ControllerError::Communication(message),
         DriverError::Protocol(message) => ControllerError::Communication(message),
-        DriverError::WaitLimitReached { frame_limit, .. } => ControllerError::WaitLimitReached {
+        DriverError::WaitLimitReached {
+            frame_limit,
+            last_observation,
+        } => ControllerError::WaitLimitReached {
             frames: frame_limit,
+            last_observation,
         },
     }
 }

@@ -29,6 +29,72 @@ cargo run -p star_sim_debug -- --mode logical --record recordings/logical.jsonl
 
 Absolute paths, traversal, symbolic-link escapes, and existing files are rejected.
 
+## Session Scripts
+
+Run a version 1 Session Script in a fresh Controlled Session:
+
+```bash
+cargo run -p star_sim_debug -- run sessions/museum.json
+cargo run -p star_sim_debug -- --record recordings/museum.jsonl run sessions/museum.json
+cargo run -p star_sim_debug -- --mode rendered run sessions/museum.json
+```
+
+The script configures `logical` or `rendered` mode and contains only Controller intent and
+expectations. An explicit `--mode` overrides the configured mode. `--record` overrides an optional
+`session.record` path, and the resulting JSONL uses the same Session Recording format as the REPL.
+
+The checked-in `sessions/museum.json` uses these step forms:
+
+```json
+{
+  "version": 1,
+  "session": { "mode": "logical" },
+  "steps": [
+    { "type": "click", "target": "menu.tab.museum" },
+    {
+      "type": "wait",
+      "condition": { "type": "screen", "equals": "museum" },
+      "max_frames": 8
+    },
+    {
+      "type": "expect",
+      "condition": { "type": "screen", "equals": "museum" }
+    },
+    {
+      "type": "screenshot",
+      "path": "screenshots/museum.png",
+      "rendered_only": true,
+      "expect": {
+        "mime_type": "image/png",
+        "width": 640,
+        "height": 360
+      }
+    }
+  ]
+}
+```
+
+`rendered_only` skips that screenshot step in Logical Mode, so the same script can run without a
+display or check artifact metadata in Rendered Mode. Screenshot checks compare the returned type,
+path, MIME type, and selected dimensions. They do not compare PNG bytes.
+
+Virtual Input uses grouped pointer and keyboard steps. For example:
+
+```json
+{ "type": "pointer", "action": { "type": "move", "x": 0.5, "y": 0.25 } }
+{ "type": "pointer", "action": { "type": "scroll", "x": 0.0, "y": -1.0 } }
+{ "type": "keyboard", "action": { "type": "press", "key": "Escape" } }
+{ "type": "text", "text": "museum visitors" }
+```
+
+Pointer actions are `move`, `press`, `release`, `click`, and `scroll`. Keyboard actions are `press`
+and `release`. The format rejects unknown fields and action types. Every wait requires `max_frames`
+between 1 and 10,000. A failure names the one-based step and JSON path, then prints expected and
+actual values plus the last stable observation when available.
+
+Exit code 2 means the script is invalid, 3 means a wait timed out, 4 means an action or Controlled
+Session failed, and 5 means an expectation did not match. Other host failures use exit code 1.
+
 ## REPL commands
 
 ```text

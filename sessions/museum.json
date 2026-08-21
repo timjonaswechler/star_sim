@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "session": {
+    "mode": "logical"
+  },
+  "steps": [
+    {
+      "type": "click",
+      "target": "menu.tab.museum"
+    },
+    {
+      "type": "wait",
+      "condition": {
+        "type": "screen",
+        "equals": "museum"
+      },
+      "max_frames": 8
+    },
+    {
+      "type": "expect",
+      "condition": {
+        "type": "screen",
+        "equals": "museum"
+      }
+    },
+    {
+      "type": "screenshot",
+      "path": "screenshots/museum.png",
+      "rendered_only": true,
+      "expect": {
+        "mime_type": "image/png",
+        "width": 640,
+        "height": 360
+      }
+    }
+  ]
+}
