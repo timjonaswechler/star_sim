@@ -1,7 +1,10 @@
-use crate::controller::{ControllerError, ControllerSession, Mode, SurfaceSize};
-use automation_control::{
+use super::{
+    Config,
+    controller::{ControllerError, ControllerSession, Mode},
+};
+use crate::{
     Command, PROTOCOL_VERSION, Response, ResponseStatus, RunMode,
-    driver::{
+    host::{
         RecentLogs,
         recording::{
             self, ArtifactReference, Controller, Event, Recording, SessionContext, SessionOutcome,
@@ -128,6 +131,7 @@ struct RecordedAction<'a> {
 }
 
 pub(crate) fn run(
+    profile: &Config,
     source: &Path,
     artifact_dir: PathBuf,
     record: Option<PathBuf>,
@@ -164,7 +168,7 @@ pub(crate) fn run(
             ));
         }
     };
-    let mode = match validate_context(context) {
+    let mode = match validate_context(profile, context) {
         Ok(mode) => mode,
         Err(error) => {
             return Err(persist_early_failure(
@@ -211,8 +215,8 @@ pub(crate) fn run(
 
     let records_replay = record.is_some();
     let mut session = match ControllerSession::start_replay(
+        profile,
         mode,
-        SurfaceSize::new(640, 360),
         artifact_dir.clone(),
         record,
         recent_logs,
@@ -324,12 +328,23 @@ fn context(recording: &Recording) -> Result<&SessionContext, Error> {
     }
 }
 
-fn validate_context(context: &SessionContext) -> Result<Mode, Error> {
+fn validate_context(profile: &Config, context: &SessionContext) -> Result<Mode, Error> {
     if context.protocol_version != PROTOCOL_VERSION {
         return Err(Error::invalid(format!(
             "incompatible protocol version {}; expected {PROTOCOL_VERSION}",
             context.protocol_version
         )));
+    }
+    if let Some(recorded_profile) = context.configuration.get("profile_id") {
+        let recorded_profile = recorded_profile
+            .as_str()
+            .ok_or_else(|| Error::invalid("recorded profile_id must be a string"))?;
+        if recorded_profile != profile.profile_id {
+            return Err(Error::invalid(format!(
+                "recorded profile {recorded_profile:?} conflicts with configured profile {:?}",
+                profile.profile_id
+            )));
+        }
     }
     let configured_mode = context.configuration.get("mode").and_then(Value::as_str);
     let expected_mode = match context.mode {
@@ -350,10 +365,13 @@ fn validate_context(context: &SessionContext) -> Result<Mode, Error> {
         .configuration
         .pointer("/surface/height")
         .and_then(Value::as_f64);
-    if width != Some(640.0) || height != Some(360.0) {
-        return Err(Error::invalid(
-            "recorded surface is incompatible; expected 640x360",
-        ));
+    if width != Some(f64::from(profile.session.surface_width))
+        || height != Some(f64::from(profile.session.surface_height))
+    {
+        return Err(Error::invalid(format!(
+            "recorded surface is incompatible; expected {}x{}",
+            profile.session.surface_width, profile.session.surface_height
+        )));
     }
     Ok(expected_mode.1)
 }
@@ -682,6 +700,37 @@ fn write_result(artifact_dir: &Path, result: &ResultArtifact) -> Result<(), Stri
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn profile() -> Config {
+        Config::parse(include_str!("../../tests/fixtures/host_profile.toml")).unwrap()
+    }
+
+    fn context(configuration: Value) -> SessionContext {
+        SessionContext::new("alpha", RunMode::Logical, configuration)
+    }
+
+    #[test]
+    fn replay_accepts_legacy_context_and_rejects_a_conflicting_profile() {
+        let profile = profile();
+        let legacy = context(json!({
+            "mode": "logical",
+            "surface": {"width": 640.0, "height": 360.0},
+            "paused": false
+        }));
+        assert_eq!(validate_context(&profile, &legacy).unwrap(), Mode::Logical);
+
+        let conflicting = context(json!({
+            "profile_id": "different-profile",
+            "mode": "logical",
+            "surface": {"width": 640.0, "height": 360.0}
+        }));
+        assert!(
+            validate_context(&profile, &conflicting)
+                .unwrap_err()
+                .to_string()
+                .contains("conflicts")
+        );
+    }
 
     #[test]
     fn rendered_artifacts_compare_metadata_instead_of_png_bytes() {

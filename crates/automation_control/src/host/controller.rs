@@ -1,9 +1,9 @@
-use automation_control::{
+use super::{
+    Config, DriverError, RecentLogs, Session as DriverSession, SessionOptions,
+    recording::Controller,
+};
+use crate::{
     Command as WireCommand, Handle, RunMode,
-    driver::{
-        DriverError, LaunchSpec, LaunchTargetKind, RecentLogs, Session as DriverSession,
-        SessionOptions, recording::Controller,
-    },
     keyboard::{Command as KeyboardCommand, Key},
     observation::{Projection, Request as ObservationRequest, Selector},
     pointer::{Button as WireButton, Command as PointerCommand},
@@ -12,25 +12,7 @@ use automation_control::{
     time::{Command as TimeCommand, MAX_FRAMES},
 };
 use serde_json::{Value, json};
-use std::{fmt, path::PathBuf, time::Duration};
-
-const REFLECTED_COMPONENT: &str = "app::menu::SessionObservation";
-const FRAME_NANOSECONDS: u64 = 16_666_667;
-const TARGET_WAIT_FRAMES: u64 = 8;
-
-struct ControlledApp;
-
-impl ControlledApp {
-    fn launch(mode: Mode) -> LaunchSpec {
-        LaunchSpec {
-            package: "app".into(),
-            kind: LaunchTargetKind::Binary,
-            target: "app".into(),
-            features: vec!["automation-control".into()],
-            arguments: vec!["--controlled-mode".into(), mode.as_str().into()],
-        }
-    }
-}
+use std::{fmt, path::PathBuf};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum Mode {
@@ -89,8 +71,14 @@ impl SurfaceSize {
     }
 }
 
-fn session_configuration(mode: Mode, surface: SurfaceSize, paused: bool) -> Value {
+fn session_configuration(
+    profile: &Config,
+    mode: Mode,
+    surface: SurfaceSize,
+    paused: bool,
+) -> Value {
     json!({
+        "profile_id": profile.profile_id,
         "mode": mode.as_str(),
         "surface": {"width": surface.width, "height": surface.height},
         "paused": paused,
@@ -290,6 +278,7 @@ impl ControllerError {
 
 pub(crate) struct ControllerSession {
     driver: Option<DriverSession>,
+    profile: Config,
     mode: Mode,
     surface: SurfaceSize,
     instance: String,
@@ -299,30 +288,35 @@ pub(crate) struct ControllerSession {
 
 impl ControllerSession {
     pub(crate) fn start(
+        profile: &Config,
         mode: Mode,
-        surface: SurfaceSize,
         artifact_dir: PathBuf,
         record: Option<PathBuf>,
         recent_logs: RecentLogs,
         controller: Controller,
     ) -> Result<Self, ControllerError> {
+        let surface = SurfaceSize::new(
+            profile.session.surface_width,
+            profile.session.surface_height,
+        );
         let mut session = Self::start_with_configuration(
+            profile,
             mode,
             surface,
             artifact_dir,
             record,
             recent_logs,
             controller,
-            session_configuration(mode, surface, false),
+            session_configuration(profile, mode, surface, false),
             None,
         )?;
-        session.advance(1)?;
+        session.advance(profile.session.startup_frames)?;
         Ok(session)
     }
 
     pub(crate) fn start_replay(
+        profile: &Config,
         mode: Mode,
-        surface: SurfaceSize,
         artifact_dir: PathBuf,
         record: Option<PathBuf>,
         recent_logs: RecentLogs,
@@ -330,7 +324,18 @@ impl ControllerSession {
         configuration: Value,
         session_artifact_dir: PathBuf,
     ) -> Result<Self, ControllerError> {
+        let surface = SurfaceSize::new(
+            profile.session.surface_width,
+            profile.session.surface_height,
+        );
+        let mut configuration = configuration;
+        if let Some(configuration) = configuration.as_object_mut() {
+            configuration
+                .entry("profile_id")
+                .or_insert_with(|| Value::String(profile.profile_id.clone()));
+        }
         Self::start_with_configuration(
+            profile,
             mode,
             surface,
             artifact_dir,
@@ -343,6 +348,7 @@ impl ControllerSession {
     }
 
     fn start_with_configuration(
+        profile: &Config,
         mode: Mode,
         surface: SurfaceSize,
         artifact_dir: PathBuf,
@@ -356,12 +362,16 @@ impl ControllerSession {
             .get("paused")
             .and_then(Value::as_bool)
             .unwrap_or(false);
-        let launch = ControlledApp::launch(mode);
-        let mut options = SessionOptions::new(Duration::from_secs(180))
+        let mut launch = profile.application.launch();
+        launch
+            .arguments
+            .push(profile.application.mode_argument.clone());
+        launch.arguments.push(mode.as_str().into());
+        let mut options = SessionOptions::new()
             .with_recent_logs(recent_logs)
             .with_artifact_dir(artifact_dir)
             .with_record(record)
-            .with_recording_context("alpha", mode.wire(), configuration)
+            .with_recording_context(&profile.session.id, mode.wire(), configuration)
             .with_controller(controller);
         if let Some(session_artifact_dir) = session_artifact_dir {
             options = options.with_session_artifact_dir(session_artifact_dir);
@@ -375,9 +385,10 @@ impl ControllerSession {
         }
         Ok(Self {
             driver: Some(driver),
+            profile: profile.clone(),
             mode,
             surface,
-            instance: "alpha".into(),
+            instance: profile.session.id.clone(),
             paused,
             last_action: "none".into(),
         })
@@ -385,11 +396,16 @@ impl ControllerSession {
 
     #[cfg(test)]
     fn from_driver(driver: DriverSession, mode: Mode) -> Self {
+        let profile = test_profile();
         Self {
             driver: Some(driver),
+            surface: SurfaceSize::new(
+                profile.session.surface_width,
+                profile.session.surface_height,
+            ),
+            instance: profile.session.id.clone(),
+            profile,
             mode,
-            surface: SurfaceSize::new(640, 360),
-            instance: "alpha".into(),
             paused: false,
             last_action: "none".into(),
         }
@@ -439,16 +455,6 @@ impl ControllerSession {
     }
 
     pub(crate) fn activate_target(&mut self, target: &str) -> Result<(), ControllerError> {
-        let expected_screen = match target {
-            "menu.tab.gym" => "gym",
-            "menu.tab.museum" => "museum",
-            "menu.tab.zoo" => "zoo",
-            _ => {
-                return Err(ControllerError::Invalid(format!(
-                    "unknown Star Sim click target {target:?}"
-                )));
-            }
-        };
         let targets = self.observe_raw(Observation::Targets)?;
         let position = TargetView::named(&targets, target)?.center()?;
 
@@ -457,9 +463,6 @@ impl ControllerSession {
             position,
         })?;
         self.click(Button::Left)?;
-        self.wait_for(Observation::ActiveScreen, TARGET_WAIT_FRAMES, |value| {
-            value["active_screen"] == expected_screen
-        })?;
         self.last_action = format!("click {target}");
         Ok(())
     }
@@ -536,7 +539,8 @@ impl ControllerSession {
         &mut self,
         path: Option<PathBuf>,
     ) -> Result<PathBuf, ControllerError> {
-        let configuration = session_configuration(self.mode, self.surface, self.paused);
+        let configuration =
+            session_configuration(&self.profile, self.mode, self.surface, self.paused);
         let driver = self.driver_mut()?;
         driver
             .configure_recording(configuration)
@@ -629,7 +633,7 @@ impl ControllerSession {
     pub(crate) fn replay_command(
         &mut self,
         command: WireCommand,
-    ) -> Result<automation_control::Response, ControllerError> {
+    ) -> Result<crate::Response, ControllerError> {
         match self.driver_mut()?.request(command) {
             Ok(response) => Ok(response),
             Err(DriverError::RequestFailed(response)) => Ok(response),
@@ -669,13 +673,17 @@ impl ControllerSession {
         }
         self.request(WireCommand::Time(TimeCommand::advance(
             frames,
-            FRAME_NANOSECONDS,
+            self.profile.session.frame_nanoseconds,
         )))
     }
 
     fn observe_raw(&mut self, observation: Observation) -> Result<Value, ControllerError> {
         if observation == Observation::ActiveScreen {
-            return Ok(json!({"active_screen": self.active_screen()?}));
+            let screen = self.active_screen()?;
+            return Ok(Value::Object(serde_json::Map::from_iter([(
+                self.profile.screen.result_field.clone(),
+                Value::String(screen),
+            )])));
         }
         let selector = match observation {
             Observation::Targets => Selector::Targets,
@@ -692,15 +700,18 @@ impl ControllerSession {
     }
 
     fn active_screen(&mut self) -> Result<String, ControllerError> {
+        let target = self.profile.screen.target.clone();
+        let component = self.profile.screen.component.clone();
+        let pointer = self.profile.screen.value_pointer.clone();
         let targets = self.observe_raw(Observation::Targets)?;
-        let handle = TargetView::named(&targets, "session.status")?.handle()?;
+        let handle = TargetView::named(&targets, &target)?.handle()?;
         let result = self.request(WireCommand::Observe(ObservationRequest::new(
             Selector::Entity(handle),
             Projection::Components {
-                type_paths: vec![REFLECTED_COMPONENT.into()],
+                type_paths: vec![component.clone()],
             },
         )))?;
-        screen_value(&result)
+        screen_value(&result, &component, &pointer)
     }
 
     fn request(&mut self, command: WireCommand) -> Result<Value, ControllerError> {
@@ -733,7 +744,7 @@ impl<'a> TargetView<'a> {
                     .find(|item| item.get("name").and_then(Value::as_str) == Some(name))
             })
             .ok_or_else(|| {
-                ControllerError::Invalid(format!("Star Sim target {name:?} is not available"))
+                ControllerError::Invalid(format!("configured target {name:?} is not available"))
             })?;
         Ok(Self { value })
     }
@@ -742,10 +753,10 @@ impl<'a> TargetView<'a> {
         let bounds = self
             .value
             .get("bounds")
-            .ok_or_else(|| ControllerError::Invalid("Star Sim target has no bounds".into()))?;
+            .ok_or_else(|| ControllerError::Invalid("configured target has no bounds".into()))?;
         let number = |field: &str| {
             bounds.get(field).and_then(Value::as_f64).ok_or_else(|| {
-                ControllerError::Invalid(format!("Star Sim target has no numeric {field} bound"))
+                ControllerError::Invalid(format!("configured target has no numeric {field} bound"))
             })
         };
         Ok([
@@ -759,33 +770,33 @@ impl<'a> TargetView<'a> {
             .get("entity")
             .cloned()
             .and_then(|value| serde_json::from_value(value).ok())
-            .ok_or_else(|| ControllerError::Invalid("Star Sim target handle is invalid".into()))
+            .ok_or_else(|| ControllerError::Invalid("configured target handle is invalid".into()))
     }
 }
 
-fn screen_value(observation: &Value) -> Result<String, ControllerError> {
+fn screen_value(
+    observation: &Value,
+    component_name: &str,
+    value_pointer: &str,
+) -> Result<String, ControllerError> {
     let component = observation
         .get("items")
         .and_then(Value::as_array)
         .and_then(|items| items.first())
         .and_then(|item| item.get("components"))
-        .and_then(|components| components.get(REFLECTED_COMPONENT))
-        .ok_or_else(|| {
-            ControllerError::Invalid("Star Sim active screen observation is unavailable".into())
-        })?;
+        .and_then(|components| components.get(component_name))
+        .ok_or_else(|| ControllerError::Invalid("screen observation is unavailable".into()))?;
     if component.get("status").and_then(Value::as_str) != Some("available") {
         return Err(ControllerError::Invalid(
-            "Star Sim active screen observation is unavailable".into(),
+            "screen observation is unavailable".into(),
         ));
     }
     component
         .get("value")
-        .and_then(|value| value.get("active_screen"))
+        .and_then(|value| value.pointer(value_pointer))
         .and_then(Value::as_str)
         .map(str::to_owned)
-        .ok_or_else(|| {
-            ControllerError::Invalid("Star Sim active screen observation is invalid".into())
-        })
+        .ok_or_else(|| ControllerError::Invalid("screen observation is invalid".into()))
 }
 
 fn resolve_key(name: &str) -> Result<Key, ControllerError> {
@@ -821,6 +832,11 @@ fn normalize_key_name(name: &str) -> String {
     compact
 }
 
+#[cfg(test)]
+fn test_profile() -> Config {
+    Config::parse(include_str!("../../tests/fixtures/host_profile.toml")).unwrap()
+}
+
 fn map_driver_error(error: DriverError) -> ControllerError {
     match error {
         DriverError::Launch(message) => ControllerError::Launch(message),
@@ -835,9 +851,6 @@ fn map_driver_error(error: DriverError) -> ControllerError {
             }
         }
         DriverError::Child(message) => ControllerError::Child(message),
-        DriverError::Timeout(_) => {
-            ControllerError::Communication("child did not respond before the timeout".into())
-        }
         DriverError::Io(message) => ControllerError::Communication(message),
         DriverError::Protocol(message) => ControllerError::Communication(message),
         DriverError::WaitLimitReached {
@@ -858,9 +871,7 @@ mod tests {
     fn shell_session(script: &str) -> DriverSession {
         let mut command = ProcessCommand::new("sh");
         command.args(["-c", script]);
-        let mut driver =
-            DriverSession::spawn_command(command, SessionOptions::new(Duration::from_secs(2)))
-                .unwrap();
+        let mut driver = DriverSession::spawn_command(command, SessionOptions::new()).unwrap();
         driver.ready().unwrap();
         driver
     }

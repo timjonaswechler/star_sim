@@ -106,6 +106,7 @@ fn logical_repl_records_context_actions_observations_and_ordered_shutdown() {
     };
     assert_eq!(context.session_id, "alpha");
     assert_eq!(context.mode, automation_control::RunMode::Logical);
+    assert_eq!(context.configuration["profile_id"], "star-sim-debug-v1");
     assert_eq!(context.configuration["mode"], "logical");
     assert_eq!(context.configuration["paused"], true);
     assert!(second.entries.iter().any(|entry| matches!(

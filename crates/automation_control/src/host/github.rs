@@ -5,7 +5,7 @@
 
 use super::{
     config::ReportConfig,
-    report::{IssueDraft, ReportError},
+    issue_report::{IssueDraft, ReportError},
 };
 use serde::{Deserialize, Serialize};
 use std::{

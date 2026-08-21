@@ -133,34 +133,38 @@ session.
 `AutomationTarget` is an empty marker. It has no persistent semantic ID, role, label, or action
 list. Handles are valid only for the current Bevy World.
 
-## Driver
+## Debug Host
 
-Enable the optional process driver for a host application:
+Enable the optional Debug Host support for a host application. The former `driver` feature and
+`automation_control::driver` module remain aliases for compatibility.
 
 ```toml
-automation_control = { path = "../../crates/automation_control", features = ["driver"] }
+automation_control = { path = "../../crates/automation_control", features = ["host"] }
 ```
 
 ```rust
-let mut session = Session::spawn(&launch, SessionOptions::new(Duration::from_secs(60)))?;
+let mut session = Session::spawn(&launch, SessionOptions::new())?;
 let ready = session.ready()?;
 session.request(Command::Shutdown)?;
 session.shutdown()?;
 ```
 
-`driver::Session` owns protocol and recording sequences, child-process lifecycle, JSON serialization,
-response matching, timeouts, and stderr streaming. `LaunchSpec` can start Cargo binaries or examples.
-Diagnostics and report helpers remain available to host tools.
+`host::Session` owns protocol and recording sequences, child-process lifecycle, JSON serialization,
+response matching and stderr streaming. `LaunchSpec` can start Cargo binaries or examples.
+Diagnostics and report helpers remain available to host tools. `host::run_embedded` adds the generic
+REPL, Session Script, Session Replay, and artifact-report workflows from a validated TOML profile.
+Application-specific launch and observation details belong in that embedded profile rather than in
+the host implementation.
 
 ## Session Recording
 
 Enable recording at launch with an artifact-root-relative path:
 
 ```rust
-use std::{path::PathBuf, time::Duration};
+use std::path::PathBuf;
 use automation_control::driver::{SessionOptions, recording::Controller};
 
-let options = SessionOptions::new(Duration::from_secs(60))
+let options = SessionOptions::new()
     .with_artifact_dir("artifacts/session")
     .with_record(Some(PathBuf::from("recordings/run.jsonl")))
     .with_recording_context(

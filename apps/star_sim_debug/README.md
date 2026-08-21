@@ -4,6 +4,13 @@
 
 The normal `app` binary remains a Player Run with Native Input and no `automation_control` dependency.
 
+The binary only embeds [`automation.toml`](automation.toml) and starts the generic
+`automation_control::host` runner. That validated profile owns the Star Sim launch target, mode
+argument, controlled-frame timing and surface, screen observation, artifact default, and report
+attribution. Click targets are discovered from the running session with `observe targets`; the
+profile does not whitelist targets or prescribe their resulting state. The command line deliberately has no `--config` option, so a run cannot swap in
+an unreviewed application profile.
+
 ## Start a session
 
 Rendered Mode is the default:

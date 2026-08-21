@@ -1,4 +1,4 @@
-use crate::controller::{
+use super::controller::{
     Action, Button, ControllerError, ControllerSession, KeyboardAction, Observation, PointerAction,
     Status,
 };
@@ -16,7 +16,7 @@ use std::{
 
 pub(crate) const HELP: &str = "\
 commands:
-  click menu.tab.museum
+  click TARGET
   pointer move X Y                 normalized X/Y in [0, 1)
   pointer press|release|click BUTTON
   scroll DX DY
@@ -118,7 +118,7 @@ impl Command {
         ["observe", ..] => Err("usage: observe targets|ui|pointers|input|clock".into()),
         ["step", ..] => Err("usage: step FRAMES".into()),
         ["record", ..] => Err("usage: record start [PATH] | record stop".into()),
-        ["click", ..] => Err("usage: click menu.tab.museum".into()),
+        ["click", ..] => Err("usage: click TARGET".into()),
         _ => Err(format!(
             "unknown command {line:?}; use help to list commands"
         )),
@@ -301,8 +301,8 @@ fn stdin_events() -> Receiver<InputEvent> {
 
 #[cfg(test)]
 mod tests {
+    use super::super::controller::Mode;
     use super::*;
-    use crate::controller::Mode;
 
     #[test]
     fn parses_the_documented_line_commands() {

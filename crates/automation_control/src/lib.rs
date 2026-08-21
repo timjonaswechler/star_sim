@@ -6,33 +6,37 @@
 //! may opt into PNG artifacts with [`screenshot::Plugin`]. [`AutomationControlPlugin`] connects
 //! these services to [`JsonLinesInput`] and an [`Output`] implementation.
 //!
-//! The `driver` feature additionally exposes Debug Host process management, Session Recording,
-//! diagnostics, and report helpers in [`driver`]. Those host-side utilities are not part of a
+//! The `host` feature additionally exposes Debug Host process management, Session Recording,
+//! diagnostics, controller workflows, and report helpers in [`host`]. The `driver` feature and
+//! [`driver`] module remain compatibility aliases. Those host-side utilities are not part of a
 //! Player Run. A Player Run does not depend on this crate or expose automation behavior.
 
-#[cfg(feature = "driver")]
-pub mod driver;
+pub mod client;
+#[cfg(feature = "host")]
+pub mod host;
+#[cfg(feature = "host")]
+pub use host as driver;
 pub mod entity;
 pub mod keyboard;
 pub mod observation;
-mod plugin;
 pub mod pointer;
 pub mod protocol;
 pub mod screenshot;
 pub mod target;
 pub mod text;
 pub mod time;
-pub mod transport;
+pub use client::transport;
 
+pub use client::{
+    AutomationControlPlugin, Input, InputFactory, JsonLinesInput, Output, StdoutOutput,
+};
 pub use entity::{Handle, HandleError};
-pub use plugin::{AutomationControlPlugin, InputFactory};
 pub use protocol::{
     Command, PROTOCOL_VERSION, ProtocolError, Ready, Request, Response, ResponseStatus, RunMode,
     decode_request,
 };
 pub use target::AutomationTarget;
 pub use time::Clock as ControlledClock;
-pub use transport::{Input, JsonLinesInput, Output, StdoutOutput};
 
 /// Environment variable through which a Debug Host supplies a Controlled Session's artifact root.
 ///

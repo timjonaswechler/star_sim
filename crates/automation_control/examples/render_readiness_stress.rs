@@ -134,7 +134,7 @@ fn run_session(
     artifact_root: &Path,
 ) -> Result<RunReport, Box<dyn std::error::Error>> {
     let started = Instant::now();
-    let options = SessionOptions::new(Duration::from_secs(180)).with_artifact_dir(artifact_root);
+    let options = SessionOptions::new().with_artifact_dir(artifact_root);
     let mut session = match env::var_os("RENDER_STRESS_APP") {
         Some(application) => Session::spawn_command(ProcessCommand::new(application), options)?,
         None => {

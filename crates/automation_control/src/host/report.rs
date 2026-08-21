@@ -1,4 +1,4 @@
-use automation_control::driver::{
+use super::{
     FailureReport,
     recording::{Event, Recording, SessionOutcome},
 };

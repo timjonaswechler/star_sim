@@ -1,0 +1,32 @@
+version = 1
+profile_id = "star-sim-debug-v1"
+
+[tool]
+name = "star_sim_debug"
+about = "Start and control one isolated Star Sim session"
+default_artifact_dir = "artifacts/star-sim-debug"
+
+[application]
+package = "app"
+kind = "binary"
+target = "app"
+features = ["automation-control"]
+arguments = []
+mode_argument = "--controlled-mode"
+
+[session]
+id = "alpha"
+default_mode = "rendered"
+surface_width = 640
+surface_height = 360
+frame_nanoseconds = 16666667
+startup_frames = 1
+
+[report]
+generated_by = "star_sim_debug report"
+
+[screen]
+target = "session.status"
+component = "app::menu::SessionObservation"
+value_pointer = "/active_screen"
+result_field = "active_screen"

@@ -1,14 +1,16 @@
-use crate::controller::{
-    Action, Button, ControllerError, ControllerSession, KeyboardAction, Mode, Observation,
-    PointerAction, SurfaceSize,
+use super::{
+    Config, RecentLogs,
+    controller::{
+        Action, Button, ControllerError, ControllerSession, KeyboardAction, Mode, Observation,
+        PointerAction,
+    },
+    recording::Controller,
 };
-use automation_control::{
-    driver::{RecentLogs, recording::Controller},
-    screenshot::Command as ScreenshotCommand,
-    time::MAX_FRAMES,
-};
+use crate::{screenshot::Command as ScreenshotCommand, time::MAX_FRAMES};
 use serde::Deserialize;
-use serde_json::{Value, json};
+use serde_json::Value;
+#[cfg(test)]
+use serde_json::json;
 use std::{
     fmt, fs,
     path::{Path, PathBuf},
@@ -130,15 +132,18 @@ impl Condition {
         }
     }
 
-    fn matches(&self, actual: &Value) -> bool {
+    fn matches(&self, result_field: &str, actual: &Value) -> bool {
         match self {
-            Self::Screen { equals } => actual["active_screen"] == *equals,
+            Self::Screen { equals } => actual[result_field] == *equals,
         }
     }
 
-    fn expected(&self) -> Value {
+    fn expected(&self, result_field: &str) -> Value {
         match self {
-            Self::Screen { equals } => json!({"active_screen": equals}),
+            Self::Screen { equals } => Value::Object(serde_json::Map::from_iter([(
+                result_field.to_owned(),
+                Value::String(equals.clone()),
+            )])),
         }
     }
 }
@@ -282,9 +287,9 @@ pub(crate) struct Summary {
 }
 
 pub(crate) fn run(
+    profile: &Config,
     script_path: &Path,
     mode_override: Option<Mode>,
-    surface: SurfaceSize,
     artifact_dir: PathBuf,
     record_override: Option<PathBuf>,
     recent_logs: RecentLogs,
@@ -326,8 +331,8 @@ pub(crate) fn run(
         .and_then(|script| script.session.record.clone())
         .or_else(|| document.as_ref().and_then(record_from_document));
     let session = ControllerSession::start(
+        profile,
         mode,
-        surface,
         artifact_dir,
         record_override.or(configured_record),
         recent_logs,
@@ -351,7 +356,13 @@ pub(crate) fn run(
         (Ok(script), Ok(session)) => (script, session),
     };
 
-    let execution = execute_steps(script_path, &script.steps, mode, &mut session);
+    let execution = execute_steps(
+        script_path,
+        &script.steps,
+        mode,
+        &profile.screen.result_field,
+        &mut session,
+    );
     if let Err(error) = &execution {
         session.capture_script_error(error.kind_name());
     }
@@ -431,6 +442,7 @@ fn execute_steps(
     path: &Path,
     steps: &[Step],
     mode: Mode,
+    screen_result_field: &str,
     session: &mut ControllerSession,
 ) -> Result<(usize, usize), Error> {
     let initial = session
@@ -487,8 +499,9 @@ fn execute_steps(
                 max_frames,
             } => {
                 let observation = condition.observation();
-                match session.wait_for(observation, *max_frames, |actual| condition.matches(actual))
-                {
+                match session.wait_for(observation, *max_frames, |actual| {
+                    condition.matches(screen_result_field, actual)
+                }) {
                     Ok(actual) => {
                         last_observation = Some((observation.as_str().into(), actual));
                     }
@@ -503,7 +516,7 @@ fn execute_steps(
                             message: format!(
                                 "wait condition was not met within {max_frames} controlled frames"
                             ),
-                            expected: Some(condition.expected()),
+                            expected: Some(condition.expected(screen_result_field)),
                             actual: Some(actual.clone()),
                             last_observation: Some((observation.as_str().into(), actual)),
                         });
@@ -524,13 +537,13 @@ fn execute_steps(
                     action_error(path, position, error, last_observation.clone())
                 })?;
                 last_observation = Some((observation.as_str().into(), actual.clone()));
-                if !condition.matches(&actual) {
+                if !condition.matches(screen_result_field, &actual) {
                     return Err(Error {
                         kind: ErrorKind::Expectation,
                         script: path.to_path_buf(),
                         step: Some(position),
                         message: "expectation did not match".into(),
-                        expected: Some(condition.expected()),
+                        expected: Some(condition.expected(screen_result_field)),
                         actual: Some(actual),
                         last_observation,
                     });

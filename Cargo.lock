@@ -440,6 +440,8 @@ version = "0.1.0"
 dependencies = [
  "bevy",
  "cap-std",
+ "clap",
+ "ctrlc",
  "image 0.25.10",
  "serde",
  "serde_json",
@@ -5596,9 +5598,6 @@ name = "star_sim_debug"
 version = "0.1.0"
 dependencies = [
  "automation_control",
- "clap",
- "ctrlc",
- "serde",
  "serde_json",
 ]
 

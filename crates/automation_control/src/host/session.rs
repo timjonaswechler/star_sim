@@ -25,7 +25,6 @@ use std::{
     process::{Child, ChildStdin, ChildStdout, Command as ProcessCommand, Stdio},
     sync::mpsc,
     thread,
-    time::{Duration, Instant},
 };
 
 #[cfg(unix)]
@@ -40,8 +39,6 @@ pub enum DriverError {
     Io(String),
     /// Child JSONL violated the protocol contract.
     Protocol(String),
-    /// Response receipt or shutdown exceeded the wall-clock timeout.
-    Timeout(String),
     /// Child status or exit was unsuccessful.
     Child(String),
     /// The child returned a protocol-level error response.
@@ -61,7 +58,6 @@ impl fmt::Display for DriverError {
             Self::Launch(message) => write!(formatter, "failed to start child: {message}"),
             Self::Io(message) => formatter.write_str(message),
             Self::Protocol(message) => write!(formatter, "protocol error: {message}"),
-            Self::Timeout(message) => write!(formatter, "timed out waiting for child: {message}"),
             Self::Child(message) => formatter.write_str(message),
             Self::RequestFailed(response) => write!(formatter, "request failed: {response:?}"),
             Self::WaitLimitReached { frame_limit, .. } => write!(
@@ -83,15 +79,12 @@ impl std::error::Error for DriverError {}
 ///
 /// ```
 /// use automation_control::driver::SessionOptions;
-/// use std::time::Duration;
-/// let options = SessionOptions::new(Duration::from_secs(30))
+/// let options = SessionOptions::new()
 ///     .with_artifact_dir("artifacts/host")
 ///     .with_session_artifact_dir("artifacts/sessions/alpha");
 /// assert_ne!(options.artifact_dir, options.session_artifact_dir);
 /// ```
 pub struct SessionOptions {
-    /// Wall-clock response and shutdown timeout.
-    pub timeout: Duration,
     /// Optional relative recording path to start during spawn.
     pub record: Option<PathBuf>,
     /// Shared rolling child-stderr diagnostics.
@@ -106,9 +99,8 @@ pub struct SessionOptions {
 
 impl SessionOptions {
     /// Creates options with no automatic recording and default diagnostics.
-    pub fn new(timeout: Duration) -> Self {
+    pub fn new() -> Self {
         Self {
-            timeout,
             record: None,
             recent_logs: RecentLogs::default(),
             artifact_dir: None,
@@ -122,12 +114,12 @@ impl SessionOptions {
     /// This does not set a separate child root; call [`Self::with_session_artifact_dir`] when the
     /// Controlled Session must write artifacts elsewhere.
     pub fn from_config(
-        config: &SessionConfig,
+        _config: &SessionConfig,
         record: Option<PathBuf>,
         recent_logs: RecentLogs,
         artifact_dir: PathBuf,
     ) -> Self {
-        Self::new(Duration::from_secs(config.timeout_seconds))
+        Self::new()
             .with_record(record)
             .with_recent_logs(recent_logs)
             .with_artifact_dir(artifact_dir)
@@ -188,7 +180,6 @@ pub struct Session {
     receiver: mpsc::Receiver<Result<Value, String>>,
     recording: recording::State,
     stderr_thread: Option<thread::JoinHandle<()>>,
-    timeout: Duration,
     next_sequence: u64,
     clean_shutdown: bool,
 }
@@ -257,7 +248,6 @@ impl Session {
                 host_sequence: 1,
             },
             stderr_thread: Some(stderr_thread),
-            timeout: options.timeout,
             next_sequence: 1,
             clean_shutdown: false,
         };
@@ -504,7 +494,7 @@ impl Session {
     /// Repeats an observation and advances one controlled frame after each miss.
     ///
     /// The predicate runs first against the current state. At most `limit` controlled frames are
-    /// then advanced, and every command remains subject to the session's wall-clock timeout.
+    /// then advanced.
     pub fn wait_for_observation<F>(
         &mut self,
         request: ObservationRequest,
@@ -551,58 +541,33 @@ impl Session {
 
     /// Consumes the session, sends the shutdown command, and waits for a successful child exit.
     ///
-    /// Do not send [`Command::Shutdown`] separately. The wall-clock timeout applies to both the
-    /// shutdown response and process exit. A clean exit records `session_ended/completed`.
+    /// Do not send [`Command::Shutdown`] separately. The host waits until the child acknowledges
+    /// shutdown and exits. A clean exit records `session_ended/completed`.
     pub fn shutdown(mut self) -> Result<(), DriverError> {
         self.request(Command::Shutdown)?;
         self.stdin.take();
-        let deadline = Instant::now() + self.timeout;
-        loop {
-            let status = match self.child.try_wait() {
-                Ok(status) => status,
-                Err(error) => {
-                    return self.fail(
-                        "shutdown_status_failed",
-                        DriverError::Child(error.to_string()),
-                    );
-                }
-            };
-            if let Some(status) = status {
-                if status.success() {
-                    self.write_recording_event(RecordingEvent::SessionEnded {
-                        outcome: SessionOutcome::Completed,
-                    })?;
-                    self.recording.writer = None;
-                    self.recording.context_written = false;
-                    self.clean_shutdown = true;
-                    return Ok(());
-                }
-                return self.fail(
-                    "shutdown_child_failed",
-                    DriverError::Child(format!("child exited {status}")),
-                );
-            }
-            if Instant::now() >= deadline {
-                let error = DriverError::Timeout("child did not exit after shutdown".into());
-                self.capture_driver_failure("shutdown_timeout", &error);
-                terminate_child(&mut self.child);
-                return Err(error);
-            }
-            thread::sleep(Duration::from_millis(10));
+        let status = self.child.wait().map_err(|error| {
+            DriverError::Child(format!("failed to wait for child shutdown: {error}"))
+        })?;
+        if !status.success() {
+            return self.fail(
+                "shutdown_child_failed",
+                DriverError::Child(format!("child exited {status}")),
+            );
         }
+        self.write_recording_event(RecordingEvent::SessionEnded {
+            outcome: SessionOutcome::Completed,
+        })?;
+        self.recording.writer = None;
+        self.recording.context_written = false;
+        self.clean_shutdown = true;
+        Ok(())
     }
 
     fn receive(&self) -> Result<Value, DriverError> {
         self.receiver
-            .recv_timeout(self.timeout)
-            .map_err(|error| match error {
-                mpsc::RecvTimeoutError::Timeout => {
-                    DriverError::Timeout(format!("{} seconds", self.timeout.as_secs()))
-                }
-                mpsc::RecvTimeoutError::Disconnected => {
-                    DriverError::Protocol("child stdout closed".into())
-                }
-            })?
+            .recv()
+            .map_err(|_| DriverError::Protocol("child stdout closed".into()))?
             .map_err(DriverError::Protocol)
     }
 
@@ -745,7 +710,10 @@ fn json_reader(stdout: ChildStdout) -> mpsc::Receiver<Result<Value, String>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::process::Command as ProcessCommand;
+    use std::{
+        process::Command as ProcessCommand,
+        time::{Duration, Instant},
+    };
 
     #[test]
     fn reports_a_child_that_exits_while_the_host_is_idle() {
@@ -754,8 +722,7 @@ mod tests {
             "-c",
             "printf '%s\\n' '{\"type\":\"ready\",\"version\":2,\"mode\":\"logical\",\"controls\":[],\"observation_scopes\":[]}'",
         ]);
-        let mut session =
-            Session::spawn_command(command, SessionOptions::new(Duration::from_secs(2))).unwrap();
+        let mut session = Session::spawn_command(command, SessionOptions::new()).unwrap();
         session.ready().unwrap();
 
         let deadline = Instant::now() + Duration::from_secs(1);
@@ -775,8 +742,7 @@ mod tests {
     fn rejects_non_json_child_stdout_as_a_protocol_error() {
         let mut command = ProcessCommand::new("sh");
         command.args(["-c", "printf 'human log on stdout\\n'"]);
-        let mut session =
-            Session::spawn_command(command, SessionOptions::new(Duration::from_secs(2))).unwrap();
+        let mut session = Session::spawn_command(command, SessionOptions::new()).unwrap();
         let error = session.ready().unwrap_err().to_string();
         assert!(
             error.contains("non-JSON stdout"),

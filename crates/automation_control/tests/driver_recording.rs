@@ -8,7 +8,7 @@ use automation_control::{
     time::Command as TimeCommand,
 };
 use serde_json::json;
-use std::{fs, io::Cursor, path::PathBuf, process::Command as ProcessCommand, time::Duration};
+use std::{fs, io::Cursor, path::PathBuf, process::Command as ProcessCommand};
 
 #[test]
 fn parses_the_public_version_one_fixture() {
@@ -41,7 +41,7 @@ while IFS= read -r line; do
   case "$line" in *'"type":"shutdown"'*) exit 0 ;; esac
 done"#,
     ]);
-    let options = SessionOptions::new(Duration::from_secs(2))
+    let options = SessionOptions::new()
         .with_artifact_dir(&artifact_root)
         .with_record(Some(PathBuf::from("first.jsonl")))
         .with_recording_context("alpha", RunMode::Logical, json!({"surface": [640, 360]}))
@@ -122,7 +122,7 @@ while IFS= read -r line; do
   case "$line" in *'"type":"shutdown"'*) exit 0 ;; esac
 done"#,
     ]);
-    let options = SessionOptions::new(Duration::from_secs(2))
+    let options = SessionOptions::new()
         .with_artifact_dir(&artifact_root)
         .with_record(Some(PathBuf::from("private.jsonl")))
         .with_recording_context(
@@ -220,7 +220,7 @@ done"#,
     ]);
     let mut session = Session::spawn_command(
         command,
-        SessionOptions::new(Duration::from_secs(2)).with_artifact_dir(&artifact_root),
+        SessionOptions::new().with_artifact_dir(&artifact_root),
     )
     .unwrap();
     session.ready().unwrap();
@@ -237,7 +237,7 @@ fn failed_implicit_ready_writes_fallback_context_error_and_abort() {
     let artifact_root = unique_temp_path("implicit-ready-error-artifacts");
     let mut command = ProcessCommand::new("sh");
     command.args(["-c", "printf 'not-json\\n'; sleep 30"]);
-    let mut options = SessionOptions::new(Duration::from_secs(2)).with_artifact_dir(&artifact_root);
+    let mut options = SessionOptions::new().with_artifact_dir(&artifact_root);
     options.record = Some(PathBuf::from("failed-ready.jsonl"));
     let mut session = Session::spawn_command(command, options).unwrap();
     assert!(session.ready().is_err());
@@ -274,7 +274,7 @@ sleep 30"#,
     ]);
     let mut session = Session::spawn_command(
         command,
-        SessionOptions::new(Duration::from_secs(2))
+        SessionOptions::new()
             .with_artifact_dir(&artifact_root)
             .with_record(Some(PathBuf::from("observe-error.jsonl"))),
     )
@@ -326,7 +326,7 @@ fn direct_response_parse_and_shutdown_failures_are_recorded() {
     ]);
     let mut session = Session::spawn_command(
         command,
-        SessionOptions::new(Duration::from_secs(2))
+        SessionOptions::new()
             .with_artifact_dir(&artifact_root)
             .with_record(Some(PathBuf::from("parse-error.jsonl"))),
     )
@@ -350,7 +350,7 @@ exit 7"#,
     ]);
     let mut session = Session::spawn_command(
         command,
-        SessionOptions::new(Duration::from_secs(2))
+        SessionOptions::new()
             .with_artifact_dir(&artifact_root)
             .with_record(Some(PathBuf::from("shutdown-error.jsonl"))),
     )
@@ -375,7 +375,7 @@ fn ready_mode_mismatch_records_a_parseable_abort() {
     ]);
     let mut session = Session::spawn_command(
         command,
-        SessionOptions::new(Duration::from_secs(2))
+        SessionOptions::new()
             .with_artifact_dir(&artifact_root)
             .with_record(Some(PathBuf::from("mismatch.jsonl")))
             .with_recording_context("alpha", RunMode::Logical, json!({})),
@@ -408,7 +408,7 @@ fn dropping_a_live_recorded_session_writes_an_aborted_end() {
     ]);
     let mut session = Session::spawn_command(
         command,
-        SessionOptions::new(Duration::from_secs(2))
+        SessionOptions::new()
             .with_artifact_dir(&artifact_root)
             .with_record(Some(PathBuf::from("aborted.jsonl")))
             .with_recording_context("alpha", RunMode::Logical, json!({})),

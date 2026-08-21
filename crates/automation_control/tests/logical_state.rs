@@ -10,7 +10,7 @@ use automation_control::{
     time::Command as TimeCommand,
 };
 use serde_json::Value;
-use std::{sync::Mutex, time::Duration};
+use std::sync::Mutex;
 
 static SESSION_TEST: Mutex<()> = Mutex::new(());
 
@@ -26,10 +26,7 @@ fn spawn_logical_state() -> Result<Session, Box<dyn std::error::Error>> {
     for variable in ["DISPLAY", "WAYLAND_DISPLAY", "WAYLAND_SOCKET"] {
         command.env_remove(variable);
     }
-    Ok(Session::spawn_command(
-        command,
-        SessionOptions::new(Duration::from_secs(180)),
-    )?)
+    Ok(Session::spawn_command(command, SessionOptions::new())?)
 }
 
 #[test]

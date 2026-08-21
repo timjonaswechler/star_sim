@@ -48,7 +48,7 @@ fn run(options: Options) -> Result<(), Box<dyn std::error::Error>> {
     fs::create_dir_all(&artifact_root)?;
     let mut session = Session::spawn(
         &launch,
-        SessionOptions::new(Duration::from_secs(180)).with_artifact_dir(&artifact_root),
+        SessionOptions::new().with_artifact_dir(&artifact_root),
     )?;
     let ready = session.ready()?;
     assert_eq!(ready.version, 2);
