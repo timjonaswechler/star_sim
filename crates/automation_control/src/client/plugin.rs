@@ -162,6 +162,10 @@ impl Plugin for AutomationControlPlugin {
             output: Arc::clone(&self.output),
         });
         app.insert_resource(Configuration { mode: self.mode });
+        // Controlled Sessions use explicit manual durations. Disconnect Bevy's render-clock channel
+        // so nested controlled frames neither consume wall-clock timestamps nor trigger missing-time
+        // warnings when several simulation frames run before the next render frame.
+        app.world_mut().remove_resource::<TimeReceiver>();
         app.world_mut()
             .resource_mut::<Time<Real>>()
             .update_with_duration(std::time::Duration::ZERO);
@@ -185,7 +189,6 @@ impl Plugin for AutomationControlPlugin {
             .add_systems(
                 control_schedule::Input,
                 (
-                    drain_render_time,
                     discard_native_focused_input,
                     bevy::render::view::window::screenshot::trigger_screenshots.run_if(
                         resource_exists::<
@@ -326,13 +329,6 @@ struct NativeInputBuffers<'w, 's> {
     touch: ResMut<'w, Messages<TouchInput>>,
     gamepad: ResMut<'w, Messages<GamepadButtonChangedEvent>>,
     windows: Query<'w, 's, &'static mut Window>,
-}
-
-fn drain_render_time(receiver: Option<Res<TimeReceiver>>) {
-    let Some(receiver) = receiver else {
-        return;
-    };
-    while receiver.0.try_recv().is_ok() {}
 }
 
 fn discard_native_focused_input(mut input: NativeInputBuffers) {
@@ -798,6 +794,26 @@ mod tests {
             .spawn((Window::default(), PrimaryWindow))
             .id();
         (app, sender, output, window)
+    }
+
+    #[test]
+    fn plugin_disconnects_render_time_from_manually_controlled_time() {
+        let (_input_sender, input_receiver) = mpsc::sync_channel(1);
+        let input_receiver = Mutex::new(Some(input_receiver));
+        let output: Arc<dyn Output> = Arc::new(MemoryOutput::default());
+        let (_render_sender, render_receiver) = bevy::time::create_time_channels();
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .insert_resource(render_receiver)
+            .add_plugins(AutomationControlPlugin::with_io(
+                RunMode::Rendered,
+                move || {
+                    JsonLinesInput::from_receiver(input_receiver.lock().unwrap().take().unwrap())
+                },
+                output,
+            ));
+
+        assert!(!app.world().contains_resource::<TimeReceiver>());
     }
 
     #[test]
