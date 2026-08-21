@@ -1,5 +1,7 @@
 mod controller;
 mod repl;
+mod replay;
+mod report;
 mod script;
 
 use automation_control::driver::{RecentLogs, ReportConfig, github, recording};
@@ -31,7 +33,7 @@ struct Cli {
     artifact_dir: PathBuf,
 
     /// Start Session Recording at this artifact-root-relative JSONL path.
-    #[arg(long)]
+    #[arg(long, global = true)]
     record: Option<PathBuf>,
 
     #[command(subcommand)]
@@ -55,6 +57,9 @@ impl From<ModeArgument> for Mode {
 
 #[derive(Debug, Subcommand)]
 enum CliCommand {
+    /// Replay recorded Controller actions in a fresh Controlled Session.
+    Replay { recording: PathBuf },
+
     /// Run a human-authored Session Script in a fresh Controlled Session.
     Run { script: PathBuf },
 
@@ -63,6 +68,9 @@ enum CliCommand {
         artifact_dir: PathBuf,
         #[arg(long)]
         create: bool,
+        /// Print the artifact summary as JSON.
+        #[arg(long)]
+        json: bool,
     },
 }
 
@@ -76,6 +84,7 @@ fn main() {
 #[derive(Debug)]
 enum ExecuteError {
     General(String),
+    Replay(replay::Error),
     Script(script::Error),
 }
 
@@ -83,6 +92,7 @@ impl ExecuteError {
     const fn exit_code(&self) -> i32 {
         match self {
             Self::General(_) => 1,
+            Self::Replay(error) => error.exit_code(),
             Self::Script(error) => error.exit_code(),
         }
     }
@@ -92,6 +102,7 @@ impl std::fmt::Display for ExecuteError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::General(message) => formatter.write_str(message),
+            Self::Replay(error) => error.fmt(formatter),
             Self::Script(error) => error.fmt(formatter),
         }
     }
@@ -99,7 +110,10 @@ impl std::fmt::Display for ExecuteError {
 
 fn execute(cli: Cli) -> Result<(), ExecuteError> {
     match cli.command {
-        Some(CliCommand::Run { script }) => run_script(
+        Some(CliCommand::Replay { recording }) => {
+            replay_recording(recording, cli.artifact_dir, cli.record)
+        }
+        Some(CliCommand::Run { script }) => session_script(
             script,
             cli.mode.map(Into::into),
             cli.artifact_dir,
@@ -108,7 +122,8 @@ fn execute(cli: Cli) -> Result<(), ExecuteError> {
         Some(CliCommand::Report {
             artifact_dir,
             create,
-        }) => report(artifact_dir, create).map_err(ExecuteError::General),
+            json,
+        }) => report(artifact_dir, create, json).map_err(ExecuteError::General),
         None => controlled_repl(
             cli.mode.unwrap_or(ModeArgument::Rendered).into(),
             cli.artifact_dir,
@@ -153,7 +168,22 @@ fn controlled_repl(
     result
 }
 
-fn run_script(
+fn replay_recording(
+    recording: PathBuf,
+    artifact_dir: PathBuf,
+    record: Option<PathBuf>,
+) -> Result<(), ExecuteError> {
+    let recent_logs = RecentLogs::default();
+    let summary =
+        replay::run(&recording, artifact_dir, record, recent_logs).map_err(ExecuteError::Replay)?;
+    println!(
+        "Session Replay passed: {} actions, mode={}",
+        summary.actions, summary.mode
+    );
+    Ok(())
+}
+
+fn session_script(
     path: PathBuf,
     mode: Option<Mode>,
     artifact_dir: PathBuf,
@@ -200,21 +230,27 @@ fn persist_failure(
     }
 }
 
-fn report(artifact_dir: PathBuf, create: bool) -> Result<(), String> {
-    let config = ReportConfig {
-        generated_by: Some("star_sim_debug report".into()),
-    };
-    let report =
-        github::Report::prepare(&artifact_dir, &config).map_err(|error| error.to_string())?;
-    let outcome = if create {
-        report.publish().map_err(|error| error.to_string())?
+fn report(artifact_dir: PathBuf, create: bool, json: bool) -> Result<(), String> {
+    if create {
+        let config = ReportConfig {
+            generated_by: Some("star_sim_debug report".into()),
+        };
+        let report =
+            github::Report::prepare(&artifact_dir, &config).map_err(|error| error.to_string())?;
+        let outcome = report.publish().map_err(|error| error.to_string())?;
+        println!(
+            "{}",
+            serde_json::to_string(&outcome).map_err(|error| error.to_string())?
+        );
+        return Ok(());
+    }
+
+    let report = report::Report::load(&artifact_dir)?;
+    if json {
+        println!("{}", report.json()?);
     } else {
-        report.draft()
-    };
-    println!(
-        "{}",
-        serde_json::to_string(&outcome).map_err(|error| error.to_string())?
-    );
+        print!("{report}");
+    }
     Ok(())
 }
 
@@ -273,6 +309,7 @@ mod tests {
             Some(CliCommand::Report {
                 artifact_dir,
                 create: true,
+                json: false,
             }) if artifact_dir == std::path::Path::new("artifacts/failure")
         ));
     }

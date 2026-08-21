@@ -63,6 +63,7 @@ pub struct SessionOptions {
     pub record: Option<PathBuf>,
     pub recent_logs: RecentLogs,
     pub artifact_dir: Option<PathBuf>,
+    pub session_artifact_dir: Option<PathBuf>,
     pub recording: recording::Options,
 }
 
@@ -73,6 +74,7 @@ impl SessionOptions {
             record: None,
             recent_logs: RecentLogs::default(),
             artifact_dir: None,
+            session_artifact_dir: None,
             recording: recording::Options::default(),
         }
     }
@@ -101,6 +103,11 @@ impl SessionOptions {
 
     pub fn with_artifact_dir(mut self, path: impl Into<PathBuf>) -> Self {
         self.artifact_dir = Some(path.into());
+        self
+    }
+
+    pub fn with_session_artifact_dir(mut self, path: impl Into<PathBuf>) -> Self {
+        self.session_artifact_dir = Some(path.into());
         self
     }
 
@@ -145,7 +152,10 @@ impl Session {
             .artifact_dir
             .clone()
             .unwrap_or_else(|| PathBuf::from("artifacts"));
-        command.env(AUTOMATION_CONTROL_ARTIFACT_DIR, &artifact_root);
+        let session_artifact_root = options
+            .session_artifact_dir
+            .unwrap_or_else(|| artifact_root.clone());
+        command.env(AUTOMATION_CONTROL_ARTIFACT_DIR, &session_artifact_root);
         #[cfg(unix)]
         command.process_group(0);
         let mut child = command

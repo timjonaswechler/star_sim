@@ -306,17 +306,66 @@ impl ControllerSession {
         recent_logs: RecentLogs,
         controller: Controller,
     ) -> Result<Self, ControllerError> {
+        let mut session = Self::start_with_configuration(
+            mode,
+            surface,
+            artifact_dir,
+            record,
+            recent_logs,
+            controller,
+            session_configuration(mode, surface, false),
+            None,
+        )?;
+        session.advance(1)?;
+        Ok(session)
+    }
+
+    pub(crate) fn start_replay(
+        mode: Mode,
+        surface: SurfaceSize,
+        artifact_dir: PathBuf,
+        record: Option<PathBuf>,
+        recent_logs: RecentLogs,
+        controller: Controller,
+        configuration: Value,
+        session_artifact_dir: PathBuf,
+    ) -> Result<Self, ControllerError> {
+        Self::start_with_configuration(
+            mode,
+            surface,
+            artifact_dir,
+            record,
+            recent_logs,
+            controller,
+            configuration,
+            Some(session_artifact_dir),
+        )
+    }
+
+    fn start_with_configuration(
+        mode: Mode,
+        surface: SurfaceSize,
+        artifact_dir: PathBuf,
+        record: Option<PathBuf>,
+        recent_logs: RecentLogs,
+        controller: Controller,
+        configuration: Value,
+        session_artifact_dir: Option<PathBuf>,
+    ) -> Result<Self, ControllerError> {
+        let paused = configuration
+            .get("paused")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
         let launch = ControlledApp::launch(mode);
-        let options = SessionOptions::new(Duration::from_secs(180))
+        let mut options = SessionOptions::new(Duration::from_secs(180))
             .with_recent_logs(recent_logs)
             .with_artifact_dir(artifact_dir)
             .with_record(record)
-            .with_recording_context(
-                "alpha",
-                mode.wire(),
-                session_configuration(mode, surface, false),
-            )
+            .with_recording_context("alpha", mode.wire(), configuration)
             .with_controller(controller);
+        if let Some(session_artifact_dir) = session_artifact_dir {
+            options = options.with_session_artifact_dir(session_artifact_dir);
+        }
         let mut driver = DriverSession::spawn(&launch, options).map_err(map_driver_error)?;
         let ready = driver.ready().map_err(map_driver_error)?;
         if ready.mode != mode.wire() {
@@ -324,16 +373,14 @@ impl ControllerSession {
                 "child reported a different execution mode".into(),
             ));
         }
-        let mut session = Self {
+        Ok(Self {
             driver: Some(driver),
             mode,
             surface,
             instance: "alpha".into(),
-            paused: false,
+            paused,
             last_action: "none".into(),
-        };
-        session.advance(1)?;
-        Ok(session)
+        })
     }
 
     #[cfg(test)]
@@ -577,6 +624,17 @@ impl ControllerSession {
         self.driver_mut()?
             .ensure_running()
             .map_err(map_driver_error)
+    }
+
+    pub(crate) fn replay_command(
+        &mut self,
+        command: WireCommand,
+    ) -> Result<automation_control::Response, ControllerError> {
+        match self.driver_mut()?.request(command) {
+            Ok(response) => Ok(response),
+            Err(DriverError::RequestFailed(response)) => Ok(response),
+            Err(error) => Err(map_driver_error(error)),
+        }
     }
 
     pub(crate) fn shutdown(&mut self) -> Result<(), ControllerError> {
