@@ -6,4 +6,4 @@
 	url = https://github.com/timjonaswechler/name-generator-rs.git
 [submodule "crates/bug_hunter"]
 	path = crates/bug_hunter
-	url = https://github.com/timjonaswechler/bug-hunter.git
+	url = https://github.com/timjonaswechler/bug_hunter.git
