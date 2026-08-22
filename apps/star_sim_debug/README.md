@@ -2,10 +2,10 @@
 
 `star_sim_debug` is the Star Sim Debug Host. It starts one isolated Controlled Session and opens a line-oriented REPL. The host owns the child process, protocol transport, request ordering, and shutdown. Controllers never supply Cargo features, child arguments, protocol versions, IDs, or sequences.
 
-The normal `app` binary remains a Player Run with Native Input and no `automation_control` dependency.
+The normal `app` binary remains a Player Run with Native Input and no `bug_hunter` dependency.
 
 The binary only embeds [`automation.toml`](automation.toml) and starts the generic
-`automation_control::host` runner. That validated profile owns the Star Sim launch target, mode
+`bug_hunter::host` runner. That validated profile owns the Star Sim launch target, mode
 argument, controlled-frame timing and surface, screen observation, artifact default, and report
 attribution. Click targets are discovered from the running session with `observe targets`; the
 profile does not whitelist targets or prescribe their resulting state. The command line deliberately has no `--config` option, so a run cannot swap in
@@ -168,7 +168,7 @@ cargo run -p star_sim_debug -- report artifacts/star-sim-debug --create
 ```bash
 cargo test -p app
 cargo test -p app --features automation-control --bin app
-cargo test -p automation_control --features driver
+cargo test -p bug_hunter --features driver
 cargo test -p star_sim_debug
 ```
 

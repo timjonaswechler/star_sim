@@ -10,7 +10,7 @@ crates/simulation/              simulation crate
   src/models.rs                 feature-gated loading of scientific model inputs
 crates/physics/units/            reusable physical units
 crates/utilities/name_generator/ optional naming experiment
-crates/automation_control/       reusable Bevy automation-control plugin, protocol, and optional driver
+crates/bug_hunter/       reusable Bevy automation-control plugin, protocol, and optional driver
 apps/population_lab/             plots and statistical validation
 apps/app/                        interactive Bevy application and visual examples
 apps/star_sim_debug/             Debug Host and REPL for Star Sim Controlled Sessions
@@ -21,7 +21,7 @@ Dependencies point inward:
 ```text
 population_lab ──> simulation [feature: models]
 app ──────────────> simulation [core only]
-app ──(automation-control feature)──> automation_control
+app ──(automation-control feature)──> bug_hunter
 star_sim_debug ──drives──> app [feature: automation-control]
 ```
 

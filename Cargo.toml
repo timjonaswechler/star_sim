@@ -4,8 +4,8 @@ members = [
     "apps/star_sim_debug",
     "apps/app",
     "apps/population_lab",
-    "crates/automation_control",
-    "crates/automation_control/bevy_test_apps",
+    "crates/bug_hunter",
+    "crates/bug_hunter/bevy_test_apps",
     "crates/physics/units",
     "crates/simulation",
 ]

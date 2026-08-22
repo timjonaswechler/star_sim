@@ -77,8 +77,8 @@ fn rendered(app: &mut App) -> &mut App {
             .disable::<bevy::gilrs::GilrsPlugin>(),
     )
     .add_plugins((
-        automation_control::AutomationControlPlugin::rendered_stdio(),
-        automation_control::screenshot::Plugin::default(),
+        bug_hunter::AutomationControlPlugin::rendered_stdio(),
+        bug_hunter::screenshot::Plugin::default(),
     ))
 }
 
@@ -99,7 +99,7 @@ fn logical(app: &mut App) -> &mut App {
             UiPlugin,
         ))
         .add_plugins(UiWidgetsPlugins)
-        .add_plugins(automation_control::AutomationControlPlugin::logical_stdio());
+        .add_plugins(bug_hunter::AutomationControlPlugin::logical_stdio());
 
     app.world_mut().spawn((
         Name::new("logical-surface"),

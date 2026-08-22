@@ -5,7 +5,7 @@ edition = "2024"
 publish = false
 
 [dependencies]
-automation_control = { path = "../../crates/automation_control", features = ["host"] }
+bug_hunter = { path = "../../crates/bug_hunter", features = ["host"] }
 
 [dev-dependencies]
 image = { version = "0.25", default-features = false, features = ["png"] }

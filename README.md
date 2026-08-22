@@ -8,7 +8,7 @@ This repository uses a virtual Cargo workspace:
 
 - `crates/simulation` — Bevy-independent simulation with a `core` module and optional `models` loader
 - `crates/physics/units` — reusable physical units
-- [`crates/automation_control`](crates/automation_control/README.md) — reusable control protocol, Bevy plugin, and optional driver
+- [`crates/bug_hunter`](crates/bug_hunter/README.md) — reusable control protocol, Bevy plugin, and optional driver
 - `crates/utilities/name_generator` — isolated naming experiment
 - `apps/population_lab` — statistical plots and model validation
 - `apps/app` — interactive Bevy application and visual examples

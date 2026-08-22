@@ -7,7 +7,7 @@ use bevy::{
 use ui::components::tabs::{TabKey, TabPanel, TabTrigger, TabsPlugin, TabsRoot};
 
 #[cfg(feature = "automation-control")]
-use automation_control::AutomationTarget;
+use bug_hunter::AutomationTarget;
 
 pub(crate) struct MenuPlugin;
 

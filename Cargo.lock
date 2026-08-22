@@ -250,8 +250,8 @@ checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
 name = "app"
 version = "0.1.0"
 dependencies = [
- "automation_control",
  "bevy",
+ "bug_hunter",
  "name_generator",
  "simulation",
  "ui",
@@ -433,20 +433,6 @@ name = "autocfg"
 version = "1.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f2032f911046de80f0a198e0901378627c33f59ea0ac00e363d481118bd70a53"
-
-[[package]]
-name = "automation_control"
-version = "0.1.0"
-dependencies = [
- "bevy",
- "cap-std",
- "clap",
- "ctrlc",
- "image 0.25.10",
- "serde",
- "serde_json",
- "toml",
-]
 
 [[package]]
 name = "base64"
@@ -1685,8 +1671,8 @@ dependencies = [
 name = "bevy_test_apps"
 version = "0.1.0"
 dependencies = [
- "automation_control",
  "bevy",
+ "bug_hunter",
  "rand 0.9.5",
 ]
 
@@ -2017,6 +2003,20 @@ checksum = "6bb31b46c14244e20ee9984b11bf5c992b91fb6939fea616e3512c8baecdbe5f"
 dependencies = [
  "memchr",
  "serde_core",
+]
+
+[[package]]
+name = "bug_hunter"
+version = "0.1.0"
+dependencies = [
+ "bevy",
+ "cap-std",
+ "clap",
+ "ctrlc",
+ "image 0.25.10",
+ "serde",
+ "serde_json",
+ "toml",
 ]
 
 [[package]]
@@ -5597,7 +5597,7 @@ dependencies = [
 name = "star_sim_debug"
 version = "0.1.0"
 dependencies = [
- "automation_control",
+ "bug_hunter",
  "image 0.25.10",
  "serde_json",
 ]

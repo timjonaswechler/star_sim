@@ -1,8 +1,8 @@
 /target
 /examples/color_preview/target/
 .DS_Store
-*.py
-!tools/demo_automation_control_prototype.py
+__pycache__
+!tools/demo_bug_hunter_prototype.py
 combined_source.md
 *.diff
 /output/

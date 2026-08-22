@@ -31,8 +31,8 @@ jobs:
         run: cargo build -p app --features automation-control
       - name: Run display-free protocol, driver, and Debug Host tests
         run: |
-          cargo test -p automation_control
-          cargo test -p automation_control --features driver
+          cargo test -p bug_hunter
+          cargo test -p bug_hunter --features driver
           cargo test -p star_sim_debug
 
   rendered-linux:
@@ -61,12 +61,12 @@ jobs:
           cargo check -p app --features automation-control
           cargo check -p bevy_test_apps
           cargo check -p bevy_test_apps --features automation
-          ! cargo tree -p app -e normal --prefix none | grep '^automation_control '
+          ! cargo tree -p app -e normal --prefix none | grep '^bug_hunter '
       - name: Build the rendered host, app, and controller outside protocol timeouts
         run: |
           cargo build -p app --features automation-control
           cargo build -p star_sim_debug
-          cargo build -p automation_control --example bevy_controller --features driver
+          cargo build -p bug_hunter --example bevy_controller --features driver
       - name: Run the rendered REPL and screenshot controller under Xvfb
         env:
           LIBGL_ALWAYS_SOFTWARE: "1"

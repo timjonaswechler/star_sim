@@ -1,6 +1,6 @@
-use automation_control::driver::{
-    FailureReport,
+use bug_hunter::driver::{
     recording::{Event, Recording, SessionOutcome},
+    FailureReport,
 };
 use std::{
     fs,
@@ -8,8 +8,8 @@ use std::{
     path::PathBuf,
     process::{Command, Stdio},
     sync::{
-        Mutex,
         atomic::{AtomicU64, Ordering},
+        Mutex,
     },
 };
 
@@ -105,7 +105,7 @@ fn logical_repl_records_context_actions_observations_and_ordered_shutdown() {
         panic!("second segment must begin with session context")
     };
     assert_eq!(context.session_id, "alpha");
-    assert_eq!(context.mode, automation_control::RunMode::Logical);
+    assert_eq!(context.mode, bug_hunter::RunMode::Logical);
     assert_eq!(context.configuration["profile_id"], "star-sim-debug-v1");
     assert_eq!(context.configuration["mode"], "logical");
     assert_eq!(context.configuration["paused"], true);
@@ -114,12 +114,10 @@ fn logical_repl_records_context_actions_observations_and_ordered_shutdown() {
         Event::ControllerAction { ref controller, ref action }
             if controller.origin == "repl" && action["type"] == "pointer"
     )));
-    assert!(
-        second
-            .entries
-            .iter()
-            .any(|entry| matches!(entry.event, Event::Observation { .. }))
-    );
+    assert!(second
+        .entries
+        .iter()
+        .any(|entry| matches!(entry.event, Event::Observation { .. })));
     assert!(matches!(
         second.entries.last().unwrap().event,
         Event::RecordingStopped
