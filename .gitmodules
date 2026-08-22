@@ -4,3 +4,6 @@
 [submodule "crates/utilities/name_generator"]
 	path = crates/utilities/name_generator
 	url = https://github.com/timjonaswechler/name-generator-rs.git
+[submodule "crates/bug_hunter"]
+	path = crates/bug_hunter
+	url = https://github.com/timjonaswechler/bug-hunter.git

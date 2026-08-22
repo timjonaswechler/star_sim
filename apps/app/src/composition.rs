@@ -84,22 +84,20 @@ fn rendered(app: &mut App) -> &mut App {
 
 #[cfg(feature = "automation-control")]
 fn logical(app: &mut App) -> &mut App {
-    app.add_plugins(MinimalPlugins)
-        .add_plugins(AssetPlugin::default())
-        .add_plugins((
-            TransformPlugin,
-            ImagePlugin::default(),
-            TextureAtlasPlugin,
-            MeshPlugin,
-            CameraPlugin,
-            ScenePlugin,
-            TextPlugin,
-            PickingPlugin,
-            InteractionPlugin,
-            UiPlugin,
-        ))
-        .add_plugins(UiWidgetsPlugins)
-        .add_plugins(bug_hunter::AutomationControlPlugin::logical_stdio());
+    app.add_plugins(MinimalPlugins).add_plugins((
+        AssetPlugin::default(),
+        TransformPlugin,
+        ImagePlugin::default(),
+        TextureAtlasPlugin,
+        MeshPlugin,
+        CameraPlugin,
+        ScenePlugin,
+        TextPlugin,
+        PickingPlugin,
+        InteractionPlugin,
+        UiPlugin,
+        bug_hunter::AutomationControlPlugin::logical_stdio(),
+    ));
 
     app.world_mut().spawn((
         Name::new("logical-surface"),

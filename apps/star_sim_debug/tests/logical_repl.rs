@@ -1,6 +1,6 @@
-use bug_hunter::driver::{
-    recording::{Event, Recording, SessionOutcome},
+use bug_hunter::host::{
     FailureReport,
+    recording::{Event, Recording, SessionOutcome},
 };
 use std::{
     fs,
@@ -8,8 +8,8 @@ use std::{
     path::PathBuf,
     process::{Command, Stdio},
     sync::{
-        atomic::{AtomicU64, Ordering},
         Mutex,
+        atomic::{AtomicU64, Ordering},
     },
 };
 
@@ -114,10 +114,12 @@ fn logical_repl_records_context_actions_observations_and_ordered_shutdown() {
         Event::ControllerAction { ref controller, ref action }
             if controller.origin == "repl" && action["type"] == "pointer"
     )));
-    assert!(second
-        .entries
-        .iter()
-        .any(|entry| matches!(entry.event, Event::Observation { .. })));
+    assert!(
+        second
+            .entries
+            .iter()
+            .any(|entry| matches!(entry.event, Event::Observation { .. }))
+    );
     assert!(matches!(
         second.entries.last().unwrap().event,
         Event::RecordingStopped

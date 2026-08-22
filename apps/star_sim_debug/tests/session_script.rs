@@ -1,12 +1,12 @@
-use bug_hunter::driver::recording::{Event, Recording, SessionOutcome};
+use bug_hunter::host::recording::{Event, Recording, SessionOutcome};
 use serde_json::json;
 use std::{
     fs,
     path::{Path, PathBuf},
     process::{Command, Output},
     sync::{
-        atomic::{AtomicU64, Ordering},
         Mutex,
+        atomic::{AtomicU64, Ordering},
     },
 };
 
@@ -33,10 +33,12 @@ fn museum_script_drives_a_fresh_logical_session_and_uses_session_recording() {
         Event::ControllerAction { ref controller, ref action }
             if controller.origin == "script" && action["type"] == "pointer"
     )));
-    assert!(recording
-        .entries
-        .iter()
-        .any(|entry| matches!(entry.event, Event::Observation { .. })));
+    assert!(
+        recording
+            .entries
+            .iter()
+            .any(|entry| matches!(entry.event, Event::Observation { .. }))
+    );
     assert!(matches!(
         recording.entries.last().unwrap().event,
         Event::SessionEnded {

@@ -1,12 +1,12 @@
-use bug_hunter::driver::recording::{Event, Recording};
+use bug_hunter::host::recording::{Event, Recording};
 use serde_json::Value;
 use std::{
     fs,
     path::{Path, PathBuf},
     process::{Command, Output},
     sync::{
-        atomic::{AtomicU64, Ordering},
         Mutex,
+        atomic::{AtomicU64, Ordering},
     },
 };
 
@@ -77,17 +77,19 @@ fn logical_recording_replays_without_a_provider_and_can_record_the_replay() {
     let report: Value = serde_json::from_slice(&report.stdout).unwrap();
     assert_eq!(report["replay"]["outcome"], "passed");
     for controller in ["script", "replay"] {
-        assert!(report["sessions"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|session| {
-                session["controllers"]
-                    .as_array()
-                    .is_some_and(|controllers| {
-                        controllers.iter().any(|actual| actual == controller)
-                    })
-            }));
+        assert!(
+            report["sessions"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|session| {
+                    session["controllers"]
+                        .as_array()
+                        .is_some_and(|controllers| {
+                            controllers.iter().any(|actual| actual == controller)
+                        })
+                })
+        );
     }
     fs::remove_dir_all(artifact_dir).ok();
 }
@@ -158,10 +160,12 @@ fn changed_stable_observation_reports_the_recording_sequence() {
         unsupported_source.to_string_lossy().as_ref()
     );
     assert_eq!(result["outcome"], "failed");
-    assert!(result["error"]
-        .as_str()
-        .unwrap()
-        .contains("unsupported recording version"));
+    assert!(
+        result["error"]
+            .as_str()
+            .unwrap()
+            .contains("unsupported recording version")
+    );
     fs::remove_dir_all(artifact_dir).ok();
 }
 

@@ -8,6 +8,7 @@ members = [
     "crates/bug_hunter/bevy_test_apps",
     "crates/physics/units",
     "crates/simulation",
+    "apps/bug_hunter_host",
 ]
 exclude = ["crates/utilities/name_generator"]
 default-members = [
