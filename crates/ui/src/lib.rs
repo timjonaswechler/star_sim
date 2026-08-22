@@ -1,7 +1,6 @@
 pub mod components;
 
 use bevy::prelude::*;
-use components::*;
 
 pub struct UiPlugin;
 
