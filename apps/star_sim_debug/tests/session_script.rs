@@ -138,7 +138,7 @@ fn script_failures_have_distinct_exit_codes_and_step_context() {
             "session": {"mode": "logical"},
             "steps": [{
                 "type": "wait",
-                "condition": {"type": "screen", "equals": "zoo"},
+                "condition": {"type": "component","target":"session.status","component":"test_app::SessionObservation","field":"active_screen","equals":"zoo"},
                 "max_frames": 1
             }]
         }),
@@ -147,7 +147,7 @@ fn script_failures_have_distinct_exit_codes_and_step_context() {
     assert_eq!(timeout.status.code(), Some(3));
     let stderr = String::from_utf8_lossy(&timeout.stderr);
     assert!(stderr.contains("step 1 ($.steps[0])"));
-    assert!(stderr.contains("last stable observation (screen)"));
+    assert!(stderr.contains("last stable observation"));
 
     let action_dir = temporary_artifact_dir("action");
     let action_path = write_script(
@@ -172,15 +172,15 @@ fn script_failures_have_distinct_exit_codes_and_step_context() {
             "session": {"mode": "logical"},
             "steps": [{
                 "type": "expect",
-                "condition": {"type": "screen", "equals": "museum"}
+                "condition": {"type": "component","target":"session.status","component":"test_app::SessionObservation","field":"active_screen","equals":"museum"}
             }]
         }),
     );
     let expectation = run_script(&expectation_path, &expectation_dir, &[]);
     assert_eq!(expectation.status.code(), Some(5));
     let stderr = String::from_utf8_lossy(&expectation.stderr);
-    assert!(stderr.contains("expected: {\"active_screen\":\"museum\"}"));
-    assert!(stderr.contains("actual: {\"active_screen\":\"gym\"}"));
+    assert!(stderr.contains("expected: \"museum\""));
+    assert!(stderr.contains("actual: \"gym\""));
     assert!(stderr.contains("step 1 ($.steps[0])"));
 
     for directory in [invalid_dir, timeout_dir, action_dir, expectation_dir] {

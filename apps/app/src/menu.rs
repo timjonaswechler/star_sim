@@ -6,8 +6,13 @@ use bevy::{
 };
 use ui::components::tabs::{TabKey, TabPanel, TabTrigger, TabsPlugin, TabsRoot};
 
+/// AutomationTarget wird bei der aktivierung des Features "automation-control" verwendet.
+/// Ist das Feature nicht aktiviert, wird ein leerer AutomationTarget verwendet.
 #[cfg(feature = "automation-control")]
 use bug_hunter::AutomationTarget;
+#[cfg(not(feature = "automation-control"))]
+#[derive(Component, Clone, Debug, Default)]
+struct AutomationTarget;
 
 pub(crate) struct MenuPlugin;
 
@@ -30,60 +35,10 @@ pub(crate) struct MenuTab {
 
 impl TabKey for MenuSection {}
 
-#[cfg(feature = "automation-control")]
-#[derive(Component, Reflect)]
-#[reflect(Component)]
-pub(crate) struct SessionObservation {
-    active_screen: String,
-}
-
 impl Plugin for MenuPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins((TabNavigationPlugin, TabsPlugin::<MenuSection>::default()))
             .add_systems(Startup, setup_scene.spawn());
-
-        #[cfg(feature = "automation-control")]
-        app.register_type::<SessionObservation>()
-            .add_systems(PostStartup, install_controlled_targets)
-            .add_systems(Update, sync_session_observation);
-    }
-}
-
-#[cfg(feature = "automation-control")]
-fn install_controlled_targets(
-    mut commands: Commands,
-    tabs: Query<(Entity, &MenuTab)>,
-    roots: Query<(Entity, &TabsRoot<MenuSection>)>,
-) {
-    for (entity, tab) in &tabs {
-        commands
-            .entity(entity)
-            .insert((AutomationTarget, Name::new(tab.id)));
-    }
-    for (entity, root) in &roots {
-        commands.entity(entity).insert((
-            AutomationTarget,
-            Name::new("session.status"),
-            SessionObservation {
-                active_screen: screen_name(root.active).into(),
-            },
-        ));
-    }
-}
-
-#[cfg(feature = "automation-control")]
-fn sync_session_observation(mut roots: Query<(&TabsRoot<MenuSection>, &mut SessionObservation)>) {
-    for (root, mut observation) in &mut roots {
-        observation.active_screen = screen_name(root.active).into();
-    }
-}
-
-#[cfg(feature = "automation-control")]
-fn screen_name(section: MenuSection) -> &'static str {
-    match section {
-        MenuSection::Gym => "gym",
-        MenuSection::Museum => "museum",
-        MenuSection::Zoo => "zoo",
     }
 }
 
@@ -94,8 +49,6 @@ fn setup_scene() -> impl SceneList {
 fn menu() -> impl Scene {
     bsn! {
         Node {
-            width: layout_dimension(Dimension::Width),
-            height: layout_dimension(Dimension::Height),
             align_items: AlignItems::Center,
             justify_content: JustifyContent::Center,
             display: Display::Flex,
@@ -106,6 +59,7 @@ fn menu() -> impl Scene {
         TabsRoot::<MenuSection> {
             active: {MenuSection::Gym}
         }
+        Name("menu_root")
         Children [
             (
                 Node {
@@ -141,6 +95,7 @@ fn menu() -> impl Scene {
                 Children [Text("Gym")]
             ),
             (
+
                 TabPanel::<MenuSection> {
                     value: {MenuSection::Museum}
                 }
@@ -158,26 +113,9 @@ fn menu() -> impl Scene {
     }
 }
 
-enum Dimension {
-    Width,
-    Height,
-}
-
-fn layout_dimension(dimension: Dimension) -> Val {
-    #[cfg(feature = "automation-control")]
-    return match dimension {
-        Dimension::Width => px(crate::composition::Canvas::WIDTH),
-        Dimension::Height => px(crate::composition::Canvas::HEIGHT),
-    };
-
-    #[cfg(not(feature = "automation-control"))]
-    match dimension {
-        Dimension::Width | Dimension::Height => percent(100),
-    }
-}
-
 fn tab_button(label: &'static str, id: &'static str, section: MenuSection) -> impl Scene {
     bsn! {
+        AutomationTarget
         MenuTab { id, label, section }
         Node {
             width: px(150),

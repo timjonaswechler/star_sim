@@ -3,22 +3,15 @@ use bevy::prelude::*;
 mod composition;
 mod menu;
 
-#[cfg(not(feature = "automation-control"))]
-fn main() {
-    let mut app = App::new();
-    app.add_plugins(DefaultPlugins)
-        .add_plugins(menu::MenuPlugin);
-    app.run();
+/// Gibt ein Raum in dem alle Plugins und Systeme oder andere Dinge für die App initialisiert werden können ohne das man doppelten Code schreibt.
+fn init(app: &mut App) -> &mut App {
+    app.add_plugins(menu::MenuPlugin)
 }
 
-#[cfg(feature = "automation-control")]
 fn main() {
-    let mode =
-        composition::ControlledMode::parse(std::env::args_os().skip(1)).unwrap_or_else(|error| {
-            eprintln!("app: {error}");
-            std::process::exit(2);
-        });
     let mut app = App::new();
-    composition::controlled(&mut app, mode).add_plugins(menu::MenuPlugin);
+    #[cfg(feature = "automation-control")]
+    composition::controlled(&mut app);
+    init(&mut app);
     app.run();
 }

@@ -11,7 +11,10 @@
     {
       "type": "wait",
       "condition": {
-        "type": "screen",
+        "type": "component",
+        "target": "session.status",
+        "component": "test_app::SessionObservation",
+        "field": "active_screen",
         "equals": "museum"
       },
       "max_frames": 8
@@ -19,7 +22,10 @@
     {
       "type": "expect",
       "condition": {
-        "type": "screen",
+        "type": "component",
+        "target": "session.status",
+        "component": "test_app::SessionObservation",
+        "field": "active_screen",
         "equals": "museum"
       }
     },
