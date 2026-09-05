@@ -39,8 +39,7 @@ cargo run -p app
 Optional development functionality is activated at the consuming edge. The Debug Host selects the app's internal controlled build; users do not pass its Cargo feature or child arguments.
 
 ```bash
-cargo run -p star_sim_debug -- --mode logical
-cargo run -p star_sim_debug -- --mode rendered
+cargo run -p star_sim_debug 
 cargo run -p app --example name_generator_lab --features name-generation
 ```
 

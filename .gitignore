@@ -7,3 +7,9 @@ combined_source.md
 *.diff
 /output/
 assets/scientific_models/white_dwarf_cooling.local.ron
+
+# Tectonics-Quellbilder: lokal regenerierbar, nicht einchecken
+# (Text-Exporte post.md / image_map.txt / section_images.txt sind eingecheckt)
+prototype/tectonics/source/post.html
+prototype/tectonics/source/imgs/
+prototype/tectonics/source/contact_*.png

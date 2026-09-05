@@ -37,7 +37,7 @@ cargo run -p app
 Start a display-free Controlled Session through the Debug Host:
 
 ```bash
-cargo run -p star_sim_debug -- --mode logical
+cargo run -p star_sim_debug 
 ```
 
 Other optional development integrations are disabled by default:

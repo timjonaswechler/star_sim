@@ -25,28 +25,24 @@ Keyboard, pointer, text, and scroll input received from the host operating syste
 _Avoid_: Physical input, real input
 
 **Virtual Input**:
-Session-local keyboard, pointer, text, and scroll input delivered directly to one Controlled Session without using or changing host operating-system input.
+Session-local keyboard, pointer, text, and scroll input delivered directly to one Controlled Session without using or changing host operating-system input. Virtual Input is queued until the next explicit `step` and then consumed atomically by the application.
 _Avoid_: Synthetic OS input, native input, global input
 
 **Session Recording**:
-The ordered record of configuration, Controller actions, observations, results, failures, and artifacts from one Controlled Session. Its format does not depend on which Controller produced the actions.
-_Avoid_: Session Script, log file, agent recording
+The ordered record of configuration, Controller actions, observations, results, failures, and artifacts captured during all or part of one Controlled Session. It records no Bevy World snapshot and makes no claim that its starting state can be reconstructed independently. Its format does not depend on which Controller produced the actions.
+_Avoid_: Session Script, log file, agent recording, world snapshot
 
 **Session Script**:
-A human-authored sequence of actions, waits, and expectations for a Controlled Session.
+A human-authored sequence of actions, explicit steps, and expectations for a Controlled Session. Waits are not a primitive; polling is an explicit `observe` + `step` loop.
 _Avoid_: Session Recording, replay fixture
 
 **Session Replay**:
-A fresh Controlled Session that repeats recorded actions and compares selected stable results without asking the original Controller to decide again.
-_Avoid_: Session Script, continuing a session, rerunning an agent
+A Controller that repeats the commands from a Session Recording in the current Controlled Session and compares recorded with current results. It neither creates a fresh Controlled Session nor restores an earlier state. The same Session Recording may be replayed repeatedly while the Controlled Session remains active.
+_Avoid_: Session Script, world restoration, automatically starting a fresh session, rerunning an agent
 
-**Logical Mode**:
-A Controlled Session execution mode without a window or renderer, driven by controlled time and intended for deterministic state interaction.
-_Avoid_: Logical scenario, visual mode, hidden window
-
-**Rendered Mode**:
-A Controlled Session execution mode with rendering and visual artifacts while still accepting only Virtual Input.
-_Avoid_: Interactive mode, Player Run, visual scenario
+**Report**:
+The developer-facing documentation of one distinct runtime or logic failure observed during a Controlled Session. The Debug Host assembles it from observable session information without requiring report-specific behavior from the application. Repeated observations of the same failure refer to the existing Report rather than creating another one.
+_Avoid_: Session Recording, application error-handling interface, complete session log
 
 ## Galactic environment
 
@@ -257,96 +253,40 @@ An explicit planet candidate that lies inside every stability constraint evaluat
 _Avoid_: Permanently stable planet, observed planet
 
 **Rejected Planet Candidate**:
-An explicit planet candidate retained as provenance after failing a modeled coverage or stability condition; it is not a member of the accepted planetary system.
+An explicit planet candidate that failed a modeled coverage or stability condition; it is not a member of the accepted planetary system.
 _Avoid_: Destroyed planet, resampling request
 
 **Unresolved Planet Population**:
 A positive occurrence result whose source domain does not determine enough properties to materialise individual planets without inventing a distribution.
 _Avoid_: Empty planetary system, unsupported host
 
-**Scientific Claim**:
-A scientifically meaningful generated value together with the provenance that explains how that value was obtained. Its provenance remains inseparable from the value, allowing one object to contain claims supported by different kinds of evidence.
-_Avoid_: Unannotated generated property, object-level evidence label
+**Scientific Model Note**:
+A documentation record explaining why a model, constant, range, or approximation was chosen. These notes live in `docs/scientific_sources/` or `docs/research/`, not in generated runtime values.
+_Avoid_: Runtime claim graph, citation objects in simulation output
 
-**Evidence Level**:
-The kind of support behind a scientific claim: `Empirical` when a named source directly supports the claim inside its calibrated domain, `PhysicalProxy` when a physical model or explicitly transferred analogue produces it, and `Decorative` when bounded variation is added only for presentation. Extrapolation is a qualifier on a physical-proxy claim, not a separate evidence level.
-_Avoid_: Confidence, quality score, speculative evidence level
+**Generated Model Value**:
+A value produced by the simulation from configured model inputs and deterministic random draws. If its source or rationale matters, document that in a scientific model note rather than attaching metadata to the value itself.
+_Avoid_: Scientific claim object, object-level evidence label
 
-**Generating Prescription**:
-An immutable, versioned identity for the method that produced a scientific claim. It refers to every scientific source used by that method and preserves any precise source locator needed to audit the claim.
-_Avoid_: Unversioned model name, citation
+**Source Note**:
+A docs-only reference to the publication, dataset, or design choice behind a model. Source notes explain the chosen input data; they are not runtime objects.
+_Avoid_: Runtime citation catalog, per-value source references
 
-**Scientific Source**:
-A uniquely identified publication, dataset, or other scientific record supporting a generating prescription. Its complete citation may be stored once in a shared catalog while each scientific claim retains stable references to it.
-_Avoid_: Generating prescription, free-text citation
-
-**Aleatory Variation**:
-The variation among possible stellar systems or properties represented by a generating prescription. It is sampled seed-deterministically for each applicable claim.
-_Avoid_: Epistemic uncertainty, model error
-
-**Epistemic Uncertainty**:
-Uncertainty in scientific knowledge, source parameters, or model assumptions rather than variation among generated systems. Shared epistemic parameters are selected consistently for a whole model realization rather than independently for each object.
-_Avoid_: Aleatory variation, random decorative variation
-
-**Model Realization**:
-One coherent selection of shared epistemic parameters used throughout a generated stellar catalog. It allows sensitivity or ensemble runs without turning common scientific uncertainty into independent object-to-object variation.
-_Avoid_: Stellar system seed, individual property draw
-
-**Claim Uncertainty**:
-The source-faithful quantitative or explicitly unquantified uncertainty attached to a scientific claim. It preserves whether the source supplied an interval, bound, parametric distribution, posterior artifact, or no quantified uncertainty, including confidence or credible level and correlations shared with other claims.
-_Avoid_: Generic confidence score, automatically Gaussian error, aleatory variation
-
-**Claim Extrapolation**:
-A structured applicability record for a physical-proxy claim evaluated beyond a scientific source's calibrated domain. It identifies every exceeded input axis, the source domain, the evaluated input, and the direction, extent, and method of extrapolation. An empirical prescription never silently extrapolates or clamps its inputs.
-_Avoid_: Empirical claim, generic warning flag, clamped estimate
-
-**Claim Derivation**:
-The auditable relationship from a derived scientific claim to its immediate input claims. Stable claim identities and transitive derivation links preserve the complete origin without duplicating entire provenance chains on every value. A derived claim's evidence level is the least-supported level among its generating prescription and every essential input; decorative input may not silently support a physical claim.
-_Avoid_: Copied provenance text, source list without input relationships
-
-**Object Evidence Summary**:
-A derived overview of an object's claim composition: counts by evidence level, the least-supported physical evidence level, and separate indications of decorative claims, extrapolation, unquantified uncertainty, rejection, and unsupported coverage. Individual scientific claims remain the source of truth; the summary is never a single object-wide evidence label.
-_Avoid_: Object-level evidence label, replacement for claim provenance
-
-**Claim Outcome**:
-The result of attempting to produce a scientific claim: `Accepted` retains a plausibility-checked claim, `NotSelected` records a normal evidence-based draw that produced no candidate, `Rejected` retains the candidate and violated constraints, and `Unsupported` records why no value may be generated. Only accepted and rejected outcomes contain a generated value.
-_Avoid_: Optional value without reason, replacing rejected candidates, clamped unsupported value
+**Model-Derived Estimate**:
+A value produced by an approximation, proxy, or transferred analogue. The code may expose normal quality flags for important limitations, while the reasoning stays in the relevant scientific model note.
+_Avoid_: Hidden extrapolation, pretending a proxy is an observation
 
 **Random Draw Address**:
-The stable identity of a stochastic decision within a simulation seed, formed from the generating-prescription namespace, stable object identity, claim key, and bounded-attempt index under a named random-number algorithm version. It allows one claim or non-selection to be reproduced without depending on unrelated draw order.
+The stable identity of a stochastic decision within a simulation seed, formed from the draw namespace, stable object identity, stream key, and bounded-attempt index under a named random-number algorithm version. It allows one draw to be reproduced without depending on unrelated draw order.
 _Avoid_: Mutable global draw position, unexplained derived seed
 
-**Validation Receipt**:
-The versioned record of the plausibility policy applied to a generated candidate, its input claims, and every relevant passed, failed, or unevaluated constraint, including evaluated margins and thresholds. It explains acceptance or rejection but does not guarantee unmodelled long-term stability.
-_Avoid_: Boolean validity flag, first failure only, stability guarantee
-
 **Whole-System Plausibility**:
-The state in which all accepted members jointly satisfy every applicable required constraint evaluated by one versioned policy. Unevaluated advisory constraints remain visible limitations rather than guarantees.
+The state in which accepted members jointly satisfy every required constraint evaluated by the current model. Unevaluated advisory constraints remain visible limitations rather than guarantees.
 _Avoid_: Individual candidate validity, permanent stability, complete model coverage
 
-**Reconciliation Policy**:
-The immutable, versioned rules that order candidate evaluation, resolve conflict groups, permit bounded placement attempts, and determine final outcomes for one Model Realization.
-_Avoid_: Evidence ranking, mutable retry logic, validator
-
-**Conflict Group**:
-A recorded set of individually generated candidates that cannot coexist under the Reconciliation Policy. It preserves every participant and the deterministic reason for each winner, rejection, or revoked provisional acceptance.
-_Avoid_: Duplicate candidate, first failure
-
-**Provisional Acceptance**:
-A reversible candidate state that has passed the currently available checks but has not reached the final whole-system fixpoint. It is not an accepted published outcome.
-_Avoid_: Accepted outcome, guaranteed member
-
 **Placement Attempt**:
-One immutable, deterministically addressed candidate produced within a Generating Prescription's versioned attempt bound. Changing a candidate's placement creates another attempt rather than mutating the original.
+One immutable, deterministically addressed candidate produced within a bounded retry loop. Changing a candidate's placement creates another attempt rather than mutating the original.
 _Avoid_: Silent retry, in-place correction
-
-**Whole-System Fixpoint**:
-The publishable state with no unresolved conflict groups, current dependent Validation Receipts, satisfied required constraints, and internally valid references.
-_Avoid_: Intermediate generation state, partially validated system
-
-**Provenance Integrity**:
-The invariant that every scientific claim and claim outcome is complete and internally consistent with its evidence level, sources, applicability, derivation, uncertainty, stochastic origin, and validation state. Invalid combinations fail during construction or deserialization rather than continuing as warning-bearing data.
-_Avoid_: Best-effort provenance, partially trusted claim
 
 **Orbital Node**:
 A member of a hierarchical orbital arrangement that is either an individually materialised physical body or a barycentre. Collective structures and unmaterialised statistical populations are not Orbital Nodes.
@@ -369,7 +309,7 @@ The smallest relative-orbit semimajor axis encountered from a stellar member thr
 _Avoid_: Current distance, projected angular separation
 
 **Orbital Contact Radius**:
-A finite-body radius used only to reject relative-orbit candidates whose periastron would make two stellar members overlap. It may come from a narrower proxy than the full stellar-evolution model and must carry that provenance.
+A finite-body radius used only to reject relative-orbit candidates whose periastron would make two stellar members overlap. It may come from a narrower proxy than the full stellar-evolution model. The source choice belongs in docs, not in the runtime value.
 _Avoid_: Evolution snapshot, observed stellar radius
 
 **Circumstellar S-Type Stability Zone**:
