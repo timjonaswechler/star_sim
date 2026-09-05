@@ -75,7 +75,7 @@ and `1 R_sun` at 1 Myr. A later implementation may interpolate a bundled BHAC15
 radius table instead, but it must remain a separately named backend rather than
 silently extending MIST.
 
-Attach provenance/quality flags equivalent to:
+Attach quality flags equivalent to:
 
 - `LowMassContactRadiusProxy` for either envelope;
 - `SolarCompositionRadiusProxy` whenever the system chemistry is not solar;
@@ -99,7 +99,7 @@ OrbitalBodyGeometry {
     member_id,
     dynamical_mass_msun,
     collision_radius_rsun,
-    provenance_flags,
+    quality_flags,
 }
 ```
 

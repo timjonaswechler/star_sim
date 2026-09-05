@@ -65,7 +65,7 @@ Recommended configurable values:
 |---|---:|---|
 | `reference_radius_pc` | `8178.0` | Radius where the existing `thin_disk.metallicity.mean = -0.10 dex` remains unchanged |
 | `dex_per_kpc` | `-0.060` | Young-tracer iron slope from Genovali et al. |
-| observational slope uncertainty | `0.002` | Provenance/sensitivity metadata, not per-star random noise |
+| observational slope uncertainty | `0.002` | Sensitivity note, not per-star random noise |
 | `calibration_min_radius_pc` | `5000.0` | Conservative inner edge of the Cepheid calibration |
 | `calibration_max_radius_pc` | `19000.0` | Outer edge of the Cepheid calibration |
 | `outside_range_policy` | `ClampCorrection` | Hold the correction at the nearest calibrated edge; do not extrapolate to the Galactic centre or indefinitely outward |
@@ -88,7 +88,7 @@ For metallicity, the Pristine inner-halo main-sequence-turnoff sample peaks at `
 
 ## Recommended engineering v1 sampler
 
-These are exact **engineering prototype parameters chosen from the constraints above**, not quoted survey fits. They are intentionally compatible with the current sampler, which can draw one independent `TruncatedNormal` for age and one for `[Fe/H]`. They should live in configuration and retain a model-version/provenance field.
+These are exact **engineering prototype parameters chosen from the constraints above**, not quoted survey fits. They are intentionally compatible with the current sampler, which can draw one independent `TruncatedNormal` for age and one for `[Fe/H]`. They should live in configuration with a model version. The source choice belongs in this document.
 
 Every normal distribution below is truncated to its stated support and resampled, not clipped to a boundary.
 

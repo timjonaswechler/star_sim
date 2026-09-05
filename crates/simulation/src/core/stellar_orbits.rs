@@ -370,7 +370,7 @@ pub enum StellarOrbitalHierarchyError {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum StellarOrbitMemberProvenance {
+pub enum StellarOrbitMemberInputSource {
     CurrentMassAndRadiusFromEvolution,
     SingleMemberInitialMass,
     LowMassContactRadiusProxy {
@@ -380,9 +380,9 @@ pub enum StellarOrbitMemberProvenance {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub struct StellarOrbitMemberInputProvenance {
+pub struct StellarOrbitMemberInputSummary {
     pub member_id: u64,
-    pub input_source: StellarOrbitMemberProvenance,
+    pub input_source: StellarOrbitMemberInputSource,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -391,7 +391,7 @@ pub(crate) struct StellarOrbitMemberInput {
     pub(crate) role: StellarMemberRole,
     pub(crate) mass_msun: f64,
     pub(crate) radius_rsun: f64,
-    pub(crate) provenance: StellarOrbitMemberProvenance,
+    pub(crate) input_source: StellarOrbitMemberInputSource,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -468,10 +468,10 @@ impl StellarOrbitalHierarchySampler {
             Err(error) => return (Err(error), Vec::new()),
         };
         for member in members {
-            if let StellarOrbitMemberProvenance::LowMassContactRadiusProxy {
+            if let StellarOrbitMemberInputSource::LowMassContactRadiusProxy {
                 solar_composition_proxy,
                 hydrogen_burning_boundary_ambiguous,
-            } = member.provenance
+            } = member.input_source
             {
                 push_unique_quality_flag(
                     &mut quality_flags,
@@ -996,20 +996,6 @@ pub(crate) fn stable_orbit_draw_id(system_id: u64, attempt: u16, slot: u8) -> u6
     )
 }
 
-pub(crate) fn stable_barycentre_id(system_id: u64, member_ids: &[u64]) -> u64 {
-    let mut hasher = blake3::Hasher::new();
-    hasher.update(b"star_sim/stellar_barycentre_id/v1");
-    hasher.update(&system_id.to_le_bytes());
-    for member_id in member_ids {
-        hasher.update(&member_id.to_le_bytes());
-    }
-    u64::from_le_bytes(
-        hasher.finalize().as_bytes()[..8]
-            .try_into()
-            .expect("eight-byte hash prefix"),
-    )
-}
-
 fn valid_stellar_orbital_hierarchy_model(model: StellarOrbitalHierarchyModel) -> bool {
     let m = model.m_dwarf_scale;
     let solar = model.solar_type_scale;
@@ -1102,7 +1088,7 @@ pub(crate) fn low_mass_contact_radius_input(
         role: birth.role,
         mass_msun: birth.initial_mass_msun,
         radius_rsun,
-        provenance: StellarOrbitMemberProvenance::LowMassContactRadiusProxy {
+        input_source: StellarOrbitMemberInputSource::LowMassContactRadiusProxy {
             solar_composition_proxy: history.chemistry.global_metallicity_mh.abs() > 1e-12,
             hydrogen_burning_boundary_ambiguous: birth.initial_mass_msun <= model.minimum_mass_msun,
         },
@@ -1110,7 +1096,7 @@ pub(crate) fn low_mass_contact_radius_input(
 }
 
 #[cfg(test)]
-mod provenance_regression_tests {
+mod draw_regression_tests {
     use super::*;
 
     fn collect_slots(node: &StellarOrbitNode, output: &mut Vec<(u8, RelativeStellarOrbit)>) {
@@ -1132,7 +1118,7 @@ mod provenance_regression_tests {
         attempt: u16,
         slot: u8,
         namespace: &str,
-        claim_key: &str,
+        stream_key: &str,
     ) -> RandomDrawAddress {
         let draw_id = stable_orbit_draw_id(system_id, attempt, slot);
         RandomDrawAddress::new(
@@ -1140,7 +1126,7 @@ mod provenance_regression_tests {
             "1",
             namespace,
             format!("indexed-u64-le:{draw_id:016x}/test-orbit"),
-            claim_key,
+            stream_key,
             0,
         )
         .expect("test address is valid")
@@ -1155,7 +1141,7 @@ mod provenance_regression_tests {
             role,
             mass_msun,
             radius_rsun: 0.01,
-            provenance: StellarOrbitMemberProvenance::CurrentMassAndRadiusFromEvolution,
+            input_source: StellarOrbitMemberInputSource::CurrentMassAndRadiusFromEvolution,
         };
         let members = [
             member(1, StellarMemberRole::Primary, 1.0),
@@ -1227,7 +1213,7 @@ mod provenance_regression_tests {
             role,
             mass_msun,
             radius_rsun: 0.01,
-            provenance: StellarOrbitMemberProvenance::CurrentMassAndRadiusFromEvolution,
+            input_source: StellarOrbitMemberInputSource::CurrentMassAndRadiusFromEvolution,
         };
         let members = [
             member(1, StellarMemberRole::Primary, 1.0),
@@ -1292,11 +1278,8 @@ mod provenance_regression_tests {
                     .and_then(|value| u64::from_str_radix(value, 16).ok())
                     .expect("published scale address retains its indexed entity");
                 assert_eq!(draw_id, stable_orbit_draw_id(system_id, 1, slot));
-                let mut replay_rng = domain_rng(
-                    seed,
-                    scale_address.prescription_namespace.as_bytes(),
-                    Some(draw_id),
-                );
+                let mut replay_rng =
+                    domain_rng(seed, scale_address.draw_namespace.as_bytes(), Some(draw_id));
                 let scale_model = sampler.model.solar_type_scale;
                 let normal = Normal::new(
                     scale_model.log10_period_days_mean,

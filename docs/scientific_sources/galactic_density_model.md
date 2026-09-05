@@ -4,7 +4,7 @@ This note records a defensible **first-pass, axisymmetric stellar number-density
 
 ## Recommended prototype parameters
 
-| Parameter | Prototype value | Meaning and provenance |
+| Parameter | Prototype value | Meaning and source note |
 |---|---:|---|
 | Solar Galactocentric radius, `R_sun` | 8.178 kpc | Geometric S2-orbit measurement: 8.178 ± 0.013 (stat.) ± 0.022 (sys.) kpc |
 | Local stellar number density, `n_sun` | 0.0799 stars pc⁻³ | CNS5 25-pc census; this counts stars, not stellar systems or brown dwarfs |
@@ -88,4 +88,4 @@ Also, McMillan's halo component is a **dark-matter halo**. Its density must neve
 
 Version 1 deliberately ignores spiral arms, warp, flare, streams, clusters, the nuclear stellar disc/cluster, dust-selection effects, and local vertical asymmetries. It is appropriate for testing deterministic sampling and large-scale plots, not precision prediction at an arbitrary Galactic coordinate.
 
-The code/config should preserve provenance and semantics in parameter names, for example `stellar_number_density_per_pc3`, `bulge_mass_density_msun_per_pc3`, and `geometric_thick_disk`, so later work cannot silently mix units or interpretations.
+The code/config should preserve units and semantics in parameter names, for example `stellar_number_density_per_pc3`, `bulge_mass_density_msun_per_pc3`, and `geometric_thick_disk`, so later work cannot silently mix units or interpretations.

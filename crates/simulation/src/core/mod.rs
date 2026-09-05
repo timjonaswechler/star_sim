@@ -6,10 +6,6 @@ use rand_distr::{Distribution, Normal, Poisson};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-pub mod provenance;
-
-pub use provenance::*;
-
 mod catalog;
 mod explicit_planets;
 mod galactic_sampling;

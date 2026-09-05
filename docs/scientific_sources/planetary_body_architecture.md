@@ -83,7 +83,7 @@ Exomoons also remain unsupported in V1. A moon requires planet mass, planet radi
 5. FGK giants: if the existing gate is positive, draw one `M sin i` and period from the Cumming density in its exact domain; otherwise keep properties unresolved.
 6. Derive semimajor axis by Kepler's law.
 7. Reject candidates outside the conservative S-type policy boundary without replacement and record the reason.
-8. Store radius-based class probabilities and provenance; do not assert bulk composition.
+8. Store radius-based class probabilities and document the source choice; do not assert bulk composition.
 
 ### Architecture V2
 

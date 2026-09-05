@@ -50,9 +50,9 @@ fn random_draw_scope_assigns_the_versioned_address_to_each_index() {
         (
             address.algorithm.as_str(),
             address.algorithm_version.as_str(),
-            address.prescription_namespace.as_str(),
+            address.draw_namespace.as_str(),
             address.stable_object_id.as_str(),
-            address.claim_key.as_str(),
+            address.stream_key.as_str(),
             address.bounded_attempt_index,
         ),
         (

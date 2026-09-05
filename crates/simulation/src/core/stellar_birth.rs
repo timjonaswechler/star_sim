@@ -2,17 +2,11 @@
 
 use super::*;
 
-pub(crate) const PRIMARY_MASS_PRESCRIPTION_NAMESPACE: &str = "stellar_birth/primary_mass/v1";
-pub(crate) const COMPANION_MASS_RATIO_PRESCRIPTION_NAMESPACE: &str =
-    "stellar_birth/companion_mass_ratio/v1";
-pub(crate) const INITIAL_STELLAR_MASS_CLAIM_KEY: &str = "initial_stellar_mass_msolar";
-pub(crate) const COMPANION_MASS_RATIO_CLAIM_KEY: &str = "companion_mass_ratio";
-pub(crate) const STELLAR_MEMBER_ROLE_CLAIM_KEY: &str = "stellar_member_role";
+const COMPANION_MASS_RATIO_DRAW_NAMESPACE: &str = "stellar_birth/companion_mass_ratio/v1";
+const COMPANION_MASS_RATIO_STREAM_KEY: &str = "companion_mass_ratio";
 
-pub(crate) fn stellar_member_object_id(system_id: u64, member_id: u64) -> ObjectId {
-    ObjectId::from(format!(
-        "indexed-u64-le:{system_id:016x}/stellar-member:{member_id:016x}"
-    ))
+fn stellar_member_draw_object_id(system_id: u64, member_id: u64) -> String {
+    format!("indexed-u64-le:{system_id:016x}/stellar-member:{member_id:016x}")
 }
 
 /// Two-segment stellar initial mass function, dN/dm proportional to m^-alpha.
@@ -159,9 +153,9 @@ impl StellarBirthMassSampler {
                     .max(self.model.minimum_companion_mass_msun / primary_mass_msun);
                 let member_id = stable_member_id(system_id, rank);
                 let draw_scope = RandomDrawScope::new(
-                    COMPANION_MASS_RATIO_PRESCRIPTION_NAMESPACE,
-                    stellar_member_object_id(system_id, member_id),
-                    COMPANION_MASS_RATIO_CLAIM_KEY,
+                    COMPANION_MASS_RATIO_DRAW_NAMESPACE,
+                    stellar_member_draw_object_id(system_id, member_id),
+                    COMPANION_MASS_RATIO_STREAM_KEY,
                 )
                 .expect("static companion draw identity is valid");
                 let draw = DeterministicDraws::new(seed).uniform(&draw_scope.at(0));

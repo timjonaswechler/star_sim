@@ -1,7 +1,7 @@
 //! Deterministic, order-independent random draws.
 //!
 //! A uniform draw is a reproducible sample in `[0, 1)`, not a model probability itself.
-//! Callers compare it with a probability supplied by a generating prescription.
+//! Callers compare it with a probability supplied by their model code.
 
 use std::{
     sync::mpsc::{Receiver, sync_channel},
@@ -10,8 +10,8 @@ use std::{
 
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
-
-use super::{ObjectId, ProvenanceError, RandomDrawAddress};
+use serde::{Deserialize, Serialize};
+use thiserror::Error;
 
 const ALGORITHM: &str = "blake3-xof";
 const ALGORITHM_VERSION: &str = "1";
@@ -22,32 +22,106 @@ const F64_UNIT_SCALE: f64 = 1.0 / ((1_u64 << 53) as f64);
 const PREFETCHED_CHUNK_CAPACITY: usize = 2;
 const MAX_VALUES_PER_CHUNK: usize = 1_048_576;
 
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
+pub enum RandomDrawError {
+    #[error("{field} must not be empty")]
+    EmptyField { field: &'static str },
+}
+
+/// Stable address for one deterministic random draw.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(try_from = "RandomDrawAddressWire")]
+pub struct RandomDrawAddress {
+    pub algorithm: String,
+    pub algorithm_version: String,
+    pub draw_namespace: String,
+    pub stable_object_id: String,
+    pub stream_key: String,
+    pub bounded_attempt_index: u32,
+}
+
+#[derive(Deserialize)]
+struct RandomDrawAddressWire {
+    algorithm: String,
+    algorithm_version: String,
+    draw_namespace: String,
+    stable_object_id: String,
+    stream_key: String,
+    bounded_attempt_index: u32,
+}
+
+impl RandomDrawAddress {
+    pub fn new(
+        algorithm: impl Into<String>,
+        algorithm_version: impl Into<String>,
+        draw_namespace: impl Into<String>,
+        stable_object_id: impl Into<String>,
+        stream_key: impl Into<String>,
+        bounded_attempt_index: u32,
+    ) -> Result<Self, RandomDrawError> {
+        let address = Self {
+            algorithm: algorithm.into(),
+            algorithm_version: algorithm_version.into(),
+            draw_namespace: draw_namespace.into(),
+            stable_object_id: stable_object_id.into(),
+            stream_key: stream_key.into(),
+            bounded_attempt_index,
+        };
+        address.validate()?;
+        Ok(address)
+    }
+
+    pub fn validate(&self) -> Result<(), RandomDrawError> {
+        validate_text(&self.algorithm, "algorithm")?;
+        validate_text(&self.algorithm_version, "algorithm_version")?;
+        validate_text(&self.draw_namespace, "draw_namespace")?;
+        validate_text(&self.stable_object_id, "stable_object_id")?;
+        validate_text(&self.stream_key, "stream_key")?;
+        Ok(())
+    }
+}
+
+impl TryFrom<RandomDrawAddressWire> for RandomDrawAddress {
+    type Error = RandomDrawError;
+
+    fn try_from(value: RandomDrawAddressWire) -> Result<Self, Self::Error> {
+        Self::new(
+            value.algorithm,
+            value.algorithm_version,
+            value.draw_namespace,
+            value.stable_object_id,
+            value.stream_key,
+            value.bounded_attempt_index,
+        )
+    }
+}
+
 /// Stable identity shared by an indexed sequence of related random draws.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RandomDrawScope {
-    prescription_namespace: String,
-    stable_object_id: ObjectId,
-    claim_key: String,
+    draw_namespace: String,
+    stable_object_id: String,
+    stream_key: String,
 }
 
 impl RandomDrawScope {
     pub fn new(
-        prescription_namespace: impl Into<String>,
-        stable_object_id: impl Into<ObjectId>,
-        claim_key: impl Into<String>,
-    ) -> Result<Self, ProvenanceError> {
+        draw_namespace: impl Into<String>,
+        stable_object_id: impl Into<String>,
+        stream_key: impl Into<String>,
+    ) -> Result<Self, RandomDrawError> {
         let address = RandomDrawAddress::new(
             ALGORITHM,
             ALGORITHM_VERSION,
-            prescription_namespace,
+            draw_namespace,
             stable_object_id,
-            claim_key,
+            stream_key,
             0,
         )?;
         Ok(Self {
-            prescription_namespace: address.prescription_namespace,
+            draw_namespace: address.draw_namespace,
             stable_object_id: address.stable_object_id,
-            claim_key: address.claim_key,
+            stream_key: address.stream_key,
         })
     }
 
@@ -56,9 +130,9 @@ impl RandomDrawScope {
         RandomDrawAddress {
             algorithm: ALGORITHM.to_owned(),
             algorithm_version: ALGORITHM_VERSION.to_owned(),
-            prescription_namespace: self.prescription_namespace.clone(),
+            draw_namespace: self.draw_namespace.clone(),
             stable_object_id: self.stable_object_id.clone(),
-            claim_key: self.claim_key.clone(),
+            stream_key: self.stream_key.clone(),
             bounded_attempt_index,
         }
     }
@@ -200,14 +274,13 @@ impl Drop for PrefetchedDrawStream {
 fn indexed_chacha8_uniform(seed: u64, address: &RandomDrawAddress) -> f64 {
     let index = address
         .stable_object_id
-        .as_str()
         .strip_prefix("indexed-u64-le:")
         .and_then(|value| value.split('/').next())
         .and_then(|value| u64::from_str_radix(value, 16).ok())
         .expect("indexed ChaCha8 draw object must start with indexed-u64-le:<hex>");
     let mut input = Vec::with_capacity(64);
     input.extend_from_slice(b"star_sim/");
-    input.extend_from_slice(address.prescription_namespace.as_bytes());
+    input.extend_from_slice(address.draw_namespace.as_bytes());
     input.extend_from_slice(&seed.to_le_bytes());
     input.extend_from_slice(&index.to_le_bytes());
     let mut rng = ChaCha8Rng::from_seed(*blake3::hash(&input).as_bytes());
@@ -222,9 +295,9 @@ fn address_hasher(seed: u64, address: &RandomDrawAddress) -> blake3::Hasher {
         seed,
         &address.algorithm,
         &address.algorithm_version,
-        &address.prescription_namespace,
-        address.stable_object_id.as_str(),
-        &address.claim_key,
+        &address.draw_namespace,
+        &address.stable_object_id,
+        &address.stream_key,
     )
 }
 
@@ -233,9 +306,9 @@ fn scope_hasher(seed: u64, scope: &RandomDrawScope) -> blake3::Hasher {
         seed,
         ALGORITHM,
         ALGORITHM_VERSION,
-        &scope.prescription_namespace,
-        scope.stable_object_id.as_str(),
-        &scope.claim_key,
+        &scope.draw_namespace,
+        &scope.stable_object_id,
+        &scope.stream_key,
     )
 }
 
@@ -243,23 +316,31 @@ fn scoped_hasher(
     seed: u64,
     algorithm: &str,
     algorithm_version: &str,
-    prescription_namespace: &str,
+    draw_namespace: &str,
     stable_object_id: &str,
-    claim_key: &str,
+    stream_key: &str,
 ) -> blake3::Hasher {
     let mut hasher = blake3::Hasher::new_derive_key(DERIVE_KEY_CONTEXT);
     hasher.update(&seed.to_le_bytes());
     update_field(&mut hasher, algorithm);
     update_field(&mut hasher, algorithm_version);
-    update_field(&mut hasher, prescription_namespace);
+    update_field(&mut hasher, draw_namespace);
     update_field(&mut hasher, stable_object_id);
-    update_field(&mut hasher, claim_key);
+    update_field(&mut hasher, stream_key);
     hasher
 }
 
 fn update_field(hasher: &mut blake3::Hasher, value: &str) {
     hasher.update(&(value.len() as u64).to_le_bytes());
     hasher.update(value.as_bytes());
+}
+
+fn validate_text(value: &str, field: &'static str) -> Result<(), RandomDrawError> {
+    if value.is_empty() {
+        Err(RandomDrawError::EmptyField { field })
+    } else {
+        Ok(())
+    }
 }
 
 fn uniform_from_bytes(bytes: [u8; 8]) -> f64 {

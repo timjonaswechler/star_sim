@@ -124,7 +124,7 @@ alpha = 1.0   (0.70-1.30)
 beta  = 1.2   (1.0-1.4)
 ```
 
-This is a Bernoulli probability for **one or more detectable giants**, not a mean giant count. V1 draws `has_cps_giant_planet ~ Bernoulli(p_giant)`. Evaluate it only inside the measured stellar mass and `[Fe/H]` rectangle and only when `0 <= p_giant <= 1`; outside it, return `OutsideGiantOccurrenceCalibration` rather than clipping to one or extrapolating. On the main sequence, `current_mass_msun` is the quantity closest to the survey's inferred present stellar mass. Preserve initial mass as provenance but do not silently use it in this empirical equation.
+This is a Bernoulli probability for **one or more detectable giants**, not a mean giant count. V1 draws `has_cps_giant_planet ~ Bernoulli(p_giant)`. Evaluate it only inside the measured stellar mass and `[Fe/H]` rectangle and only when `0 <= p_giant <= 1`; outside it, return `OutsideGiantOccurrenceCalibration` rather than clipping to one or extrapolating. On the main sequence, `current_mass_msun` is the quantity closest to the survey's inferred present stellar mass. Keep initial mass available as an input, but do not silently use it in this empirical equation.
 
 The relation includes M dwarfs, FGK dwarfs, and intermediate-mass subgiants in its source sample, but it does not identify planet radii, exact masses, periods, or multiplicity. A true giant-planet population generator will need a conditional mass-period distribution after this occurrence gate.
 
@@ -172,7 +172,7 @@ This is not a claim that evolved or remnant stars cannot host planets. It preven
 
 The current stellar-evolution snapshot supplies the host state but no planet-survival calculation. Consequently, copying a main-sequence occurrence rate onto an RGB, AGB, or white-dwarf host would manufacture a present-day population. The Johnson giant relation used subgiants to estimate correlations with stellar mass and metallicity, but it is not a phase-by-phase survival prescription across the project's detailed EEP states.
 
-Within the supported main-sequence sample, v1 has no explicit age factor. The Kepler field-star age distribution is implicit in its measured occurrence rates, and these sources do not establish a universal separable multiplier `f(age)` for all planet classes. Preserve age in the input/provenance and set `HostAgeDependenceNotModeled`; do not invent a monotonic decay law.
+Within the supported main-sequence sample, v1 has no explicit age factor. The Kepler field-star age distribution is implicit in its measured occurrence rates, and these sources do not establish a universal separable multiplier `f(age)` for all planet classes. Preserve age in the input and set `HostAgeDependenceNotModeled`; do not invent a monotonic decay law.
 
 ## Deterministic sampling and system ownership
 

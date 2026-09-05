@@ -22,9 +22,9 @@ versus radius space than the FGK sample.[Sibthorpe et al. 2018](https://doi.org/
 
 Adopt this evidence boundary:
 
-| Generated claim | Evidence level | Recommended model |
+| Generated output | Source basis | Recommended model |
 |---|---|---|
-| A cold dust excess would be detectable in the DEBRIS survey domain | `Empirical` | Sample a survey-specific detection channel by host class, preserving wavelength, threshold, and completeness provenance. The measured rates are at least `24 +/- 5%` at 100 micrometres for A stars and `17.1% +2.6/-2.3%` across F--K stars.[Thureau et al. 2014](https://doi.org/10.1093/mnras/stu1864) [Sibthorpe et al. 2018](https://doi.org/10.1093/mnras/stx3188) |
+| A cold dust excess would be detectable in the DEBRIS survey domain | `Empirical` | Sample a survey-specific detection channel by host class, documenting wavelength, threshold, and completeness assumptions. The measured rates are at least `24 +/- 5%` at 100 micrometres for A stars and `17.1% +2.6/-2.3%` across F--K stars.[Thureau et al. 2014](https://doi.org/10.1093/mnras/stu1864) [Sibthorpe et al. 2018](https://doi.org/10.1093/mnras/stx3188) |
 | A warm/habitable-zone dust signal and its level | `Empirical` only inside HOSTS coverage | Draw the observable in zodis from a fitted luminosity distribution, not an `Asteroid Belt` occurrence. The completed 38-star HOSTS survey had 10 significant excesses; its Sun-like subsample had a best-fit median of 3 zodis and about 20% were substantially dustier.[Ertel et al. 2020](https://doi.org/10.3847/1538-3881/ab7817) |
 | Existence and initial mass of an unseen planetesimal reservoir | `PhysicalProxy` | Draw a latent reservoir, evolve it, derive dust, and forward-model detectability. Do not relabel a non-detection as absence: the DEBRIS M-star comparison demonstrates that raw detection rates change with physical sensitivity.[Lestrade et al. 2025](https://arxiv.org/abs/2502.04441) |
 | Radius of a bright, resolved outer belt | `Empirical` conditional model, otherwise `PhysicalProxy` | Use the resolved-belt relation `R = 73 (+6/-6) au * (L_star/L_sun)^(0.19 +/- 0.04)` with about 17% intrinsic scatter only for the selected population it describes; attach the source domain and selection warning.[Matrà et al. 2018](https://doi.org/10.3847/1538-4357/aabcc4) |
@@ -149,7 +149,7 @@ rates. Main-belt models require collisional disruption plus dynamical loss;
 Bottke et al. constrain them against the observed asteroid size distribution,
 asteroid families, Vesta, meteorite exposure ages, and cratering records.[Bottke et al. 2005b](https://doi.org/10.1016/j.icarus.2005.04.001)
 This supports a rocky-reservoir size-frequency proxy, with an explicit
-`solar_system_transfer` provenance tag, rather than individually materialising
+`solar_system_transfer` model note, rather than individually materialising
 millions of asteroids.
 
 For an outer reservoir, the OSSOS debiased model is a stronger basis for the

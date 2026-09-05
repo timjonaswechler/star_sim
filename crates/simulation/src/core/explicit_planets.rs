@@ -1,4 +1,4 @@
-//! Explicit planet realization and candidate provenance.
+//! Explicit planet realization and candidate diagnostics.
 
 use super::*;
 

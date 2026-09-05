@@ -2,11 +2,6 @@
 
 use super::*;
 
-mod provenance;
-mod provenance_values;
-
-pub use provenance_values::*;
-
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct GeneratedStellarSystem {
     pub id: u64,
@@ -49,8 +44,8 @@ pub struct StellarCatalogSystem {
     pub orbital_hierarchy: Result<StellarOrbitalHierarchy, StellarOrbitalHierarchyError>,
     /// Every immutable bounded placement attempt rejected before the accepted result or exhaustion.
     pub orbital_hierarchy_failed_attempts: Vec<StellarOrbitalHierarchyAttemptDiagnostic>,
-    /// Inputs actually supplied to orbital hierarchy generation when construction reached that seam.
-    pub orbital_member_inputs: Vec<StellarOrbitMemberInputProvenance>,
+    /// Inputs actually supplied to orbital hierarchy generation when construction reached that point.
+    pub orbital_member_inputs: Vec<StellarOrbitMemberInputSummary>,
     pub members: Vec<StellarCatalogMember>,
 }
 
@@ -60,21 +55,6 @@ pub struct GeneratedStellarCatalog {
     pub radius_pc: f64,
     pub expected_system_count: f64,
     pub systems: Vec<StellarCatalogSystem>,
-}
-
-/// A generated catalog paired with its validated scientific provenance graph.
-#[derive(Debug, Clone, PartialEq)]
-pub struct ProvenanceBearingStellarCatalog {
-    pub catalog: GeneratedStellarCatalog,
-    pub provenance: ProvenanceDocument<StellarClaimValue>,
-}
-
-#[derive(Debug, Error)]
-pub enum StellarCatalogGenerationError {
-    #[error(transparent)]
-    GenerateCatalog(#[from] StellarRegionError),
-    #[error(transparent)]
-    BuildProvenance(#[from] ProvenanceError),
 }
 
 #[derive(Debug, Error)]
@@ -98,19 +78,12 @@ pub enum StellarCatalogModelError {
 /// Generates one coherent present-day stellar catalog for the local 10-parsec sphere.
 #[derive(Debug, Clone)]
 pub struct StellarCatalogGenerator {
-    birth_mass_model: StellarBirthMassModel,
     region_generator: StellarRegionGenerator,
     history_sampler: PopulationHistorySampler,
-    population_history_model: PopulationHistoryModel,
     evolution_evaluator: StellarEvolutionEvaluator,
-    evolution_model_fingerprint: String,
-    planet_occurrence_model: PlanetOccurrenceModel,
     planet_occurrence_sampler: PlanetOccurrenceSampler,
-    orbital_hierarchy_model: StellarOrbitalHierarchyModel,
     orbital_hierarchy_sampler: StellarOrbitalHierarchySampler,
-    planetary_stability_model: PlanetaryStabilityModel,
     planetary_stability_evaluator: PlanetaryStabilityEvaluator,
-    explicit_planet_model: ExplicitPlanetModel,
     explicit_planet_generator: ExplicitPlanetGenerator,
 }
 
@@ -124,25 +97,17 @@ impl StellarCatalogGenerator {
         planetary_stability_model: PlanetaryStabilityModel,
         explicit_planet_model: ExplicitPlanetModel,
     ) -> Result<Self, StellarCatalogModelError> {
-        let evolution_model_fingerprint = scientific_model_fingerprint(&evolution_model);
         Ok(Self {
-            birth_mass_model: birth_mass_model.clone(),
             region_generator: StellarRegionGenerator::new(birth_mass_model)?,
             history_sampler: PopulationHistorySampler::new(population_history_model)?,
-            population_history_model,
             evolution_evaluator: StellarEvolutionEvaluator::new(evolution_model)?,
-            evolution_model_fingerprint,
-            planet_occurrence_model,
             planet_occurrence_sampler: PlanetOccurrenceSampler::new(planet_occurrence_model)?,
-            orbital_hierarchy_model,
             orbital_hierarchy_sampler: StellarOrbitalHierarchySampler::new(
                 orbital_hierarchy_model,
             )?,
-            planetary_stability_model,
             planetary_stability_evaluator: PlanetaryStabilityEvaluator::new(
                 planetary_stability_model,
             )?,
-            explicit_planet_model: explicit_planet_model.clone(),
             explicit_planet_generator: ExplicitPlanetGenerator::new(explicit_planet_model)?,
         })
     }
@@ -151,37 +116,8 @@ impl StellarCatalogGenerator {
         mut self,
         model: WhiteDwarfCoolingModel,
     ) -> Result<Self, WhiteDwarfCoolingError> {
-        self.evolution_model_fingerprint =
-            scientific_model_fingerprint(&(self.evolution_model_fingerprint.as_str(), &model));
         self.evolution_evaluator = self.evolution_evaluator.with_white_dwarf_cooling(model)?;
         Ok(self)
-    }
-
-    /// Generates a catalog and publishes claim-level provenance at the catalog seam.
-    ///
-    /// Internal generators remain provenance-agnostic; this method translates their
-    /// domain outputs into claims after ordinary catalog generation has completed.
-    pub fn generate_with_provenance(
-        &self,
-        seed: u64,
-        location: SampledGalacticLocation,
-    ) -> Result<ProvenanceBearingStellarCatalog, StellarCatalogGenerationError> {
-        let catalog = self.generate(seed, location)?;
-        let provenance = provenance::generate(
-            seed,
-            &catalog,
-            &self.birth_mass_model,
-            &self.population_history_model,
-            &self.evolution_model_fingerprint,
-            &self.orbital_hierarchy_model,
-            &self.planetary_stability_model,
-            &self.planet_occurrence_model,
-            &self.explicit_planet_model,
-        )?;
-        Ok(ProvenanceBearingStellarCatalog {
-            catalog,
-            provenance,
-        })
     }
 
     pub fn generate(
@@ -229,7 +165,8 @@ impl StellarCatalogGenerator {
                                 role: birth.role,
                                 mass_msun: birth.initial_mass_msun,
                                 radius_rsun: 0.0,
-                                provenance: StellarOrbitMemberProvenance::SingleMemberInitialMass,
+                                input_source:
+                                    StellarOrbitMemberInputSource::SingleMemberInitialMass,
                             });
                         }
                         let snapshot = match evolution.as_ref() {
@@ -258,25 +195,25 @@ impl StellarCatalogGenerator {
                             radius_rsun: snapshot
                                 .radius_rsun
                                 .ok_or(StellarOrbitalHierarchyError::MissingStellarRadius)?,
-                            provenance:
-                                StellarOrbitMemberProvenance::CurrentMassAndRadiusFromEvolution,
+                            input_source:
+                                StellarOrbitMemberInputSource::CurrentMassAndRadiusFromEvolution,
                         })
                     })
                     .collect();
                 let (orbital_member_inputs, orbital_hierarchy, orbital_hierarchy_failed_attempts) =
                     match orbit_inputs {
                         Ok(inputs) => {
-                            let provenance = inputs
+                            let input_summaries = inputs
                                 .iter()
-                                .map(|input| StellarOrbitMemberInputProvenance {
+                                .map(|input| StellarOrbitMemberInputSummary {
                                     member_id: input.id,
-                                    input_source: input.provenance,
+                                    input_source: input.input_source,
                                 })
                                 .collect();
                             let (hierarchy, failed_attempts) = self
                                 .orbital_hierarchy_sampler
                                 .generate_with_diagnostics(seed, system.id, &inputs);
-                            (provenance, hierarchy, failed_attempts)
+                            (input_summaries, hierarchy, failed_attempts)
                         }
                         Err(error) => (Vec::new(), Err(error), Vec::new()),
                     };
@@ -347,12 +284,6 @@ impl StellarCatalogGenerator {
     }
 }
 
-fn scientific_model_fingerprint(model: &impl std::fmt::Debug) -> String {
-    let mut hasher = blake3::Hasher::new();
-    hasher.update(format!("{model:?}").as_bytes());
-    hasher.finalize().to_hex()[..16].to_owned()
-}
-
 #[derive(Debug, Error)]
 pub enum StellarRegionError {
     #[error("region radius must be finite and greater than zero")]
@@ -420,7 +351,7 @@ impl StellarRegionGenerator {
             let system_id = stable_system_id(seed, index);
             let population_draw_scope = RandomDrawScope::new(
                 "stellar_region/system_population/v1",
-                ObjectId::from(format!("indexed-u64-le:{system_id:016x}/stellar-system")),
+                format!("indexed-u64-le:{system_id:016x}/stellar-system"),
                 "stellar_population",
             )
             .expect("static Stellar Population draw identity is valid");

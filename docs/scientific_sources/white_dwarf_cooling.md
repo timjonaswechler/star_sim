@@ -47,7 +47,7 @@ Each sequence is a chronological table. The official site specifies these fields
 
 | Column | Meaning | Source unit/encoding | Minimal v1 use |
 |---|---|---|---|
-| `#Mod` | row index | integer | provenance/testing |
+| `#Mod` | row index | integer | testing/source lookup |
 | `Teff` | effective temperature | K | return directly |
 | `Log(g)` | base-10 surface gravity | cgs | return directly |
 | `R` | radius | cm | convert to `R_sun` |
@@ -59,7 +59,7 @@ Each sequence is a chronological table. The official site specifies these fields
 | `Mx/M` | crystallized mass fraction | dimensionless | optional diagnostic |
 | `Log(qx)` | crystallization-front coordinate | logarithmic fraction | optional diagnostic |
 | `Lnu` | neutrino luminosity | erg s⁻¹ | optional diagnostic |
-| `Log(H/*)` ... `Log(O/*)` | total elemental mass fractions | base-10 | provenance only |
+| `Log(H/*)` ... `Log(O/*)` | total elemental mass fractions | base-10 | source table context only |
 
 These meanings and the thick/thin envelope definitions are stated on the [official sequence page](https://www.astro.umontreal.ca/~bergeron/CoolingModels/#EvolutionarySequences). The v1 conversions should use the same nominal solar units already used by the stellar-evolution module; do not introduce a second set of solar constants.
 

@@ -25,7 +25,7 @@ OrbitNode = Member(member_id)
                 period_days,
                 eccentricity,
                 mass_used_msun,
-                provenance,
+                input_source,
             }
 ```
 

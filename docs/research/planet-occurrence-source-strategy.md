@@ -57,7 +57,7 @@ Cold low-mass planets around specific FGK hosts beyond Hsu's limit are not direc
 3. **Use published syntheses as atomic owners.** Clanton & Gaudi already combine microlensing, RV, and imaging likelihoods; adding the constituent survey rates as further candidates would count the same constraint twice. ([Clanton & Gaudi 2016](https://doi.org/10.3847/0004-637X/819/2/125))
 4. **Condition distributions analytically.** When a source model spans an owned and an unowned interval, integrate/renormalise its differential model over the owned interval. Do not draw from the whole source and reject planets in another owner's domain, because that changes the intended mean and makes rejected occurrence dependent on implementation order.
 5. **Upper limits are distributions, not zeros or medians.** Preserve posterior samples or a censored representation for Hsu/Dressing low-completeness cells; do not treat an upper limit as a Poisson mean. ([Hsu et al. 2019](https://doi.org/10.3847/1538-3881/ab31ab); [Dressing & Charbonneau 2015](https://doi.org/10.1088/0004-637X/807/1/45))
-6. **Separate occurrence from architecture rejection.** A drawn empirical candidate keeps its source and rate provenance if a later whole-system stability check rejects it. A stability rejection must not trigger a replacement draw from another occurrence source.
+6. **Separate occurrence from architecture rejection.** A drawn candidate keeps its source and rate notes in the research record if a later whole-system stability check rejects it. A stability rejection must not trigger a replacement draw from another occurrence source.
 
 ## Roles for sources that are not owners
 
@@ -87,7 +87,7 @@ OccurrenceOwner {
 }
 ```
 
-At startup, validate pairwise intersections after host predicates have been normalised. Runtime generation first resolves the single owner, then samples that owner's occurrence posterior and source-native planet coordinates. Cross-observable properties are added later and carry their own evidence provenance.
+At startup, validate pairwise intersections after host predicates have been normalised. Runtime generation first resolves the single owner, then samples that owner's occurrence posterior and source-native planet coordinates. Cross-observable properties are added later and need their own documented source notes.
 
 ## Decisions this research does not make
 
@@ -101,7 +101,7 @@ Those are separate decisions because each can change an occurrence owner's effec
 
 ## Sharp follow-up decisions surfaced
 
-1. **Choose a probabilistic mass–radius–composition bridge and identity rule.** Decide when a radius-owned and mass-owned description can refer to the same latent body, and how an inferred property receives `PhysicalProxy` provenance.
+1. **Choose a probabilistic mass–radius–composition bridge and identity rule.** Decide when a radius-owned and mass-owned description can refer to the same latent body, and how an inferred property is marked as a model-derived estimate.
 2. **Choose host-property reweighting with marginal preservation.** Decide whether and how `[Fe/H]`, stellar mass, age, and Galactic population reweight an owner's cells without adding Johnson-like occurrence a second time.
 3. **Choose posterior and censoring semantics.** Decide whether one occurrence-rate posterior is sampled per ensemble, per stellar system, or represented as epistemic uncertainty outside the seed, and how upper-limit-only cells generate (or do not generate) candidates.
 4. **Choose binary-host occurrence ownership.** Decide which empirical/proxy models govern S-type and P-type systems as a function of stellar separation, instead of extrapolating single-star owners.

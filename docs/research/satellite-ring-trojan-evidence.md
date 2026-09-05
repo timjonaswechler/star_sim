@@ -16,7 +16,7 @@ The simulator can support all three structures, but it cannot assign a universal
 | Frequency and mass of extrasolar small-body Trojan swarms | `PhysicalProxy` or `Speculative` | There is no calibrated extrasolar occurrence rate. Tie the proxy to planetary architecture and reservoir history. |
 | Trojan 1:1 resonance, L4/L5 placement, and dynamical survival | `PhysicalProxy` | Enforce analytical eligibility and a multi-body stability check; the label is not `Empirical` because it is a dynamics model. |
 
-An empirical limit used to constrain a proxy does **not** turn the sampled property into `Empirical`. Provenance should therefore be stored per property: for example, a ring's `occurrence_probability` can be `PhysicalProxy`, its `occurrence_upper_bound` can be `Empirical`, and an unusual cosmetic colour variation can be `Speculative`.
+An empirical limit used to constrain a proxy does **not** turn the sampled property into `Empirical`. Evidence notes should therefore be documented per property: for example, a ring's occurrence probability can be model-derived, its occurrence upper bound can be measured, and an unusual cosmetic colour variation can be speculative.
 
 ## Natural-satellite systems
 

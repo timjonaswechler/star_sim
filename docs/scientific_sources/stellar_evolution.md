@@ -6,7 +6,7 @@ The recommended luminous-star backend is **MIST v1.2, non-rotating (`v/vcrit = 0
 
 This is a **single-star** model. The project's companions are evolved independently as coeval stars with shared initial composition. It does not model mass transfer, mergers, common envelopes, tidal effects, supernova disruption, rejuvenation, or chemically altered donor/accretor surfaces.
 
-## Exact v1 interface and provenance
+## Exact v1 interface and source notes
 
 Keep initial and present-day properties distinct:
 
@@ -47,7 +47,7 @@ StellarEvolutionOutput {
 
 Required flags and typed coverage results include `AlphaProjectedToSolarScaled`, `OutsideTrackGrid`, `IncompleteLowMetallicityPhases`, `WhiteDwarfCoolingNotBundled`, `RemnantPrescriptionDependent`, `UnsupportedCoreCollapse`, and `BinaryInteractionIgnored`. Preserve `initial_mass_msun`; never overwrite it with `current_mass_msun`.
 
-The existing alpha-corrected `[M/H]` may be used as the solar-scaled MIST metallicity coordinate in v1, with `AlphaProjectedToSolarScaled` whenever `[alpha/Fe] != 0`. This is an explicit approximation, not an alpha-enhanced track. `X`, `Y`, and `Z` validate composition and remain provenance; they are not three extra independent interpolation axes. The chosen grid's mixture and helium-enrichment law own the evolution calculation.
+The existing alpha-corrected `[M/H]` may be used as the solar-scaled MIST metallicity coordinate in v1, with `AlphaProjectedToSolarScaled` whenever `[alpha/Fe] != 0`. This is an explicit approximation, not an alpha-enhanced track. `X`, `Y`, and `Z` validate composition and remain diagnostic inputs; they are not three extra independent interpolation axes. The chosen grid's mixture and helium-enrichment law own the evolution calculation.
 
 Reject non-finite inputs, negative ages, `X <= 0`, `Y <= 0`, `Z <= 0`, or `|X+Y+Z-1|` outside the chemistry module's numerical tolerance. Do not silently clamp mass, age, or composition to a grid boundary.
 
@@ -171,7 +171,7 @@ The exact distributed numbering is:
 | `1409` | post-AGB onset, WD-progenitor branch only | post-AGB (`phase=6`) |
 | `1710` | WD cooling-sequence endpoint defined from central Coulomb coupling, WD-progenitor branch only | WD cooling (`phase=6`) |
 
-The implementation should therefore persist `track_branch = WhiteDwarfProgenitor | MassiveBurning` and the ordered primary-EEP list from each source header. `raw_phase` remains provenance and a broad plotting aid; it is not sufficient to disambiguate EEP `808`, and phase `6` does not distinguish an expanding post-AGB envelope from a cooling WD.
+The implementation should therefore persist `track_branch = WhiteDwarfProgenitor | MassiveBurning` and the ordered primary-EEP list from each source header. `raw_phase` remains a diagnostic input and broad plotting aid; it is not sufficient to disambiguate EEP `808`, and phase `6` does not distinguish an expanding post-AGB envelope from a cooling WD.
 
 For the detailed state enum, use these half-open intervals where the track contains the necessary endpoints:
 
